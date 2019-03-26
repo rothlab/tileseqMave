@@ -1,0 +1,13 @@
+Package: tileseqMave
+Title: TileSeq MAVE Analysis pipeline
+Version: 0.0.0.9000
+Authors@R: 'Jochen Weile <jochenweile@gmail.com> [aut,cre]'
+Description: Analyze TileSEQ data for Multiplexed Assays of Variant Effect (MAVE)
+Depends: R (>= 3.4.4)
+License: GPL-3 + file LICENSE.md
+Encoding: UTF-8
+LazyData: true
+Suggests: 
+    testthat
+Imports: mavevis, rapimave, hgvsParseR, yogitools, yogilog
+Remotes: github::VariantEffect/mavevis github::VariantEffect/rapimave, github::VariantEffect/hgvsParseR, github::jweile/yogitools
