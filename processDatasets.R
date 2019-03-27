@@ -2,6 +2,7 @@
 options(stringsAsFactors=FALSE)
 library(yogilog)
 library(mavevis)
+library(yogitools)
 
 drawGenopheno <- function(outdir,uniprot) {
 	scores <- read.csv(paste0(outdir,"mavedb_scores_perAA.csv"))
@@ -25,62 +26,8 @@ drawGenopheno <- function(outdir,uniprot) {
 	invisible(dev.off())
 }
 
-datasets <- as.data.frame(rbind(
-	c(
-		countfile = "workspace/input/HMGCR/rawData_S.txt",
-		regionfile = "workspace/input/HMGCR/regions.txt",
-		outdir = "workspace/output/HMGCR/",
-		uniprot = "P04035"
-	),
-	c(
-		countfile = "workspace/input/MTHFR/rawData_A222V_Q20_fol12.5.txt",
-		regionfile = "workspace/input/MTHFR/regions.txt",
-		outdir = "workspace/output/MTHFR/A222V/fol12/",
-		uniprot = "P42898"
-	),
-	c(
-		countfile = "workspace/input/MTHFR/rawData_A222V_Q20_fol25.txt",
-		regionfile = "workspace/input/MTHFR/regions.txt",
-		outdir = "workspace/output/MTHFR/A222V/fol25/",
-		uniprot = "P42898"
-	),
-	c(
-		countfile = "workspace/input/MTHFR/rawData_A222V_Q20_fol100.txt",
-		regionfile = "workspace/input/MTHFR/regions.txt",
-		outdir = "workspace/output/MTHFR/A222V/fol100/",
-		uniprot = "P42898"
-	),
-	c(
-		countfile = "workspace/input/MTHFR/rawData_A222V_fol200.txt",
-		regionfile = "workspace/input/MTHFR/regions.txt",
-		outdir = "workspace/output/MTHFR/A222V/fol200/",
-		uniprot = "P42898"
-	),
-	c(
-		countfile = "workspace/input/MTHFR/rawData_WT_Q20_fol12.5.txt",
-		regionfile = "workspace/input/MTHFR/regions.txt",
-		outdir = "workspace/output/MTHFR/WT/fol12/",
-		uniprot = "P42898"
-	),
-	c(
-		countfile = "workspace/input/MTHFR/rawData_WT_Q20_fol25.txt",
-		regionfile = "workspace/input/MTHFR/regions.txt",
-		outdir = "workspace/output/MTHFR/WT/fol25/",
-		uniprot = "P42898"
-	),
-	c(
-		countfile = "workspace/input/MTHFR/rawData_WT_Q20_fol100.txt",
-		regionfile = "workspace/input/MTHFR/regions.txt",
-		outdir = "workspace/output/MTHFR/WT/fol100/",
-		uniprot = "P42898"
-	),
-	c(
-		countfile = "workspace/input/MTHFR/rawData_WT_fol200.txt",
-		regionfile = "workspace/input/MTHFR/regions.txt",
-		outdir = "workspace/output/MTHFR/WT/fol200/",
-		uniprot = "P42898"
-	)
-))
+inputFile <- getArg("datasets",default="workspace/input/datasets_noCBS.csv")
+datasets <- read.csv(inputFile)
 
 for (i in 1:nrow(datasets)) {
 	with(datasets[i,],{
