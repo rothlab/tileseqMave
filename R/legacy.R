@@ -15,6 +15,27 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with tileseqMave.  If not, see <https://www.gnu.org/licenses/>.
 
+#' analyze tileseq counts from legacy pipeline
+#'
+#' This analysis function performs the following steps for each mutagenesis region:
+#' 1. Construction of HGVS variant descriptor strings.
+#' 2. Collapsing equivalent codons into amino acic change counts.
+#' 3. Error regularization at the level of pre- and post-selection counts.
+#' 4. Quality-based filtering filtering based on "Song's rule".
+#' 5. Fitness score calculation and error propagation.
+#' 6. Secondary error regularization at the level of fitness scores.
+#' 7. Determination of synonymous and nonsense medians and re-scaling of fitness scores.
+#' 8. Flooring of negative scores and adjustment of associated error.
+#' 9. Output in MaveDB format.
+#' 
+#' @param countfile the path to the "rawData.txt" file produced by the legacy pipeline.
+#' @param regionfile the path to a csv file describing the mutagenesis regions. Must contain columns 
+#'  'region', start', 'end', 'syn', 'stop', i.e. the region id, the start position, end position, and
+#'  and optional synonymous and stopm mean overrides.
+#' @param outdir path to desired output directory
+#' @param logger a yogilogger object to be used for logging
+#' @return nothing. output is written to various files in the output directory
+#' @export
 analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL) {
 
 	library(hgvsParseR)
@@ -59,8 +80,9 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL) 
 			"nonselect1","nonselect2","select1","select2",
 			"controlNS1","controlNS2","controlS1","controlS2"
 		) %in% colnames(rawCounts),
-		all(apply(regions,2,class)=="integer"),
-		c("region","start","end") %in% colnames(regions)
+		all(apply(regions[,1:3],2,class)=="integer"),
+		all(apply(regions[,4:5],2,class)=="numeric"),
+		c("region","start","end","syn","stop") %in% colnames(regions)
 	)
 
 	#make sure outdir ends with a "/"
@@ -163,6 +185,8 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL) 
 		regionStart <- regions[region.i,"start"]
 		regionEnd <- regions[region.i,"end"]
 		region.rows <- with(combiCountMuts,which(start >= regionStart & start <= regionEnd))
+		region.syn <- regions[region.i,"syn"]
+		region.stop <- regions[region.i,"stop"]
 
 		if (length(region.rows) < 1) {
 			logWarn(sprintf("No variants found for region %d! Skipping...",region.i))
@@ -200,6 +224,27 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL) 
 			mcv
 		}))
 
+		#draw scatterplots for means vs CV
+		pdfFile <- paste0(outdir,"region",region.i,"_regularizationInput.pdf")
+		pdf(pdfFile,6,9)
+		op <- par(mfrow=c(3,2))
+		with(as.data.frame(mcv),{
+			hist(nonselect.mean,breaks=100,col="gray",border=NA,main="")
+			hist(log10(nonselect.mean),breaks=100,col="gray",border=NA,main="")
+			plot(nonselect.mean,nonselect.cv,log="x",pch=".")
+			plot(nonselect.mean,select.cv,log="x",pch=".")
+			plot(nonselect.mean,controlNS.cv,log="x",pch=".")
+			plot(controlNS.mean,controlNS.cv,log="x",pch=".")
+		})
+		par(op)
+		invisible(dev.off())
+
+		exportCoefficients <- function(z) {
+			coef <- coefficients(z)
+			coef <- coef[order(abs(coef),decreasing=TRUE)]
+			paste(mapply(function(x,y)sprintf("%s = %.02f",x,y),x=names(coef),y=coef),collapse="; ")
+		}
+
 		#build regression input matrix by transforming to logspace and adding pseudocounts
 		model.in <- log10(mcv)
 		model.in <- as.data.frame(cbind(
@@ -223,8 +268,10 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL) 
 			.model.in <- if (length(dupli) > 0) model.in[,-dupli] else model.in
 			#perform regression
 			z <- lm(regr.formula,data=.model.in)
+			logInfo(paste("Regression coefficents for",cond,":",exportCoefficients(z)))
 			#calculate prior (log(cv)) from regressor
 			prior.lcv <- predict(z)
+			logInfo(sprintf("Prior PCC=%.02f",cor(10^prior.lcv,empiric.cv)))
 			#calculate bayesian regularization
 			bayes.cv <- bnl(2,2,10^prior.lcv,empiric.cv)
 			#calculate pessimistic regularization
@@ -345,11 +392,6 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL) 
 			)
 		}))
 
-		if (any(is.na(rawScores)) || any(is.infinite(rawScores$mean.lphi))) {
-			warning("Some values could not be calculated!")
-		}
-
-
 		##############
 		# 2nd round of regularization: This time for SD of scores
 		##############
@@ -382,6 +424,16 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL) 
 		rawScores$bsd.lphi=with(rawScores,abs(bsd.phi/(log(10)*mean.phi)))
 		rawScores$df=4
 
+		#####################
+		# Filter out broken values if any
+		#####################
+		broken <- which(is.na(rawScores$mean.lphi) | is.infinite(rawScores$mean.lphi))
+		if (length(broken) > 0) {
+			logWarn(sprintf("Values for %d variants could not be calculated!",
+				length(broken)
+			))
+			rawScores <- rawScores[-broken,]
+		}
 
 		################
 		# Plot results of regularization
@@ -398,10 +450,12 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL) 
 			xlab="Fitness score",ylab=expression(sigma),maxFreq=35,thresh=3
 		))
 		#Plot phiPrime vs regSD
-		with(rawScores[rawScores$bsd.lphi < 1,],topoScatter(phiPrime+.1,bsd.lphi,log="x",maxFreq=35,thresh=3,
-			resolution=40, xlab="Non-select count (per M.)", 
-			ylab=expression("Bayesian Regularized"~sigma)
-		))
+		if (any(rawScores$bsd.lphi < 1)) {
+			with(rawScores[rawScores$bsd.lphi < 1,],topoScatter(phiPrime+1,bsd.lphi,log="x",maxFreq=35,thresh=3,
+				resolution=40, xlab="Non-select count (per M.)", 
+				ylab=expression("Bayesian Regularized"~sigma)
+			))
+		}
 		# abline(0,1,col="gray",lty="dashed")
 		#Plot Empiric vs regularized
 		with(rawScores,topoScatter(sd.lphi,bsd.lphi,resolution=60,maxFreq=30,log="xy",
@@ -411,17 +465,21 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL) 
 		par(op)
 		invisible(dev.off())
 
-
 		#################
 		# Estimate Modes of synonymous and stop
 		#################
 
 		sdCutoff <- 0.3
 
+		if (with(rawScores,!any(grepl("Ter$",hgvsp) & bsd.lphi < sdCutoff) ||
+			!any(grepl("=$",hgvsp) & bsd.lphi < sdCutoff) )) {
+			sdCutoff <- 1
+		}
+
 		modes <- with(rawScores,{	
 			stops <- mean.lphi[which(grepl("Ter$",hgvsp) & bsd.lphi < sdCutoff)]
 			syns <- mean.lphi[which(grepl("=$",hgvsp) & bsd.lphi < sdCutoff)]
-			c(stop=median(stops),syn=median(syns))
+			c(stop=median(stops,na.rm=TRUE),syn=median(syns,na.rm=TRUE))
 		})
 
 
@@ -448,10 +506,12 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL) 
 		op <- par(mfrow=c(2,1))
 		plotStopSyn(rawScores,"Unfiltered",modes)
 		legend("topright",c("missense","synonymous","stop"),fill=c("gray","darkolivegreen3","firebrick3"))
-		plotStopSyn(rawScores[rawScores$bsd.lphi < sdCutoff,],
-			bquote(sigma["regularized"] < .(sdCutoff)),
-			modes
-		)
+		if (any(rawScores$bsd.lphi < sdCutoff)) {
+			plotStopSyn(rawScores[rawScores$bsd.lphi < sdCutoff,],
+				bquote(sigma["regularized"] < .(sdCutoff)),
+				modes
+			)
+		}
 		par(op)
 		invisible(dev.off())
 
@@ -464,6 +524,21 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL) 
 			"Scaling to synonymous (log(phi)=%.02f) and nonsense (log(phi)=%.02f) medians.",modes[["syn"]],modes[["stop"]]
 		))
 
+		#if manual overrides for the synonymous and stop modes were provided, use them
+		if (!is.na(region.syn)) {
+			logInfo(sprintf(
+				"Using manual override (=%.02f) for synonmous mode instead of automatically determined value (=%.02f).",region.syn,modes[["syn"]]
+			))
+			modes[["syn"]] <- region.syn
+		}
+		if (!is.na(region.stop)) {
+			logInfo(sprintf(
+				"Using manual override (=%.02f) for stop mode instead of automatically determined value (=%.02f).",region.stop,modes[["stop"]]
+			))
+			modes[["stop"]] <- region.stop
+		}
+
+		#apply the scaling
 		denom <- modes[["syn"]]-modes[["stop"]]
 		scoreMat <- with(rawScores,{
 			sd <- bsd.lphi/denom
