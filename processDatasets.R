@@ -3,6 +3,7 @@ options(stringsAsFactors=FALSE)
 library(yogilog)
 library(mavevis)
 library(yogitools)
+library(tileseqMave)
 
 drawGenopheno <- function(outdir,uniprot) {
 	scores <- read.csv(paste0(outdir,"mavedb_scores_perAA.csv"))
@@ -26,13 +27,17 @@ drawGenopheno <- function(outdir,uniprot) {
 	invisible(dev.off())
 }
 
-inputFile <- getArg("datasets",default="workspace/input/datasets_noCBS.csv")
+inputFile <- getArg("datasets",default="workspace/input/datasets.csv")
 datasets <- read.csv(inputFile)
 
 for (i in 1:nrow(datasets)) {
 	with(datasets[i,],{
+		logfile <- paste0(outdir,"legacyTileSeq.log")
+		if (file.exists(logfile)) {
+			file.remove(logfile)
+		}
 		analyzeLegacyTileseqCounts(countfile,regionfile,outdir,
-			logger=new.logger(paste0(outdir,"legacyTileSeq.log"))
+			logger=new.logger(logfile)
 		)
 		drawGenopheno(outdir,uniprot)
 	})
