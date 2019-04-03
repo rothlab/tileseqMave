@@ -11,3 +11,4 @@ Suggests:
     testthat
 Imports: mavevis, rapimave, hgvsParseR, yogitools, yogilog
 Remotes: github::VariantEffect/mavevis github::VariantEffect/rapimave, github::VariantEffect/hgvsParseR, github::jweile/yogitools
+RoxygenNote: 6.1.1
