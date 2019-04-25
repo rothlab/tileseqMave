@@ -81,7 +81,7 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL) 
 			"controlNS1","controlNS2","controlS1","controlS2"
 		) %in% colnames(rawCounts),
 		all(apply(regions[,1:3],2,class)=="integer"),
-		all(apply(regions[,4:5],2,class)=="numeric"),
+		all(apply(regions[,4:5],2,class) %in% c("integer","numeric","logical")),
 		c("region","start","end","syn","stop") %in% colnames(regions)
 	)
 
@@ -554,14 +554,21 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL) 
 		# Floor negatives and fix their excessive variances
 		##################
 
+		# targetScore <- -0.01
+		# toFix <- which(scores$sd > .3 & scores$score < targetScore)
+		# #the area under the part of the normal distribution that exceeds zero
+		# ps <- with(scores,pnorm(0,score[toFix],se[toFix],lower.tail=FALSE))
+		# equivalent.sds <- (-targetScore)/(qnorm(1-ps))
+
 		#the target null-like score towards which we will shift these values
-		targetScore <- -0.01
+		targetScore <- 0
+		#the quantile for which we want to keep the p-value fixed
+		quantile <- 1
 		#the row numbers containing the cases to be fixed
-		toFix <- which(scores$sd > .3 & scores$score < targetScore)
-		#the area under the part of the normal distribution that exceeds zero
-		ps <- with(scores,pnorm(0,score[toFix],se[toFix],lower.tail=FALSE))
+		toFix <- which(scores$score < 0)
 		#the equivalent sds of a normal distribution with the target mean based on the above area
-		equivalent.sds <- (-targetScore)/(qnorm(1-ps))
+		equivalent.sds <- with(scores[toFix,], sd*(quantile-targetScore)/(quantile-score))
+
 		#apply the fixed values to the table
 		scores$score[toFix] <- targetScore
 		scores$sd[toFix] <- equivalent.sds
