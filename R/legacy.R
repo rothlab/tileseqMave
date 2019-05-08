@@ -33,16 +33,20 @@
 #'  'region', start', 'end', 'syn', 'stop', i.e. the region id, the start position, end position, and
 #'  and optional synonymous and stopm mean overrides.
 #' @param outdir path to desired output directory
-#' @param logger a yogilogger object to be used for logging
+#' @param logger a yogilogger object to be used for logging (or NULL for simple printing)
 #' @return nothing. output is written to various files in the output directory
 #' @export
 analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL) {
 
 	library(hgvsParseR)
-	library(yogilog)
+	# library(yogilog)
 	library(yogitools)
 
 	options(stringsAsFactors=FALSE)
+
+	if (!is.null(logger)) {
+		stopifnot(inherits(logger,"yogilogger"))
+	}
 
 	logInfo <- function(...) {
 		if (!is.null(logger)) {
@@ -189,10 +193,10 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL) 
 		region.stop <- regions[region.i,"stop"]
 
 		if (length(region.rows) < 1) {
-			logWarn(sprintf("No variants found for region %d! Skipping...",region.i))
+			logWarn(sprintf("\n\nNo variants found for region %d! Skipping...",region.i))
 			next
 		} else {
-			logInfo(sprintf("Processing region %d. (pos. %d-%d)",region.i,regionStart,regionEnd))
+			logInfo(sprintf("\n\nProcessing region %d. (pos. %d-%d)",region.i,regionStart,regionEnd))
 		}
 
 		localCombiCounts <- combiCounts[region.rows,]
@@ -208,7 +212,8 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL) 
 		}
 
 		#a helper function to construct an appropriately sized useful pseudocount 
-		pseudocount <- function(xs) if (all(xs==0)) 1e-4 else min(xs[xs!=0],na.rm=TRUE)/10
+		# pseudocount <- function(xs) if (all(xs==0)) 1e-4 else min(xs[xs!=0],na.rm=TRUE)/10
+		ps <- 1e-4
 
 		#calculate replicate means and coefficient of variation (CV) for each condition
 		# (we use CV here instead of stdev, because that's what anti-correlates with read depth
@@ -216,7 +221,7 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL) 
 		mcv <- do.call(cbind,lapply(condNames,function(cond) {
 			mcv <- t(apply(localCombiCounts[,condMatrix[cond,]],1,function(xs){
 				m <- mean(xs,na.rm=TRUE)
-				ps <- pseudocount(m)
+				# ps <- pseudocount(m)
 				m <- m+ps
 				c(m, (ps+sd(xs,na.rm=TRUE))/m)
 			}))
@@ -229,7 +234,7 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL) 
 		pdf(pdfFile,6,9)
 		op <- par(mfrow=c(3,2))
 		with(as.data.frame(mcv),{
-			hist(nonselect.mean,breaks=100,col="gray",border=NA,main="")
+			hist(log10(select.mean),breaks=100,col="gray",border=NA,main="")
 			hist(log10(nonselect.mean),breaks=100,col="gray",border=NA,main="")
 			plot(nonselect.mean,nonselect.cv,log="x",pch=".")
 			plot(nonselect.mean,select.cv,log="x",pch=".")
@@ -357,10 +362,14 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL) 
 			(mr^2)/(ms^2) * (vr/(mr^2) - 2*(covrs/(mr*ms)) + (vs/ms^2))
 		}
 
+		#pseudocounts
+		c.ps <- 1e-4
+		phivar.ps <- 1e-4
+
 		rawScores <- as.df(lapply(1:nrow(combiCountsFiltered),function(i) {
 			#mean numerator
 			mnum <- combiCountsFiltered[i,"select.mean"]-combiCountsFiltered[i,"controlS.mean"]
-			if (mnum < 1e-3) mnum <- 1e-3 #apply flooring, so the wt control can't result in negatives counts
+			if (mnum < c.ps) mnum <- c.ps #apply flooring, so the wt control can't result in negatives counts
 			#mean denominator
 			mden <- combiCountsFiltered[i,"nonselect.mean"]-combiCountsFiltered[i,"controlNS.mean"]
 			#variance numerator
@@ -377,7 +386,7 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL) 
 			#Use helper function to estimate variance for phi
 			phivar <- approx.ratio.var(mnum,mden,vnum,vden,covnumden)
 			#As this is based on a Taylor approximation, we can sometimes get freaky negative values
-			if (phivar < 1e-4) phivar <- 1e-4
+			if (phivar < phivar.ps) phivar <- phivar.ps
 
 			phi <- mnum/mden
 			phisd <- sqrt(phivar)
@@ -385,12 +394,21 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL) 
 				hgvsp=combiCountsFiltered[i,"hgvsp"],
 				hgvsc=combiCountsFiltered[i,"hgvsc"],
 				phiPrime=min(combiCountsFiltered[i,c("nonselect1","nonselect2")]),
+				mean.c=mnum,
 				mean.phi=phi,
 				sd.phi=phisd,
 				mean.lphi=log10(phi),
 				sd.lphi=abs(phisd/(log(10)*phi))
 			)
 		}))
+
+		#Filter out for selection bottlenecking
+		flagged <- rawScores$mean.c <= c.ps
+		logInfo(sprintf(
+			"Filtering out %d variants (=%.02f%%) due to likely selection bottlenecking.",
+			sum(flagged), 100*sum(flagged)/nrow(rawScores)
+		))
+		rawScores <- rawScores[!flagged,]
 
 		##############
 		# 2nd round of regularization: This time for SD of scores
@@ -450,7 +468,7 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL) 
 			xlab="Fitness score",ylab=expression(sigma),maxFreq=35,thresh=3
 		))
 		#Plot phiPrime vs regSD
-		if (any(rawScores$bsd.lphi < 1)) {
+		if (sum(rawScores$bsd.lphi < 1) > 1) {
 			with(rawScores[rawScores$bsd.lphi < 1,],topoScatter(phiPrime+1,bsd.lphi,log="x",maxFreq=35,thresh=3,
 				resolution=40, xlab="Non-select count (per M.)", 
 				ylab=expression("Bayesian Regularized"~sigma)
@@ -471,9 +489,15 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL) 
 
 		sdCutoff <- 0.3
 
+		#if we can't find any syn/stop below the cutoff, increase the cutoff to 1
 		if (with(rawScores,!any(grepl("Ter$",hgvsp) & bsd.lphi < sdCutoff) ||
 			!any(grepl("=$",hgvsp) & bsd.lphi < sdCutoff) )) {
 			sdCutoff <- 1
+			#if we still can't find any below the new cutoff, get rid of it altogether
+			if (with(rawScores,!any(grepl("Ter$",hgvsp) & bsd.lphi < sdCutoff) ||
+				!any(grepl("=$",hgvsp) & bsd.lphi < sdCutoff) )) {
+				sdCutoff <- Inf
+			}
 		}
 
 		modes <- with(rawScores,{	

@@ -7,11 +7,14 @@ library(tileseqMave)
 
 drawGenopheno <- function(outdir,uniprot) {
 	scores <- read.csv(paste0(outdir,"mavedb_scores_perAA.csv"))
-	wtseq <- getUniprotSeq(uniprot)
+	# wtseq <- getUniprotSeq(uniprot)
 	mutations <- parseHGVS(scores$hgvs_pro,aacode=1)
 	mutations$type[which(mutations$variant=="*")] <- "nonsense"
-
-	wt.aa <- toChars(wtseq)
+	
+	ancestrals <- with(mutations,tapply(ancestral,start,unique))
+	wt.aa <- ancestrals[as.character(1:max(mutations$start))]
+	wt.aa[[1]] <- "M"
+	# wt.aa <- toChars(wtseq)
 	img.width <- length(wt.aa) * 0.06 + 2.5
 	pdf(paste0(outdir,"genophenogram.pdf"),width=img.width,height=2.5)
 	genophenogram(
@@ -36,8 +39,11 @@ for (i in 1:nrow(datasets)) {
 		if (file.exists(logfile)) {
 			file.remove(logfile)
 		}
+		logger <- new.logger(logfile)
+		logger$info("\n\nProcessing",countfile)
+		logger$info("Output directory:",outdir,"\n\n")
 		analyzeLegacyTileseqCounts(countfile,regionfile,outdir,
-			logger=new.logger(logfile)
+			logger=logger
 		)
 		drawGenopheno(outdir,uniprot)
 	})
