@@ -35,6 +35,9 @@ datasets <- read.csv(inputFile)
 
 for (i in 1:nrow(datasets)) {
 	with(datasets[i,],{
+		#make sure the output directory exists
+		dir.create(outdir,recursive=TRUE,showWarnings=FALSE)
+		#reset the log file and create logger
 		logfile <- paste0(outdir,"legacyTileSeq.log")
 		if (file.exists(logfile)) {
 			file.remove(logfile)
@@ -42,9 +45,12 @@ for (i in 1:nrow(datasets)) {
 		logger <- new.logger(logfile)
 		logger$info("\n\nProcessing",countfile)
 		logger$info("Output directory:",outdir,"\n\n")
+		#run analysis
 		analyzeLegacyTileseqCounts(countfile,regionfile,outdir,
+			inverseAssay=(uniprot=="Q96IV0"),
 			logger=logger
 		)
+		#draw genophenogram
 		drawGenopheno(outdir,uniprot)
 	})
 }

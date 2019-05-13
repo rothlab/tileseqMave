@@ -33,10 +33,12 @@
 #'  'region', start', 'end', 'syn', 'stop', i.e. the region id, the start position, end position, and
 #'  and optional synonymous and stopm mean overrides.
 #' @param outdir path to desired output directory
+#' @param inverseAssay a boolean flag to indicate that the experiment was done with an inverse assay
+#'       i.e. protein function leading to decreased fitness. Defaults to FALSE
 #' @param logger a yogilogger object to be used for logging (or NULL for simple printing)
 #' @return nothing. output is written to various files in the output directory
 #' @export
-analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL) {
+analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,inverseAssay=FALSE,logger=NULL) {
 
 	library(hgvsParseR)
 	# library(yogilog)
@@ -228,6 +230,10 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL) 
 			colnames(mcv) <- paste0(cond,c(".mean",".cv"))
 			mcv
 		}))
+
+		###
+		# TODO: Move the filtering of select bottlenecking here
+		#################3
 
 		#draw scatterplots for means vs CV
 		pdfFile <- paste0(outdir,"region",region.i,"_regularizationInput.pdf")
@@ -483,12 +489,25 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL) 
 		par(op)
 		invisible(dev.off())
 
+
+		#################
+		# If the functional assay is based on inverse fitness, invert the scores
+		#################
+		if (inverseAssay) {
+			rawScores$mean.lphi <- -rawScores$mean.lphi
+			#stdev remains unchanged as sqrt(((-1)^2)) = 1
+		}
+
 		#################
 		# Estimate Modes of synonymous and stop
 		#################
 
 		sdCutoff <- 0.3
 
+		####################3
+		#TODO: Require minimum amount of filter passes rather than just 1
+		#TODO: Try gaussian mixture models with two underlying distributions?
+		#########################
 		#if we can't find any syn/stop below the cutoff, increase the cutoff to 1
 		if (with(rawScores,!any(grepl("Ter$",hgvsp) & bsd.lphi < sdCutoff) ||
 			!any(grepl("=$",hgvsp) & bsd.lphi < sdCutoff) )) {
@@ -578,21 +597,24 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL) 
 		# Floor negatives and fix their excessive variances
 		##################
 
-		# targetScore <- -0.01
-		# toFix <- which(scores$sd > .3 & scores$score < targetScore)
-		# #the area under the part of the normal distribution that exceeds zero
-		# ps <- with(scores,pnorm(0,score[toFix],se[toFix],lower.tail=FALSE))
-		# equivalent.sds <- (-targetScore)/(qnorm(1-ps))
-
-		#the target null-like score towards which we will shift these values
-		targetScore <- 0
-		#the quantile for which we want to keep the p-value fixed
-		quantile <- 1
-		#the row numbers containing the cases to be fixed
-		toFix <- which(scores$score < 0)
+		if (!inverseAssay) {
+			#the target null-like score towards which we will shift these values
+			targetScore <- 0
+			#the quantile for which we want to keep the p-value fixed
+			quantile <- 1
+			#the row numbers containing the cases to be fixed
+			toFix <- which(scores$score < targetScore)
+		} else {
+			#if we're dealing with an inverse assay, we have to apply a ceiling instead of flooring
+			#the target functional (but dead) score towards which we will shift these values
+			targetScore <- 1
+			#the quantile for which we want to keep the p-value fixed
+			quantile <- 0
+			#the row numbers containing the cases to be fixed
+			toFix <- which(scores$score > targetScore)
+		}
 		#the equivalent sds of a normal distribution with the target mean based on the above area
 		equivalent.sds <- with(scores[toFix,], sd*(quantile-targetScore)/(quantile-score))
-
 		#apply the fixed values to the table
 		scores$score[toFix] <- targetScore
 		scores$sd[toFix] <- equivalent.sds
@@ -601,6 +623,7 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL) 
 		logInfo(sprintf(
 			"Flooring adjusted the values of %d variant scores",length(toFix)
 		))
+
 
 		
 		#################
