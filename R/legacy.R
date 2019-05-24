@@ -33,12 +33,17 @@
 #'  'region', start', 'end', 'syn', 'stop', i.e. the region id, the start position, end position, and
 #'  and optional synonymous and stopm mean overrides.
 #' @param outdir path to desired output directory
+#' @param logger a yogilogger object to be used for logging (or NULL for simple printing)
 #' @param inverseAssay a boolean flag to indicate that the experiment was done with an inverse assay
 #'       i.e. protein function leading to decreased fitness. Defaults to FALSE
-#' @param logger a yogilogger object to be used for logging (or NULL for simple printing)
+#' @param pseudoObservations The number of pseudoObservations to use for the Baldi&Long regularization.
+#'       Defaults to 2.
+#' @param conservativeMode Boolean flag. When turned on, pseudoObservations are not counted towards 
+#'       standard error and the first round of regularization uses pessimistic error estimates.
 #' @return nothing. output is written to various files in the output directory
 #' @export
-analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,inverseAssay=FALSE,logger=NULL) {
+analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL,
+	inverseAssay=FALSE,pseudoObservations=2,conservativeMode=TRUE) {
 
 	library(hgvsParseR)
 	# library(yogilog)
@@ -169,13 +174,46 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,inverseAssay=
 		length(repNames), length(unique(condNames)), paste(condNames,collapse=", ")
 	))
 
+
+	#apply pre-filter on variants
+	rawmsd <- do.call(cbind,lapply(condNames,function(cond) {
+		msd <- t(apply(rawCounts[,condMatrix[cond,]],1,function(xs){
+			c(mean(xs,na.rm=TRUE), sd(xs,na.rm=TRUE))
+		}))
+		colnames(msd) <- paste0(cond,c(".mean",".sd"))
+		msd
+	}))
+	flagged1 <- with(as.data.frame(rawmsd), {
+		controlNS.mean + 3*controlNS.sd >= nonselect.mean
+	})
+	flagged2 <- with(as.data.frame(rawmsd), {
+		controlS.mean + 3*controlS.sd >= select.mean
+	})
+	logInfo(sprintf(
+"Filtering out %d variants (=%.02f%%):
+%d (=%.02f%%) due to likely sequencing error.
+%d (=%.02f%%) due to likely bottlenecking.",
+		sum(flagged1|flagged2), 100*sum(flagged1|flagged2)/length(flagged1|flagged2),
+		sum(flagged1), 100*sum(flagged1)/length(flagged1),
+		sum(flagged2), 100*sum(flagged2)/length(flagged2)
+	))
+	rawCountsFiltered <- rawCounts[!(flagged1|flagged2),]
+	hgvsc <- hgvsc[!(flagged1|flagged2)]
+	hgvsp <- hgvsp[!(flagged1|flagged2)]
+
+	logInfo(sprintf(
+		"Data remains for for %d variants covering %d amino acid changes",
+		length(hgvsc),length(unique(hgvsp))
+	))
+
+
 	#collapse codons into unique AA changes
 	logInfo("Collapsing variants by outcome...")
-	combiCounts <- as.df(tapply(1:nrow(rawCounts),hgvsp,function(is) {
+	combiCounts <- as.df(tapply(1:nrow(rawCountsFiltered),hgvsp,function(is) {
 		# mut <- unique(hgvsp[is])
 		hgvsp <- hgvsp[is[[1]]]
 		hgvsc <- paste(unique(hgvsc[is]),collapse=" ")
-		c(list(hgvsp=hgvsp,hgvsc=hgvsc),colSums(rawCounts[is,conditions]))
+		c(list(hgvsp=hgvsp,hgvsc=hgvsc),colSums(rawCountsFiltered[is,conditions]))
 	},simplify=FALSE))
 
 	logInfo("Parsing variant strings...")
@@ -231,10 +269,6 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,inverseAssay=
 			mcv
 		}))
 
-		###
-		# TODO: Move the filtering of select bottlenecking here
-		#################3
-
 		#draw scatterplots for means vs CV
 		pdfFile <- paste0(outdir,"region",region.i,"_regularizationInput.pdf")
 		pdf(pdfFile,6,9)
@@ -284,7 +318,8 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,inverseAssay=
 			prior.lcv <- predict(z)
 			logInfo(sprintf("Prior PCC=%.02f",cor(10^prior.lcv,empiric.cv)))
 			#calculate bayesian regularization
-			bayes.cv <- bnl(2,2,10^prior.lcv,empiric.cv)
+			observations <- length(repNames)
+			bayes.cv <- bnl(pseudoObservations,observations,10^prior.lcv,empiric.cv)
 			#calculate pessimistic regularization
 			pessim.cv <- mapply(max,10^prior.lcv,empiric.cv)
 			#calculate the 1% quantile stdev (excluding the pseudocounts) as a minimum floor
@@ -348,10 +383,15 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,inverseAssay=
 
 		#############
 		#Filter based on high sequencing error
+		# In this version, we just try to catch any straggles that weren't identified before regularization
 		############
 		#Song's rule: Filter out anything where the nonselect count is smaller than the WT control plus three SDs.
 		#(That is, where the nonselect count could be explained by sequencing error)
-		flagged <- with(combiCountsReg, controlNS.mean + 3*controlNS.pessim.sd >= nonselect.mean)
+		if (conservativeMode) {
+			flagged <- with(combiCountsReg, controlNS.mean + 3*controlNS.pessim.sd >= nonselect.mean)
+		} else {
+			flagged <- with(combiCountsReg, controlNS.mean + 3*controlNS.bayes.sd >= nonselect.mean)
+		}
 		logInfo(sprintf(
 			"Filtering out %d variants (=%.02f%%) due to likely sequencing error.",
 			sum(flagged), 100*sum(flagged)/nrow(combiCountsReg)
@@ -378,10 +418,16 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,inverseAssay=
 			if (mnum < c.ps) mnum <- c.ps #apply flooring, so the wt control can't result in negatives counts
 			#mean denominator
 			mden <- combiCountsFiltered[i,"nonselect.mean"]-combiCountsFiltered[i,"controlNS.mean"]
-			#variance numerator
-			vnum <- combiCountsFiltered[i,"select.pessim.sd"]^2+combiCountsFiltered[i,"controlS.pessim.sd"]^2
-			#variance denominator
-			vden <- combiCountsFiltered[i,"nonselect.pessim.sd"]^2+combiCountsFiltered[i,"controlNS.pessim.sd"]^2
+			#variances
+			if (conservativeMode) {
+				#variance numerator
+				vnum <- combiCountsFiltered[i,"select.pessim.sd"]^2+combiCountsFiltered[i,"controlS.pessim.sd"]^2
+				#variance denominator
+				vden <- combiCountsFiltered[i,"nonselect.pessim.sd"]^2+combiCountsFiltered[i,"controlNS.pessim.sd"]^2
+			} else {
+				vnum <- combiCountsFiltered[i,"select.bayes.sd"]^2+combiCountsFiltered[i,"controlS.bayes.sd"]^2
+				vden <- combiCountsFiltered[i,"nonselect.bayes.sd"]^2+combiCountsFiltered[i,"controlNS.bayes.sd"]^2
+			}
 			#covariance of numerator and denominator
 			covnumden <- cov(
 				unlist(combiCountsFiltered[i,c("select1","select2")])
@@ -443,10 +489,11 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,inverseAssay=
 		priorSD <- 10^predict(z)*rawScores$mean.phi
 
 		#apply regularization
-		bayesSD <- bnl(2,2,priorSD,rawScores$sd.phi)
+		observations <- length(repNames)
+		bayesSD <- bnl(pseudoObservations,observations,priorSD,rawScores$sd.phi)
 		rawScores$bsd.phi=bayesSD
 		rawScores$bsd.lphi=with(rawScores,abs(bsd.phi/(log(10)*mean.phi)))
-		rawScores$df=4
+		rawScores$df=if(conservativeMode) observations else observations+pseudoObservations
 
 		#####################
 		# Filter out broken values if any
@@ -616,6 +663,9 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,inverseAssay=
 		#the equivalent sds of a normal distribution with the target mean based on the above area
 		equivalent.sds <- with(scores[toFix,], sd*(quantile-targetScore)/(quantile-score))
 		#apply the fixed values to the table
+		scores$score.unfloored <- scores$score
+		scores$sd.unfloored <- scores$sd
+		scores$se.unfloored <- scores$se
 		scores$score[toFix] <- targetScore
 		scores$sd[toFix] <- equivalent.sds
 		scores$se[toFix] <- equivalent.sds/sqrt(scores$df[toFix])
@@ -624,6 +674,18 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,inverseAssay=
 			"Flooring adjusted the values of %d variant scores",length(toFix)
 		))
 
+
+		##############################
+		# Draw a histogram of standard errors in the dataset
+		#############################
+		pdfFile <- paste0(outdir,"errorProfile_region",region.i,".pdf")
+		pdf(pdfFile,5,5)
+		hist(
+			log10(scores$se),col="gray",border=NA,breaks=50,
+			main="Standard Error distribution",
+			xlab=expression(log[10](sigma[bar(x)]))
+		)
+		dev.off()
 
 		
 		#################
