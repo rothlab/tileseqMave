@@ -49,6 +49,9 @@ drawGenopheno <- function(outdir,uniprot) {
 inputFile <- getArg("datasets",default="workspace/input/datasets.csv")
 datasets <- read.csv(inputFile)
 
+pseudoObservations <- as.integer(getArg("pseudoObservations",default=2))
+conservativeMode <- as.logical(getArg("conservativeMode",default=TRUE))
+
 for (i in 1:nrow(datasets)) {
 	with(datasets[i,],{
 		#make sure the output directory exists
@@ -64,7 +67,9 @@ for (i in 1:nrow(datasets)) {
 		#run analysis
 		analyzeLegacyTileseqCounts(countfile,regionfile,outdir,
 			inverseAssay=(uniprot=="Q96IV0"),
-			logger=logger
+			logger=logger,
+			pseudoObservations=pseudoObservations,
+			conservativeMode=conservativeMode
 		)
 		#draw genophenogram
 		drawGenopheno(outdir,uniprot)
