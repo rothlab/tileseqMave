@@ -5,8 +5,11 @@ library(mavevis)
 library(yogitools)
 library(tileseqMave)
 
+flip <- function(xs) sapply(xs,function(x) if (is.na(x)) NA else if (x > 1) 1/x else x)
+
 drawGenopheno <- function(outdir,uniprot) {
 	scores <- read.csv(paste0(outdir,"mavedb_scores_perAA.csv"))
+	flippedScores <- flip(scores$score)
 	# wtseq <- getUniprotSeq(uniprot)
 	mutations <- parseHGVS(scores$hgvs_pro,aacode=1)
 	mutations$type[which(mutations$variant=="*")] <- "nonsense"
@@ -22,6 +25,19 @@ drawGenopheno <- function(outdir,uniprot) {
 		mutations$start,
 		mutations$variant,
 		scores$score,
+		1,0,
+		error=scores$se,
+		grayBack=TRUE,
+		img.width=img.width
+	)
+	invisible(dev.off())
+
+	pdf(paste0(outdir,"genophenogram_flipped.pdf"),width=img.width,height=2.5)
+	genophenogram(
+		wt.aa,
+		mutations$start,
+		mutations$variant,
+		flippedScores,
 		1,0,
 		error=scores$se,
 		grayBack=TRUE,
@@ -54,5 +70,4 @@ for (i in 1:nrow(datasets)) {
 		drawGenopheno(outdir,uniprot)
 	})
 }
-
 
