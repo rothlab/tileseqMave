@@ -41,17 +41,29 @@ if (!file.exists(infile)) {
 outfile <- getArg("out",default=sub("\\.csv$","_refined_mavedb.csv",infile))
 pdffile <- getArg("pdf",default=sub("\\.csv$","_refined_mavedb.pdf",infile))
 
+useRMSD <- as.logical(getArg("useRMSD",default=TRUE))
+
 #Read input file
 cat("Reading input file...")
 indata <- read.csv(infile)
 cat("done\n")
 
 #Check that all required columns are present
-required <- c("aa_ref","aa_pos","aa_alt","fitness","fitness_sd","fitness_imputed")
+required <- c(
+	"aa_ref","aa_pos","aa_alt","num_replicates",
+	"fitness","fitness_sd","fitness_imputed","fitness_imputed_se"
+)
 if (!all(required %in% colnames(indata))) {
 	missing <- setdiff(required,colnames(indata))
 	stop("Input file ",infile," is missing the following column(s): ",paste(missing,collapse=", "))
 }
+
+# with(indata,topoScatter(
+# 	fitness_sd/sqrt(2),fitness_imputed_se,
+# 	xlab="experiment se",ylab="imputation se",
+# 	resolution=80
+# ))
+# abline(0,1,col="gray")
 
 #Construct the HGVS strings
 cat("Constructing HGVS descriptors...")
@@ -82,12 +94,25 @@ cat("done\n")
 cat("Running refinement...")
 #and refine based on that RMSD
 refined <- as.df(lapply(1:nrow(indata),function(i) with(indata[i,],{
+	impse <- if (is.na(fitness_imputed_se)) rmsd else fitness_imputed_se
 	if (is.na(stretched)) {
 		c(mj=fitness,sj=fitness_sd)
 	} else if (is.na(fitness)) {
-		c(mj=stretched,sj=rmsd)
+		if (useRMSD) {
+			c(mj=stretched,sj=rmsd)
+		} else {
+			c(mj=stretched,sj=impse)
+		}
 	} else {
-		join.datapoints(ms=c(stretched,fitness),sds=c(rmsd,fitness_sd))
+		if (useRMSD) {
+			out <- join.datapoints(ms=c(stretched,fitness),sds=c(rmsd,fitness_sd/sqrt(num_replicates)))
+			c(mj=out[["mj"]],sj=out[["sj"]]*sqrt(num_replicates))
+		} else {
+			imp.se.adj <- impse*sqrt(10)/sqrt(num_replicates)
+			exp.se <- fitness_sd/sqrt(num_replicates)
+			out <- join.datapoints(ms=c(stretched,fitness),sds=c(imp.se.adj,exp.se))
+			c(mj=out[["mj"]],sj=out[["sj"]]*sqrt(num_replicates))
+		}
 	}
 })))
 cat("done\n")
