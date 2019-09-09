@@ -3,7 +3,7 @@
 #################################################################################################
 # refine.R performs refinement based on the output of Joe's imputation webtool
 #
-# Usage: Rscript refine.R in=<path-to-input-file> out=<path-to-output-file> pdf=<path-to-pdf-output>
+# Usage: Rscript refine.R in=<path-to-input-file> [org=<path-to-detailed-scores>] out=<path-to-output-file> pdf=<path-to-pdf-output>
 # If no output parameters are provided, they will be generated automatically in the same 
 # folder as the input file.
 #
@@ -20,6 +20,7 @@ options(stringsAsFactors=FALSE)
 library(yogitools)
 library(hgvsParseR)
 library(mavevis)
+library(hash)
 
 #define helper function for joining datasets weighted by stdev
 join.datapoints <- function(ms,sds) {
@@ -38,6 +39,12 @@ infile <- getArg("in",required=TRUE)
 if (!file.exists(infile)) {
 	stop(infile," does not exist!")
 }
+orgfile <- getArg("org",default=NULL)
+if (!is.null(orgfile)) {
+	if (!file.exists(orgfile)) {
+		stop(orgfile," does not exist!")
+	}
+}
 outfile <- getArg("out",default=sub("\\.csv$","_refined_mavedb.csv",infile))
 pdffile <- getArg("pdf",default=sub("\\.csv$","_refined_mavedb.pdf",infile))
 
@@ -46,8 +53,6 @@ useRMSD <- as.logical(getArg("useRMSD",default=TRUE))
 #Read input file
 cat("Reading input file...")
 indata <- read.csv(infile)
-cat("done\n")
-
 #Check that all required columns are present
 required <- c(
 	"aa_ref","aa_pos","aa_alt","num_replicates",
@@ -58,6 +63,21 @@ if (!all(required %in% colnames(indata))) {
 	stop("Input file ",infile," is missing the following column(s): ",paste(missing,collapse=", "))
 }
 
+if (!is.null(orgfile)) {
+	org <- read.csv(orgfile)
+	#Check that all required columns are present
+	required <- c(
+		"hgvsp","hgvsc","score","sd","se"
+	)
+	if (!all(required %in% colnames(org))) {
+		missing <- setdiff(required,colnames(org))
+		stop("Input file ",orgfile," is missing the following column(s): ",paste(missing,collapse=", "))
+	}
+	hgvsLookup <- with(org,hash(hgvsp,strsplit(hgvsc," ")))
+}
+
+
+cat("done\n")
 # with(indata,topoScatter(
 # 	fitness_sd/sqrt(2),fitness_imputed_se,
 # 	xlab="experiment se",ylab="imputation se",
@@ -78,6 +98,16 @@ hgvss <- sapply(1:nrow(indata),function(i) with(indata[i,],{
 	}
 }))
 cat("done\n")
+
+if (exists("hgvsLookup")) {
+	hgvsc <- lapply(hgvss, function(h) {
+		if (has.key(h,hgvsLookup)) {
+			hgvsLookup[[h]]
+		} else {
+			"c.?"
+		}
+	})
+}
 
 cat("Stretching predicted values to [0:1] interval...")
 #find the numerical interval that the imputation filled
@@ -117,13 +147,23 @@ refined <- as.df(lapply(1:nrow(indata),function(i) with(indata[i,],{
 })))
 cat("done\n")
 
-
-cat("Writing output table...")
 #build output table
 numrep <- sapply(indata$num_replicates,function(x) if(is.na(x)) 1 else x)
 outdata <- cbind(hgvss,refined,refined$sj/sqrt(numrep))
 colnames(outdata) <- c("hgvs_pro","score","sd","se")
-write.csv(outdata,outfile,row.names=FALSE)
+
+if (exists("hgvsc")) {
+	outdata2 <- do.call(rbind,lapply(1:nrow(outdata), function(i) {
+		cbind(hgvs_nt=hgvsc[[i]],outdata[i,])
+	}))
+}
+
+cat("Writing output table...")
+if (exists("outdata2")) {
+	write.csv(outdata2,outfile,row.names=FALSE)
+} else {
+	write.csv(outdata,outfile,row.names=FALSE)
+}
 cat("done\n")
 
 cat("Drawing genophenogram...")
