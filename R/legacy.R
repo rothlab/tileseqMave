@@ -189,13 +189,14 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL,
 	flagged2 <- with(as.data.frame(rawmsd), {
 		controlS.mean + 3*controlS.sd >= select.mean
 	})
+
 	logInfo(sprintf(
 "Filtering out %d variants (=%.02f%%):
 %d (=%.02f%%) due to likely sequencing error.
 %d (=%.02f%%) due to likely bottlenecking.",
 		sum(flagged1|flagged2), 100*sum(flagged1|flagged2)/length(flagged1|flagged2),
 		sum(flagged1), 100*sum(flagged1)/length(flagged1),
-		sum(flagged2), 100*sum(flagged2)/length(flagged2)
+		sum(flagged2)-sum(flagged1), 100*(sum(flagged2)-sum(flagged1))/length(flagged2)
 	))
 	rawCountsFiltered <- rawCounts[!(flagged1|flagged2),]
 	hgvsc <- hgvsc[!(flagged1|flagged2)]
@@ -206,6 +207,7 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL,
 		length(hgvsc),length(unique(hgvsp))
 	))
 
+	
 
 	#collapse codons into unique AA changes
 	logInfo("Collapsing variants by outcome...")
@@ -213,13 +215,54 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL,
 		# mut <- unique(hgvsp[is])
 		hgvsp <- hgvsp[is[[1]]]
 		hgvsc <- paste(unique(hgvsc[is]),collapse=" ")
-		c(list(hgvsp=hgvsp,hgvsc=hgvsc),colSums(rawCountsFiltered[is,conditions]))
+		c(list(hgvsp=hgvsp,hgvsc=hgvsc),colSums(rawCountsFiltered[is,conditions],na.rm=TRUE))
 	},simplify=FALSE))
 
 	logInfo("Parsing variant strings...")
 	combiCountMuts <- parseHGVS(combiCounts$hgvsp)
 	combiCountMuts$type[which(combiCountMuts$variant=="Ter")] <- "nonsense"
 	logInfo("Parsing complete.")
+
+
+
+	###############################
+	# Plot replicate correlations
+	###############################
+
+	logInfo("Plotting replicate correlations...")
+
+	panel.cor <- function(x, y,...){
+		usr <- par("usr"); on.exit(par(usr)); par(usr=c(0,1,0,1))
+		r <- cor(fin(cbind(x,y)))[1,2]
+		txt <- sprintf("R = %.02f",r)
+		# cex.cor <- 0.8/strwidth(txt)
+		text(0.5, 0.5, txt)
+	}
+
+	labels <- paste0("rep.",1:ncol(condMatrix))	
+	imgSize <- ncol(condMatrix)
+
+	pdfFile <- paste0(outdir,"replicateCorrelations_nonselect.pdf")
+	pdf(pdfFile,imgSize,imgSize)
+	# Plot non-select
+	pairs(
+		combiCounts[,condMatrix["nonselect",]],
+		lower.panel=panel.cor,pch=".",labels=labels,
+		main="Non-select counts"
+	)
+	invisible(dev.off())
+
+	# Plot phi after collapsing codons
+	lfcRepsCombi <- log10((combiCounts[,condMatrix["select",]] - combiCounts[,condMatrix["controlS",]]) /
+		(combiCounts[,condMatrix["nonselect",]] - combiCounts[,condMatrix["controlNS",]]))
+
+	pdfFile <- paste0(outdir,"replicateCorrelations_logPhi.pdf")
+	pdf(pdfFile,imgSize,imgSize)
+	pairs(
+		lfcRepsCombi,pch=".",lower.panel=panel.cor,labels=labels,
+		main="Select/Non-select Log-ratios"
+	)
+	invisible(dev.off())
 
 	##############
 	# Iterate over regions
@@ -430,10 +473,10 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL,
 			}
 			#covariance of numerator and denominator
 			covnumden <- cov(
-				unlist(combiCountsFiltered[i,c("select1","select2")])
-				-unlist(combiCountsFiltered[i,c("controlNS1","controlNS2")]),
-				unlist(combiCountsFiltered[i,c("nonselect1","nonselect2")])
-				-unlist(combiCountsFiltered[i,c("controlS1","controlS2")])
+				unlist(combiCountsFiltered[i,condMatrix["select",]])
+				-unlist(combiCountsFiltered[i,condMatrix["controlS",]]),
+				unlist(combiCountsFiltered[i,condMatrix["nonselect",]])
+				-unlist(combiCountsFiltered[i,condMatrix["controlNS",]])
 			)
 			#Use helper function to estimate variance for phi
 			phivar <- approx.ratio.var(mnum,mden,vnum,vden,covnumden)
