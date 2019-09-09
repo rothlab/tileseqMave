@@ -70,9 +70,9 @@ outdata <- data.frame(
 			default = stop("Unrecognized variant type!")
 		)
 	}),
-	#we intentionally use the standard error as the quality score here instead of
+	#we intentionally use the inverse of standard error as the quality score here instead of
 	# quality_score=indata$phiPrime,
-	quality_score=indata$se,
+	quality_score=1/indata$se,
 	num_replicates=df,
 	fitness_input=indata$score,
 	fitness_input_sd=indata$sd
