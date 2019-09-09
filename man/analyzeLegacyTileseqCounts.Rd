@@ -4,7 +4,9 @@
 \alias{analyzeLegacyTileseqCounts}
 \title{analyze tileseq counts from legacy pipeline}
 \usage{
-analyzeLegacyTileseqCounts(countfile, regionfile, outdir, logger = NULL)
+analyzeLegacyTileseqCounts(countfile, regionfile, outdir, logger = NULL,
+  inverseAssay = FALSE, pseudoObservations = 2,
+  conservativeMode = TRUE)
 }
 \arguments{
 \item{countfile}{the path to the "rawData.txt" file produced by the legacy pipeline.}
@@ -15,7 +17,16 @@ and optional synonymous and stopm mean overrides.}
 
 \item{outdir}{path to desired output directory}
 
-\item{logger}{a yogilogger object to be used for logging}
+\item{logger}{a yogilogger object to be used for logging (or NULL for simple printing)}
+
+\item{inverseAssay}{a boolean flag to indicate that the experiment was done with an inverse assay
+i.e. protein function leading to decreased fitness. Defaults to FALSE}
+
+\item{pseudoObservations}{The number of pseudoObservations to use for the Baldi&Long regularization.
+Defaults to 2.}
+
+\item{conservativeMode}{Boolean flag. When turned on, pseudoObservations are not counted towards 
+standard error and the first round of regularization uses pessimistic error estimates.}
 }
 \value{
 nothing. output is written to various files in the output directory
