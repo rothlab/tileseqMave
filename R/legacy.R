@@ -69,22 +69,29 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL,
 			do.call(cat,c("Warning:",list(...),"\n"))
 		}
 	}
+	logErr <- function(...) {
+		if (!is.null(logger)) {
+			logger$error(...)
+		} else {
+			do.call(cat,c("ERROR:",list(...),"\n"))
+		}
+	}
 
 	##############
 	# Read and validate input data
 	##############
 
-	#countfile <- "/home/jweile/projects/ccbr2hgvs/HMGCR_S_resultfile/rawData.txt"
-	#regionfile <- "/home/jweile/projects/ccbr2hgvs/HMGCR_S_resultfile/regions.txt"
 	canRead <- function(filename) file.access(filename,mode=4) == 0
 	stopifnot(
 		canRead(countfile),
 		canRead(regionfile)
 	)
 
+	#parse the input files
 	rawCounts <- read.delim(countfile)
 	regions <- read.delim(regionfile)
 
+	#check that all required columns exist and contain the correct data types.
 	stopifnot(
 		c(
 			"wt_codon","pos","mut_codon","wt_aa","mut_aa",
@@ -96,7 +103,7 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL,
 		c("region","start","end","syn","stop") %in% colnames(regions)
 	)
 
-	#make sure outdir ends with a "/"
+	#make sure output directory path (outdir) ends with a "/"
 	if (!grepl("/$",outdir)) {
 		outdir <- paste0(outdir,"/")
 	}
@@ -151,8 +158,9 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL,
 	})
 
 	logInfo(sprintf(
-		"Parsed data for %d variants covering %d amino acid changes",
-		length(hgvsc),length(unique(hgvsp))
+		"Parsed data for %d codon variants (%d protein variants),\n %d (%d) of which are missense.",
+		length(hgvsc),length(unique(hgvsp)), 
+		sum(rawCounts$annotation == "NONSYN"), length(unique(hgvsp[!grepl("(Ter|=)$",hgvsp)]))
 	))
 
 	#####################
@@ -203,9 +211,15 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL,
 	hgvsp <- hgvsp[!(flagged1|flagged2)]
 
 	logInfo(sprintf(
-		"Data remains for for %d variants covering %d amino acid changes",
-		length(hgvsc),length(unique(hgvsp))
+		"Data remains for %d codon variants (%d protein variants),\n %d (%d) of which are missense.",
+		length(hgvsc),length(unique(hgvsp)), 
+		sum(rawCountsFiltered$annotation == "NONSYN"), length(unique(hgvsp[!grepl("(Ter|=)$",hgvsp)]))
 	))
+
+	# logInfo(sprintf(
+	# 	"Data remains for for %d variants covering %d amino acid changes",
+	# 	length(hgvsc),length(unique(hgvsp))
+	# ))
 
 	
 
@@ -240,16 +254,27 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL,
 	}
 
 	labels <- paste0("rep.",1:ncol(condMatrix))	
-	imgSize <- ncol(condMatrix)
+	imgSize <- max(4,ncol(condMatrix))
 
 	pdfFile <- paste0(outdir,"replicateCorrelations_nonselect.pdf")
 	pdf(pdfFile,imgSize,imgSize)
 	# Plot non-select
-	pairs(
-		combiCounts[,condMatrix["nonselect",]],
-		lower.panel=panel.cor,pch=".",labels=labels,
-		main="Non-select counts"
-	)
+	if (ncol(condMatrix) > 2) {
+		pairs(
+			combiCounts[,condMatrix["nonselect",]],
+			lower.panel=panel.cor,pch=".",labels=labels,
+			main="Non-select counts"
+		)
+	} else {
+		plotTitle <- sprintf(
+			"Non-select counts R = %.03f",
+			cor(fin(combiCounts[,condMatrix["nonselect",]]))[1,2]
+		)
+		plot(
+			combiCounts[,condMatrix["nonselect",]],
+			main=plotTitle
+		)
+	}
 	invisible(dev.off())
 
 	# Plot phi after collapsing codons
@@ -258,10 +283,22 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL,
 
 	pdfFile <- paste0(outdir,"replicateCorrelations_logPhi.pdf")
 	pdf(pdfFile,imgSize,imgSize)
-	pairs(
-		lfcRepsCombi,pch=".",lower.panel=panel.cor,labels=labels,
-		main="Select/Non-select Log-ratios"
-	)
+	if (ncol(condMatrix) > 2) {
+		pairs(
+			lfcRepsCombi,pch=".",lower.panel=panel.cor,labels=labels,
+			main="Select/Non-select Log-ratios"
+		)
+	} else {
+		plotTitle <- sprintf(
+			"Select/Non-select Log-ratios R = %.03f",
+			cor(fin(lfcRepsCombi))[1,2]
+		)
+		plot(
+			lfcRepsCombi, main=plotTitle,
+			xlab=expression(log(phi[1])), ylab=expression(log(phi[2]))
+		)
+	}
+	
 	invisible(dev.off())
 
 	##############
@@ -300,7 +337,7 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL,
 
 		#calculate replicate means and coefficient of variation (CV) for each condition
 		# (we use CV here instead of stdev, because that's what anti-correlates with read depth
-		#  so, this will be the subject of our regression below)
+		#  therefore, this will be the subject of our regression below)
 		mcv <- do.call(cbind,lapply(condNames,function(cond) {
 			mcv <- t(apply(localCombiCounts[,condMatrix[cond,]],1,function(xs){
 				m <- mean(xs,na.rm=TRUE)
@@ -415,6 +452,8 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL,
 		par(op)
 		invisible(dev.off())
 
+		logInfo("First round of regularization complete.")
+
 
 		#####################
 		# Quality checks
@@ -436,7 +475,7 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL,
 			flagged <- with(combiCountsReg, controlNS.mean + 3*controlNS.bayes.sd >= nonselect.mean)
 		}
 		logInfo(sprintf(
-			"Filtering out %d variants (=%.02f%%) due to likely sequencing error.",
+			"Post-regularization: Filtering out an additional %d variants (=%.02f%%) due to likely sequencing error.",
 			sum(flagged), 100*sum(flagged)/nrow(combiCountsReg)
 		))
 		combiCountsFiltered <- combiCountsReg[!flagged,]
@@ -505,6 +544,13 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL,
 		))
 		rawScores <- rawScores[!flagged,]
 
+
+		logInfo(sprintf(
+			"Data remains for %d protein-level variants, %d of which are missense.",
+			nrow(rawScores),sum(!grepl("Ter|=$",rawScores$hgvsp))
+		))
+
+
 		##############
 		# 2nd round of regularization: This time for SD of scores
 		##############
@@ -519,6 +565,8 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL,
 		# z <- lm(logsd ~.,data=splinemat)
 		#calculate prior
 		# priorSD <- 10^predict(z)
+
+		logInfo("Starting second round of regularization.")
 
 		#regression input matrix
 		splinemat <- with(rawScores,data.frame(
@@ -543,7 +591,7 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL,
 		#####################
 		broken <- which(is.na(rawScores$mean.lphi) | is.infinite(rawScores$mean.lphi))
 		if (length(broken) > 0) {
-			logWarn(sprintf("Values for %d variants could not be calculated!",
+			logWarn(sprintf("Values for %d variants could not be calculated and were removed!",
 				length(broken)
 			))
 			rawScores <- rawScores[-broken,]
@@ -671,6 +719,11 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL,
 			modes[["stop"]] <- region.stop
 		}
 
+		if (modes[["stop"]] >= modes[["syn"]]) {
+			logErr("Stop mode is not below synonymous mode! Cannot normalize scores!")
+			next
+		}
+
 		#apply the scaling
 		denom <- modes[["syn"]]-modes[["stop"]]
 		scoreMat <- with(rawScores,{
@@ -745,6 +798,11 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL,
 		outfile <- paste0(outdir,"mavedb_scores_perAA_region",region.i,".csv")
 		write.csv(mavedbProtScores,outfile,row.names=FALSE)
 
+		logInfo(sprintf(
+			"Exported data for %d protein-level variants, %d of which are missense.",
+			nrow(scores),sum(!grepl("Ter|=$",scores$hgvsp))
+		))
+
 		#nucleotide-level MaveDB output
 		mavedbNuclScores <- do.call(rbind,lapply(1:nrow(scores),function(i) {
 			hgvsc <- strsplit(scores[i,"hgvsc"]," ")[[1]]
@@ -758,6 +816,12 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL,
 		}))
 		outfile <- paste0(outdir,"mavedb_scores_perNt_region",region.i,".csv")
 		write.csv(mavedbNuclScores,outfile,row.names=FALSE)
+
+		logInfo(sprintf(
+			"Exported data for %d codon-level variants, %d of which are missense.",
+			nrow(mavedbNuclScores),sum(!grepl("Ter|=$",mavedbNuclScores$hgvs_pro))
+		))
+
 
 	}
 
