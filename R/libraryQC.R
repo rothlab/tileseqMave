@@ -17,11 +17,13 @@
 
 #' QC plots for library coverage
 #' @export
-libraryQC <- function(dataDir,logger=NULL) {
+libraryQC <- function(dataDir,outdir,logger=NULL,mc.cores=8) {
 
 	# library(hgvsParseR)
 	# library(yogilog)
 	library(yogitools)
+	library(hash)
+	library(pbmcapply)
 
 	options(stringsAsFactors=FALSE)
 
@@ -48,33 +50,51 @@ libraryQC <- function(dataDir,logger=NULL) {
 	# Read and validate input data
 	##############
 
-	#countfile <- "/home/jweile/projects/ccbr2hgvs/HMGCR_S_resultfile/rawData.txt"
-	#regionfile <- "/home/jweile/projects/ccbr2hgvs/HMGCR_S_resultfile/regions.txt"
 	canRead <- function(filename) file.access(filename,mode=4) == 0
 	
-	#make sure outdir ends with a "/"
+	#make sure data and out dir exist and ends with a "/"
 	if (!grepl("/$",dataDir)) {
 		dataDir <- paste0(dataDir,"/")
 	}
-	#and if it doesn't exist, complain!
+	if (!grepl("/$",outdir)) {
+		outdir <- paste0(outdir,"/")
+	}
 	if (!dir.exists(dataDir)) {
+		#we don't use the logger here, assuming that whichever script wraps our function
+		#catches the exception and writes to the logger (or uses the log error handler)
 		stop("Data folder does not exist!")
+	}
+	if (!dir.exists(outdir)) {
+		logWarn("Output folder does not exist, creating it now.")
+		dir.create(outdir,recursive=TRUE)
+	}
+
+	mut2funcFile <- paste0(dataDir,"mut2func_info.csv")
+	if (!canRead(mut2funcFile)) {
+		stop("Unable to find or read 'mut2func_info.csv' file!")
+	}
+	seqDepthFile <- paste0(dataDir,"resultfile/sequencingDepth.csv")
+	if (!canRead(seqDepthFile)) {
+		stop("Unable to find or read 'sequencingDepth.csv' file!")
 	}
 
 
+	mut2func <- read.csv(mut2funcFile)
+	tileRanges <- apply(extract.groups(colnames(mut2func)[-1],"X(\\d+)\\.(\\d+)"),2,as.integer)
+
+
 	#Interpret sequencing depth file and obtain sample information
-	seqDepthTable <- read.csv(paste0(dataDir,"resultfile/sequencingDepth.csv"))
+	seqDepthTable <- read.csv(seqDepthFile)
 	rxGroups <- extract.groups(seqDepthTable$SampleID,"SampleID(\\d+)_(\\w+)(\\d+)")
 	seqDepthTable$sample <- as.integer(rxGroups[,1])
 	seqDepthTable$condition <- rxGroups[,2]
 	seqDepthTable$replicate <- as.integer(rxGroups[,3])
 
-	#Isolate nonselect samples
+	#Isolate first replicate of nonselect samples
 	ns1.rows <- with(seqDepthTable,which(condition=="NS" & replicate == 1))
 	ns1.depth <- seqDepthTable[ns1.rows,]
 
-	library(hash)
-	library(pbmcapply)
+	logInfo("Compiling census...")
 
 	#iterate over tiles/samples
 	censuses <- pbmclapply(1:nrow(ns1.depth), function(depth.row) {
@@ -82,6 +102,7 @@ libraryQC <- function(dataDir,logger=NULL) {
 		sample.depth <- ns1.depth[depth.row,2]
 
 
+		#read the file for mult-mutant CPMs (counts per million reads)
 		multiCounts <- read.delim(
 			paste0(dataDir,"mutationCallfile/",sample.id,"MultipleMut.txt"),
 			header=FALSE
@@ -91,7 +112,9 @@ libraryQC <- function(dataDir,logger=NULL) {
 		wtaas <- strsplit(multiCounts$wtaa,"\\|")
 		mutaas <- strsplit(multiCounts$mutaa,"\\|")
 		positions <- strsplit(multiCounts$pos,"\\|")
+		#create ids for multimutants
 		multiVars <- mapply(function(w,p,m) paste0(w,p,m), wtaas, positions, mutaas)
+		#number of aa-changes per multimutant
 		nmuts <- sapply(multiVars,length)
 		maxMuts <- max(nmuts)
 
@@ -99,6 +122,7 @@ libraryQC <- function(dataDir,logger=NULL) {
 			logWarn("MultiMuts contains single mutations!")
 		}
 
+		#create a census of the number of co-occurring mutations
 		multiCensus <- tapply(multiCounts$cpm,nmuts,sum)
 		#make sure no number is skipped!
 		multiCensus <- multiCensus[as.character(2:maxMuts)]
@@ -107,7 +131,9 @@ libraryQC <- function(dataDir,logger=NULL) {
 			multiCensus[which(is.na(multiCensus))] <- 0
 		}
 
+		#infer expected single-mutant CPMS from multimutant CPMs
 		multiTotals <- hash()
+		#also infer complexity underpinning each aa-change (i.e. the number of unique multimutants that contain it)
 		varComplexity <- hash()
 		for (i in 1:length(multiVars)) {
 			for (variant in multiVars[[i]]) {
@@ -121,12 +147,15 @@ libraryQC <- function(dataDir,logger=NULL) {
 			}
 		}
 
+		#Next, read the single-mutant file. Note that these are not true single-mutants, but rather
+		#the total count regardless of in-cis context (i.e. mix of single and multimutants)
 		singleCounts <- read.delim(
 			paste0(dataDir,"mutationCallfile/",sample.id,"AAchange.txt"),
 			header=FALSE
 		)
 		colnames(singleCounts) <- c("wtaa","pos","mutaa","wtcodon","mutcodon","cpm")
 
+		#collapse by aa-change
 		singleVariants <- with(singleCounts,mapply(function(w,p,m) paste0(w,p,m), wtaa, pos, mutaa))
 		singleTotals <- hash()
 		for (i in 1:length(singleVariants)) {
@@ -138,8 +167,10 @@ libraryQC <- function(dataDir,logger=NULL) {
 			}
 		}
 
+		#list of unique aa changes
 		uniqueVars <- keys(singleTotals)
 
+		#calculate the true single mutant CPMs by subtracting the corresponding multi-mutant CPMs
 		singletonCounts <- sapply(uniqueVars, function(uvar) {
 			if (has.key(uvar,multiTotals)) {
 				singleTotals[[uvar]] - multiTotals[[uvar]]
@@ -149,6 +180,7 @@ libraryQC <- function(dataDir,logger=NULL) {
 		})
 
 
+		#Finally, read the deletion and inseration CPMs
 		delCounts <- read.delim(
 			paste0(dataDir,"mutationCallfile/",sample.id,"deletion.txt"),
 			header=FALSE
@@ -159,6 +191,8 @@ libraryQC <- function(dataDir,logger=NULL) {
 		)
 		indelCPM <- sum(delCounts[,2])+sum(insCounts[,4])
 
+
+		#Now, having compiled the required numbers, we can combine them into a census table.
 		census <- c(
 			indel = indelCPM,
 			WT = 1e6 - (indelCPM + sum(singleCounts$cpm)),
@@ -167,13 +201,16 @@ libraryQC <- function(dataDir,logger=NULL) {
 		) * 100 / 1e6
 
 
+		#Fit a poisson-distribution to the census
 		lambdas <- seq(0.01,4,0.01)
 		dists <- sapply(lambdas, function(lambda) {
 			sum(abs(census[-1] - dpois(0:maxMuts,lambda)*100))
 		})
-		cat(min(dists),"\n")
+		# cat(min(dists),"\n")
 		best.lambda <- lambdas[[which.min(dists)]]
 		
+
+		#Also generate a table that compares variant CPMs against variant complexity
 		countVComplexity <- data.frame(
 			cpm=singletonCounts[hash::keys(varComplexity)],
 			complexity=hash::values(varComplexity)
@@ -181,7 +218,7 @@ libraryQC <- function(dataDir,logger=NULL) {
 
 		return(list(census=census,lambda=best.lambda,complexity=countVComplexity))
 
-	},mc.cores=8)
+	},mc.cores=mc.cores)
 
 
 	censusRows <- lapply(censuses,`[[`,"census")
@@ -191,39 +228,17 @@ libraryQC <- function(dataDir,logger=NULL) {
 
 	lambdas <- sapply(censuses,`[[`,"lambda")
 
-	############################
-	# Plot each tile's census
-	#############################
-
-	pdf("tileCensus.pdf",6,10)
-	layout(t(matrix(1:15,ncol=5)))
-	invisible(lapply(1:nrow(censusTable),function(i) {
-		op <- par(las=3,mar=c(6,4,3,1)+.1)
-		barplot(censusTable[i,],
-			ylim=c(0,100),border=NA,ylab="% reads",xlab="mutant classes",
-			col=c("firebrick3","gray",rep("darkolivegreen3",N-2)),
-			main=sprintf("Tile #%d",i)
-		)
-		grid(NA,NULL)
-		midx <- mean(par("usr")[1:2])
-		text(midx,60,bquote(lambda == .(lambdas[[i]])))
-		text(midx,40,sprintf("%.02f%% indels",censusTable[i,"indel"]))
-		par(op)
-
-	}))
-	invisible(dev.off())
-
+	complexities <- do.call(rbind,lapply(censuses,`[[`,"complexity"))
 
 	###########################
 	# Plot read counts vs complexities
 	#############################
 
-	complexities <- do.call(rbind,lapply(censuses,`[[`,"complexity"))
-
-	pdf("complexities.pdf",10,5)
+	outfile <- paste0(outdir,"complexities.pdf")
+	pdf(outfile,5,5)
 	layout(rbind(c(2,4),c(1,3)),heights=c(2,8),widths=c(8,2))
 	op <- par(mar=c(5,4,0,0)+.1)
-	plot(complexities,pch=".",log="xy")
+	plot(complexities,pch=".",log="xy",ylab="unique variants per AA-change")
 	grid()
 	par(mar=c(0,4,1,0)+.1)
 	hist(
@@ -242,7 +257,43 @@ libraryQC <- function(dataDir,logger=NULL) {
 	# axis(2,c(0,1,2))
 	with(yhist,rect(0,breaks[-length(breaks)],counts,breaks[-1],col="gray",border=NA))
 	par(op)
-	dev.off()
+	invisible(dev.off())
+
+
+	############################
+	# Plot each tile's census
+	#############################
+
+	#function to find a good plot layout for a given number of tiles
+	layoutFactors <- function(x) {
+		sx <- sqrt(x)
+		a <- ceiling(sx)
+		b <- if (floor(sx)*a < x) a else floor(sx)
+		c(a,b)
+	}
+
+	cr <- layoutFactors(nrow(censusTable))
+
+	plotCensus <- function(i) {
+		op <- par(las=3,mar=c(6,4,3,1)+.1)
+		depth <- ns1.depth[i,2]
+		barplot(censusTable[i,],
+			ylim=c(0,100),border=NA,ylab="% reads",xlab="mutant classes",
+			col=c("firebrick3","gray",rep("darkolivegreen3",N-2)),
+			main=sprintf("Tile #%d: %.02fM reads",i,depth)
+		)
+		grid(NA,NULL)
+		midx <- mean(par("usr")[1:2])
+		text(midx,60,bquote(lambda == .(lambdas[[i]])))
+		text(midx,40,sprintf("%.02f%% indels",censusTable[i,"indel"]))
+		par(op)
+	}
+
+	outfile <- paste0(outdir,"tileCensus.pdf")
+	pdf(outfile,2*cr[[1]],2*cr[[2]])
+	layout(t(matrix(1:(cr[[1]]*cr[[2]]),ncol=cr[[1]])))
+	invisible(lapply(1:nrow(censusTable),plotCensus))
+	invisible(dev.off())
 
 
 	###########################
@@ -257,19 +308,20 @@ libraryQC <- function(dataDir,logger=NULL) {
 
 	overallCensus <- c(indel=overallIndel,setNames(dpois(0:8,overallLambda),0:8)*(100-overallIndel))
 
-	pdf("extrapolatedCensus.pdf",5,5)
+	outfile <- paste0(outdir,"extrapolatedCensus.pdf")
+	pdf(outfile,5,5)
 	op <- par(las=3,mar=c(6,4,3,1)+.1)
 	barplot(overallCensus,
 		ylim=c(0,100),border=NA,ylab="% reads",xlab="mutant classes",
 		col=c("firebrick3","gray",rep("darkolivegreen3",length(overallCensus)-2)),
 		main="Extrapolation for whole CDS"
 	)
-		grid(NA,NULL)
+	grid(NA,NULL)
 	midx <- mean(par("usr")[1:2])
 	text(midx,60,bquote(lambda == .(overallLambda)))
 	text(midx,40,sprintf("%.02f%% indels",overallCensus[["indel"]]))
 	par(op)
-	dev.off()
+	invisible(dev.off())
 
 	## Plot distribution of lambdas
 	# plot(function(x)dnorm(x,))
@@ -280,6 +332,7 @@ libraryQC <- function(dataDir,logger=NULL) {
 	# Coverage heatmap
 	###################
 
+	#parse all variant CPMs of all tiles and combine in one table
 	allSingleCPMs <- do.call(rbind,lapply(1:nrow(ns1.depth), function(depth.row) {
 		sample.id <- ns1.depth[depth.row,"sample"]
 		sample.depth <- ns1.depth[depth.row,2]
@@ -292,7 +345,7 @@ libraryQC <- function(dataDir,logger=NULL) {
 		singleCounts
 	}))
 
-
+	#condense the table to unique amino acid changes
 	mutcpms <- tapply(allSingleCPMs$cpm, with(allSingleCPMs,paste0(wtaa,pos,mutaa)), sum)
 	allCPMs <- data.frame(
 		mutname=names(mutcpms),
@@ -303,31 +356,39 @@ libraryQC <- function(dataDir,logger=NULL) {
 	)
 
 
-
-	N <- max(allCPMs$pos)
+	#length protein (= highest AA position found)
+	start <- min(allCPMs$pos)
+	end <- max(allCPMs$pos)
+	#prepare list of all possible amino acids
 	aas <- toChars("AVILMFYWRHKDESTNQCGP_")
 
-	maxCPM <- max(allCPMs$cpm)
-	# digitFilter <- 10^floor(log10(maxCPM))
-	# maxCPM <- ceiling(maxCPM/digitFilter)*digitFilter
-	maxPower <- ceiling(log10(maxCPM))
+	#Prepare a color mapping function for CPM values
+	# - find highest CPM value (to map to darkest color)
+	maxPower <- ceiling(log10(max(allCPMs$cpm)))
 	cmap <- yogitools::colmap(c(-1,2,maxPower),c("white","orange","firebrick3"))
+
+	#Prepare heatmap coordinates and associated colors
 	x <- allCPMs$pos
 	y <- sapply(allCPMs$mutaa,function(aa) 22-which(aas==aa))
 	colvals <- cmap(log10(allCPMs$cpm))
 
+	#Determine plot size
+	mapwidth <- end-start+2
+	plotwidth <- mapwidth/10 + 3
 	
-	pdf("coverageHeatmap.pdf",40,3)
-	layout(cbind(1,2),widths=c(20,1))
+	#Draw the heatmap plot
+	outfile <- paste0(outdir,"coverageHeatmap.pdf")
+	pdf(outfile,plotwidth,3)
+	layout(cbind(1,2),widths=c(mapwidth/10+1,3))
 	op <- par(xaxs="i",yaxs="i",mar=c(5,4,0,0)+.1)
 	plot(
-		NA,xlim=c(0,N+1),ylim=c(0,22),
+		NA,xlim=c(start-1,end+1),ylim=c(0,22),
 		xlab="AA position",ylab="AA residue",
 		axes=FALSE
 	)
 	axis(1)
 	axis(2,at=21:1,aas,las=2,cex.axis=0.7)
-	rect(0.5,0.5,N+.5,21.5,col="gray",border=NA)
+	rect(start-0.5,0.5,end+.5,21.5,col="gray",border=NA)
 	rect(x-0.5,y-0.5,x+0.5,y+0.5,col=colvals,border=NA)
 	par(op)
 	op <- par(mar=c(5,0,0,6))
@@ -341,6 +402,9 @@ libraryQC <- function(dataDir,logger=NULL) {
 	axis(4,at=-2:maxPower,c("0","< 0.1","1",10^(1:(maxPower-1)),paste(">",10^maxPower)),las=2)
 	mtext("Rel. reads (per mil.)",side=4,line=4)
 	par(op)
-	dev.off()
+	invisible(dev.off())
+
+
+	logInfo("libraryQC function completed successfully.")
 
 }
