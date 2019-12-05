@@ -64,8 +64,14 @@ if (any(is.na(wt.aa))) {
 	wt.aa <- yogitools::toChars(mavevis::getUniprotSeq(uniprot))
 }
 
+td <- new.trackdrawer(length(wt.aa),nox=TRUE)
+
+if (!is.null(uniprot)) {
+	cons <- calc.conservation(uniprot)
+	td$add.constrack(cons)
+}
+
 if (!is.null(pdbArg)) {
-	td <- new.trackdrawer(length(wt.aa),nox=TRUE)
 
 	strucfeats <- mapply(calc.strucfeats,pdbIds,pdbChains,SIMPLIFY=FALSE)
 
@@ -96,8 +102,6 @@ if (!is.null(pdbArg)) {
 			}
 		}
 	}
-} else {
-	td <- NULL
 }
 
 cat("Drawing genophenogram...\n")
