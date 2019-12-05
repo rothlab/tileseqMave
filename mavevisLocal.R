@@ -24,15 +24,18 @@ if (!grepl(uniprotRX,uniprot)) {
 #TODO: Validate internet connection
 
 #get the PDB argument, parse and validate it.
-pdb <- strsplit(getArg("pdb",default=""),";")[[1]]
-pdbIds <- sapply(strsplit(pdb,"#"),`[[`,1)
-pdbChains <- sapply(strsplit(pdb,"#"),`[[`,2)
+pdbArg <- getArg("pdb",default=NULL)
+if (!is.null(pdbArg)) {
+	pdb <- strsplit(pdbArg,";")[[1]]
+	pdbIds <- sapply(strsplit(pdb,"#"),`[[`,1)
+	pdbChains <- sapply(strsplit(pdb,"#"),`[[`,2)
 
-if (!all(grepl("^[0-9][A-Za-z0-9]{3}$",pdbIds))) {
-	stop("One or more of the given PDB IDs is invalid!")
-}
-if (!all(grepl("^[A-Z]{1}$",pdbChains))) {
-	stop("One or more of the PDB chain identifiers is invalid!")
+	if (!all(grepl("^[0-9][A-Za-z0-9]{3}$",pdbIds))) {
+		stop("One or more of the given PDB IDs is invalid!")
+	}
+	if (!all(grepl("^[A-Z]{1}$",pdbChains))) {
+		stop("One or more of the PDB chain identifiers is invalid!")
+	}
 }
 
 
@@ -61,36 +64,40 @@ if (any(is.na(wt.aa))) {
 	wt.aa <- yogitools::toChars(mavevis::getUniprotSeq(uniprot))
 }
 
-strucfeats <- mapply(calc.strucfeats,pdbIds,pdbChains,SIMPLIFY=FALSE)
+if (!is.null(pdbArg)) {
+	td <- new.trackdrawer(length(wt.aa),nox=TRUE)
 
-td <- new.trackdrawer(length(wt.aa),nox=TRUE)
+	strucfeats <- mapply(calc.strucfeats,pdbIds,pdbChains,SIMPLIFY=FALSE)
 
-#consolidate secondary structure information from all structures
-sscols <- lapply(strucfeats,`[`,,"secstruc")
-fillup.max <- max(sapply(sscols,length))
-sscols <- lapply(sscols,function(xs) c(xs,rep(NA,fillup.max-length(xs))))
-if (length(sscols) > 1) {
-	ss.consensus <- apply(do.call(cbind,sscols),1,function(xs) if (!all(is.na(xs))) names(which.max(table(xs))) else NA)
-} else {
-	ss.consensus <- sscols[[1]]
-}
+	#consolidate secondary structure information from all structures
+	sscols <- lapply(strucfeats,`[`,,"secstruc")
+	fillup.max <- max(sapply(sscols,length))
+	sscols <- lapply(sscols,function(xs) c(xs,rep(NA,fillup.max-length(xs))))
+	if (length(sscols) > 1) {
+		ss.consensus <- apply(do.call(cbind,sscols),1,function(xs) if (!all(is.na(xs))) names(which.max(table(xs))) else NA)
+	} else {
+		ss.consensus <- sscols[[1]]
+	}
 
-#consolidate SASA information from all structures
-accols <- lapply(strucfeats,`[`,,"all.rel")
-fillup.max <- max(sapply(sscols,length))
-accols <- lapply(accols,function(xs) c(xs,rep(NA,fillup.max-length(xs))))
-acc.consensus <- apply(do.call(cbind,accols),1,median,na.rm=TRUE)
+	#consolidate SASA information from all structures
+	accols <- lapply(strucfeats,`[`,,"all.rel")
+	fillup.max <- max(sapply(sscols,length))
+	accols <- lapply(accols,function(xs) c(xs,rep(NA,fillup.max-length(xs))))
+	acc.consensus <- apply(do.call(cbind,accols),1,median,na.rm=TRUE)
 
-td$add.ss.track(ss.consensus)
-td$add.track(acc.consensus,"Rel. ASA","steelblue3")
-for (sf in strucfeats) {
-	burial.columns <- which(grepl("rel.burial",colnames(sf)))
-	if (length(burial.columns) > 0) {
-		for (col in burial.columns) {
-			prot <- sub("rel.burial.","",colnames(sf)[[col]])
-			td$add.track(sf[,col],prot,"orange",maxVal=1)
+	td$add.ss.track(ss.consensus)
+	td$add.track(acc.consensus,"Rel. ASA","steelblue3")
+	for (sf in strucfeats) {
+		burial.columns <- which(grepl("rel.burial",colnames(sf)))
+		if (length(burial.columns) > 0) {
+			for (col in burial.columns) {
+				prot <- sub("rel.burial.","",colnames(sf)[[col]])
+				td$add.track(sf[,col],prot,"orange",maxVal=1)
+			}
 		}
 	}
+} else {
+	td <- NULL
 }
 
 cat("Drawing genophenogram...\n")
