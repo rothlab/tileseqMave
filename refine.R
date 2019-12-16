@@ -48,7 +48,11 @@ if (!is.null(orgfile)) {
 outfile <- getArg("out",default=sub("\\.csv$","_refined_mavedb.csv",infile))
 pdffile <- getArg("pdf",default=sub("\\.csv$","_refined_mavedb.pdf",infile))
 
+#whether or not to use RMSD as the confidence gauge for imputed values
 useRMSD <- as.logical(getArg("useRMSD",default=TRUE))
+
+#cutoff for how many experimental values must exist in a column to include imputation output
+columnCutoff <- as.integer(getArg("columnCutoff",default=3))
 
 #Read input file
 cat("Reading input file...")
@@ -109,6 +113,16 @@ if (exists("hgvsLookup")) {
 	})
 }
 
+#Determine which columns exceed the cutoff for imputation to be trusted
+valsPerCol <- with(indata,tapply(fitness,aa_pos,function(xs)sum(!is.na(xs))))
+trustedColumns <- as.integer(names(which(valsPerCol > columnCutoff)))
+untrustedColumns <- as.integer(names(which(valsPerCol <= columnCutoff)))
+if (length(untrustedColumns) > 0) {
+	cat("Exluding imputation for columns",paste(untrustedColumns,collapse=", "),"not meeting cutoff.")
+}
+
+
+
 cat("Stretching predicted values to [0:1] interval...")
 #find the numerical interval that the imputation filled
 imputedRange <- range(indata$fitness_imputed,na.rm=TRUE)
@@ -125,14 +139,17 @@ cat("Running refinement...")
 #and refine based on that RMSD
 refined <- as.df(lapply(1:nrow(indata),function(i) with(indata[i,],{
 	impse <- if (is.na(fitness_imputed_se)) rmsd else fitness_imputed_se
-	if (is.na(stretched)) {
+	#if no imputation exists, or the column isn't trusted, use the experimental value (or NA)
+	if (is.na(stretched) | !(aa_pos %in% trustedColumns)) {
 		c(mj=fitness,sj=fitness_sd)
+	#otherwise, if no experimental value exists, use imputation
 	} else if (is.na(fitness)) {
 		if (useRMSD) {
 			c(mj=stretched,sj=rmsd)
 		} else {
 			c(mj=stretched,sj=impse)
 		}
+	#or, by default, form the confidence-weighted average between both
 	} else {
 		if (useRMSD) {
 			out <- join.datapoints(ms=c(stretched,fitness),sds=c(rmsd,fitness_sd/sqrt(num_replicates)))
