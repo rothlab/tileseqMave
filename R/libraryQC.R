@@ -97,7 +97,8 @@ libraryQC <- function(dataDir,outdir,logger=NULL,mc.cores=8) {
 	logInfo("Compiling census...")
 
 	#iterate over tiles/samples
-	censuses <- pbmclapply(1:nrow(ns1.depth), function(depth.row) {
+	# censuses <- pbmclapply(1:nrow(ns1.depth), function(depth.row) {
+	censuses <- lapply(1:nrow(ns1.depth), function(depth.row) {
 		sample.id <- ns1.depth[depth.row,"sample"]
 		sample.depth <- ns1.depth[depth.row,2]
 
@@ -218,7 +219,8 @@ libraryQC <- function(dataDir,outdir,logger=NULL,mc.cores=8) {
 
 		return(list(census=census,lambda=best.lambda,complexity=countVComplexity))
 
-	},mc.cores=mc.cores)
+	# },mc.cores=mc.cores)
+	})
 
 
 	censusRows <- lapply(censuses,`[[`,"census")
@@ -275,7 +277,6 @@ libraryQC <- function(dataDir,outdir,logger=NULL,mc.cores=8) {
 	cr <- layoutFactors(nrow(censusTable))
 
 	plotCensus <- function(i) {
-		op <- par(las=3,mar=c(6,4,3,1)+.1)
 		depth <- ns1.depth[i,2]
 		barplot(censusTable[i,],
 			ylim=c(0,100),border=NA,ylab="% reads",xlab="mutant classes",
@@ -286,13 +287,14 @@ libraryQC <- function(dataDir,outdir,logger=NULL,mc.cores=8) {
 		midx <- mean(par("usr")[1:2])
 		text(midx,60,bquote(lambda == .(lambdas[[i]])))
 		text(midx,40,sprintf("%.02f%% indels",censusTable[i,"indel"]))
-		par(op)
 	}
 
 	outfile <- paste0(outdir,"tileCensus.pdf")
-	pdf(outfile,2*cr[[1]],2*cr[[2]])
+	pdf(outfile,2*cr[[1]],2.5*cr[[2]])
 	layout(t(matrix(1:(cr[[1]]*cr[[2]]),ncol=cr[[1]])))
+	op <- par(las=3,mar=c(6,4,3,1)+.1)
 	invisible(lapply(1:nrow(censusTable),plotCensus))
+	par(op)
 	invisible(dev.off())
 
 
@@ -301,9 +303,12 @@ libraryQC <- function(dataDir,outdir,logger=NULL,mc.cores=8) {
 	#############################
 
 
-	#extapolate overall indel rate
-	overallIndel <- 100*(1-dbinom(0,15,mean(censusTable[,"indel"])/100))
+	#extrapolate overall indel rate
+	# = 1 minus prob of zero indels in all tilesr
+	# overallIndel <- 100*(1-dbinom(0,nrow(censusTable),mean(censusTable[,"indel"])/100))
+	overallIndel <- 100*(1-(1-mean(censusTable[,"indel"])/100)^nrow(censusTable))
 	#and overall #mut per clone
+	# = mean of lambdas times number of tiles = sum of lambdas
 	overallLambda <- sum(lambdas)
 
 	overallCensus <- c(indel=overallIndel,setNames(dpois(0:8,overallLambda),0:8)*(100-overallIndel))
@@ -355,6 +360,10 @@ libraryQC <- function(dataDir,outdir,logger=NULL,mc.cores=8) {
 		cpm=mutcpms
 	)
 
+	#calculate divider positions between tiles
+	ntiles <- nrow(tileRanges)
+	tileDividers <- tileRanges[-ntiles,2]
+
 
 	#length protein (= highest AA position found)
 	start <- min(allCPMs$pos)
@@ -378,8 +387,13 @@ libraryQC <- function(dataDir,outdir,logger=NULL,mc.cores=8) {
 	
 	#Draw the heatmap plot
 	outfile <- paste0(outdir,"coverageHeatmap.pdf")
-	pdf(outfile,plotwidth,3)
-	layout(cbind(1,2),widths=c(mapwidth/10+1,3))
+	pdf(outfile,plotwidth*2/3,4)
+	# layout(cbind(1,2),widths=c(mapwidth/10+1,3))
+	layout(
+		rbind(0:ntiles+3,c(rep(1,ntiles),2)),
+		widths=c(rep(mapwidth/ntiles/10+1,ntiles),3),
+		heights=c(1,1)
+	)
 	op <- par(xaxs="i",yaxs="i",mar=c(5,4,0,0)+.1)
 	plot(
 		NA,xlim=c(start-1,end+1),ylim=c(0,22),
@@ -390,7 +404,9 @@ libraryQC <- function(dataDir,outdir,logger=NULL,mc.cores=8) {
 	axis(2,at=21:1,aas,las=2,cex.axis=0.7)
 	rect(start-0.5,0.5,end+.5,21.5,col="gray",border=NA)
 	rect(x-0.5,y-0.5,x+0.5,y+0.5,col=colvals,border=NA)
+	abline(v=tileDividers+.5)
 	par(op)
+	#legend
 	op <- par(mar=c(5,0,0,6))
 	plot(
 		NA,xlim=c(0,1),ylim=c(-2.5,maxPower+.5),
@@ -401,6 +417,10 @@ libraryQC <- function(dataDir,outdir,logger=NULL,mc.cores=8) {
 	)
 	axis(4,at=-2:maxPower,c("0","< 0.1","1",10^(1:(maxPower-1)),paste(">",10^maxPower)),las=2)
 	mtext("Rel. reads (per mil.)",side=4,line=4)
+	par(op)
+	#census plots
+	op <- par(las=3,mar=c(6,6,3,3)+.1)
+	invisible(lapply(1:nrow(censusTable),plotCensus))
 	par(op)
 	invisible(dev.off())
 
