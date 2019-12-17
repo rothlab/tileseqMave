@@ -122,7 +122,22 @@ csvParam2Json <- function(infile,outfile=NULL) {
 	sampleTable <- as.data.frame(extractTable(firstField="Sample ID",nextSection=""))
 	sampleTable$`Tile ID` <- as.integer(sampleTable$`Tile ID`)
 	sampleTable$Replicate <- as.integer(sampleTable$Replicate)
+
+	#validate the sample sheet
+	if (!all(sampleTable[,"Tile ID"] %in% tileTable[,"Tile Number"])) {
+		stop("Undeclared tiles found in sample sheet!")
+	}
+	if (!all(sampleTable[,"Condition"] %in% conditions)) {
+		stop("Undeclared conditions found in sample sheet!")
+	}
+	if (!all(sampleTable[,"Time point"] %in% timeTable[,"Time point name"])) {
+		stop("Undeclared time points found in sample sheet!")
+	}
+	if (!all(sampleTable[,"Replicate"] <= output$numReplicates)) {
+		stop("Undeclared time points found in sample sheet!")
+	}
 	output$samples <- sampleTable
+
 
 
 	#convert output to JSON and write to file
