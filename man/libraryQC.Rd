@@ -4,7 +4,7 @@
 \alias{libraryQC}
 \title{QC plots for library coverage}
 \usage{
-libraryQC(dataDir, logger = NULL)
+libraryQC(dataDir, outdir, logger = NULL, mc.cores = 8)
 }
 \description{
 QC plots for library coverage
