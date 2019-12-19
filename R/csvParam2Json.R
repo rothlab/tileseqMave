@@ -141,6 +141,8 @@ csvParam2Json <- function(infile,outfile=NULL) {
 
 
 	#convert output to JSON and write to file
+	cat("Writing output to",outfile,"\n")
+	
 	con <- file(outfile,open="w")
 	writeLines(toJSON(output),con)
 	close(con)
