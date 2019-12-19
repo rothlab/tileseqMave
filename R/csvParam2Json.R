@@ -127,6 +127,9 @@ csvParam2Json <- function(infile,outfile=NULL) {
 	if (!all(sampleTable[,"Tile ID"] %in% tileTable[,"Tile Number"])) {
 		stop("Undeclared tiles found in sample sheet!")
 	}
+	if (!all(grepl("^[A-Za-z0-9]+$",sampleTable[,"Sample ID"]))) {
+		stop("Sample IDs must not contain special characters!")
+	}
 	if (!all(sampleTable[,"Condition"] %in% conditions)) {
 		stop("Undeclared conditions found in sample sheet!")
 	}
