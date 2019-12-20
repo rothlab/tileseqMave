@@ -17,7 +17,9 @@
 
 #' QC plots for library coverage
 #' @export
-libraryQC <- function(dataDir,outdir,logger=NULL,mc.cores=8) {
+libraryQC <- function(dataDir,outdir,
+	mut2funcFile=paste0(dataDir,"mut2func_info.csv"),
+	logger=NULL,mc.cores=8) {
 
 	# library(hgvsParseR)
 	# library(yogilog)
@@ -69,14 +71,14 @@ libraryQC <- function(dataDir,outdir,logger=NULL,mc.cores=8) {
 		dir.create(outdir,recursive=TRUE)
 	}
 
-	mut2funcFile <- paste0(dataDir,"mut2func_info.csv")
+	# mut2funcFile <- paste0(dataDir,"mut2func_info.csv")
 	if (!canRead(mut2funcFile)) {
 		stop("Unable to find or read 'mut2func_info.csv' file!")
 	}
-	seqDepthFile <- paste0(dataDir,"resultfile/sequencingDepth.csv")
-	if (!canRead(seqDepthFile)) {
-		stop("Unable to find or read 'sequencingDepth.csv' file!")
-	}
+	# seqDepthFile <- paste0(dataDir,"resultfile/sequencingDepth.csv")
+	# if (!canRead(seqDepthFile)) {
+	# 	stop("Unable to find or read 'sequencingDepth.csv' file!")
+	# }
 
 
 	mut2func <- read.csv(mut2funcFile)
@@ -84,15 +86,24 @@ libraryQC <- function(dataDir,outdir,logger=NULL,mc.cores=8) {
 
 
 	#Interpret sequencing depth file and obtain sample information
-	seqDepthTable <- read.csv(seqDepthFile)
-	rxGroups <- extract.groups(seqDepthTable$SampleID,"SampleID(\\d+)_(\\w+)(\\d+)")
-	seqDepthTable$sample <- as.integer(rxGroups[,1])
-	seqDepthTable$condition <- rxGroups[,2]
-	seqDepthTable$replicate <- as.integer(rxGroups[,3])
+	# seqDepthTable <- read.csv(seqDepthFile)
+	# rxGroups <- extract.groups(seqDepthTable$SampleID,"SampleID(\\d+)_(\\w+)(\\d+)")
+	# seqDepthTable$sample <- as.integer(rxGroups[,1])
+	# seqDepthTable$condition <- rxGroups[,2]
+	# seqDepthTable$replicate <- as.integer(rxGroups[,3])
 
-	#Isolate first replicate of nonselect samples
-	ns1.rows <- with(seqDepthTable,which(condition=="NS" & replicate == 1))
-	ns1.depth <- seqDepthTable[ns1.rows,]
+	# #Isolate first replicate of nonselect samples
+	# ns1.rows <- with(seqDepthTable,which(condition=="NS" & replicate == 1))
+	# ns1.depth <- seqDepthTable[ns1.rows,]
+
+	nsSamples <- unlist(mut2func[which(mut2func$tiles=="nonselect1"),-1])
+	ns1.depth <- as.df(lapply(nsSamples, function(sid) {
+		reportFile <- paste0(dataDir,"mutationCallfile/",sid,"report.txt")
+		reportLines <- scan(reportFile,what="character",sep="\n",quiet=TRUE)
+		depth <- as.numeric(extract.groups(reportLines[grep("sequencing depth",reportLines)],"is: (.+) million")[,1])
+		list(sample=sid,depth=depth)
+	}))
+
 
 	logInfo("Compiling census...")
 
@@ -114,7 +125,7 @@ libraryQC <- function(dataDir,outdir,logger=NULL,mc.cores=8) {
 		mutaas <- strsplit(multiCounts$mutaa,"\\|")
 		positions <- strsplit(multiCounts$pos,"\\|")
 		#create ids for multimutants
-		multiVars <- mapply(function(w,p,m) paste0(w,p,m), wtaas, positions, mutaas)
+		multiVars <- mapply(function(w,p,m) paste0(w,p,m), wtaas, positions, mutaas, SIMPLIFY=FALSE)
 		#number of aa-changes per multimutant
 		nmuts <- sapply(multiVars,length)
 		maxMuts <- max(nmuts)
@@ -148,35 +159,36 @@ libraryQC <- function(dataDir,outdir,logger=NULL,mc.cores=8) {
 			}
 		}
 
-		#Next, read the single-mutant file. Note that these are not true single-mutants, but rather
-		#the total count regardless of in-cis context (i.e. mix of single and multimutants)
-		singleCounts <- read.delim(
+		#Next, read the AAchange file. Note that these are not true single-mutants, but rather
+		#the marginal counts for each amino acid change
+		marginalCounts <- read.delim(
 			paste0(dataDir,"mutationCallfile/",sample.id,"AAchange.txt"),
 			header=FALSE
 		)
-		colnames(singleCounts) <- c("wtaa","pos","mutaa","wtcodon","mutcodon","cpm")
+		colnames(marginalCounts) <- c("wtaa","pos","mutaa","wtcodon","mutcodon","cpm")
 
 		#collapse by aa-change
-		singleVariants <- with(singleCounts,mapply(function(w,p,m) paste0(w,p,m), wtaa, pos, mutaa))
-		singleTotals <- hash()
-		for (i in 1:length(singleVariants)) {
-			v <- singleVariants[[i]]
-			if (hash::has.key(v,singleTotals)) {
-				singleTotals[[v]] <- singleTotals[[v]] + singleCounts[[i,"cpm"]]
+		marginalVariants <- with(marginalCounts,mapply(function(w,p,m) paste0(w,p,m), wtaa, pos, mutaa))
+		marginalTotals <- hash()
+		for (i in 1:length(marginalVariants)) {
+			v <- marginalVariants[[i]]
+			if (hash::has.key(v,marginalTotals)) {
+				marginalTotals[[v]] <- marginalTotals[[v]] + marginalCounts[[i,"cpm"]]
 			} else {
-				singleTotals[[v]] <- singleCounts[[i,"cpm"]]
+				marginalTotals[[v]] <- marginalCounts[[i,"cpm"]]
 			}
 		}
 
 		#list of unique aa changes
-		uniqueVars <- keys(singleTotals)
+		uniqueVars <- keys(marginalTotals)
 
-		#calculate the true single mutant CPMs by subtracting the corresponding multi-mutant CPMs
+		#calculate the true single mutant CPMs by subtracting the multi-mutant marginal CPMs
+		# from the total marginal CPMs
 		singletonCounts <- sapply(uniqueVars, function(uvar) {
 			if (has.key(uvar,multiTotals)) {
-				singleTotals[[uvar]] - multiTotals[[uvar]]
+				marginalTotals[[uvar]] - multiTotals[[uvar]]
 			} else {
-				singleTotals[[uvar]] 
+				marginalTotals[[uvar]] 
 			}
 		})
 
@@ -194,9 +206,12 @@ libraryQC <- function(dataDir,outdir,logger=NULL,mc.cores=8) {
 
 
 		#Now, having compiled the required numbers, we can combine them into a census table.
+		#Unfortunately, we have to treat the indels separately, as we have no information on the 
+		# cross-talk between indels and missense/nonsense variants.
 		census <- c(
 			indel = indelCPM,
-			WT = 1e6 - (indelCPM + sum(singleCounts$cpm)),
+			# WT = 1e6 - (indelCPM + sum(marginalCounts$cpm)),
+			WT = 1e6 - (sum(marginalCounts$cpm)),
 			single = sum(singletonCounts),
 			multiCensus
 		) * 100 / 1e6
@@ -290,7 +305,11 @@ libraryQC <- function(dataDir,outdir,logger=NULL,mc.cores=8) {
 	}
 
 	outfile <- paste0(outdir,"tileCensus.pdf")
-	pdf(outfile,2*cr[[1]],2.5*cr[[2]])
+	if (all(cr==c(2,1))) {
+		pdf(outfile,5,10)
+	} else {
+		pdf(outfile,2*cr[[1]],2.5*cr[[2]])
+	}
 	layout(t(matrix(1:(cr[[1]]*cr[[2]]),ncol=cr[[1]])))
 	op <- par(las=3,mar=c(6,4,3,1)+.1)
 	invisible(lapply(1:nrow(censusTable),plotCensus))
