@@ -69,9 +69,17 @@ csvParam2Json <- function(infile,outfile=NULL) {
 
 	#extract template sequence
 	output$template <- list()
+	output$template$geneName <- csv[[getRow("Gene name:")]][[2]]
 	output$template$seq <- csv[[getRow("Sequence:")]][[2]]
 	output$template$cds_start <- as.integer(csv[[getRow("CDS start:")]][[2]])
 	output$template$cds_end <- as.integer(csv[[getRow("CDS end:")]][[2]])
+	output$template$uniprot <- csv[[getRow("Uniprot Accession:")]][[2]]
+
+	#Validate Uniprot Accession via Regex
+	uniprotRX <- "[OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9]([A-Z][A-Z0-9]{2}[0-9]){1,2}"
+	if (!grepl(uniprotRX,output$gemplate$uniprot)) {
+		stop("Invalid Uniprot Accession!")
+	}
 
 	if (is.na(output$template$cds_start) || is.na(output$template$cds_end)) {
 		stop("CDS start and end must be integer numbers!")
