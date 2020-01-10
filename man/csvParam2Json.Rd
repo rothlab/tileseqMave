@@ -8,9 +8,11 @@ csvParam2Json(infile, outfile = NULL)
 }
 \arguments{
 \item{infile}{the input CSV file}
+
+\item{outfile}{the output JSON file. Defaults to parameters.json in the same directory}
 }
 \value{
-nothing, but an output file will be written in the same directory as the input file
+NULL. Results are written to file.
 }
 \description{
 convert CSV input parameter file to JSON format
