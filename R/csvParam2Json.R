@@ -102,21 +102,49 @@ validateParameters <- function(params) {
 #'
 #' @param infile the input CSV file
 #' @param outfile the output JSON file. Defaults to parameters.json in the same directory
+#' @param logger yogilog logger. Defaults to NULL and writes to stdout.
 #' @return NULL. Results are written to file.
 #' @export
-csvParam2Json <- function(infile,outfile=NULL) {
+csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",filename),logger=NULL) {
 
 	#for writing JSON output
 	library(RJSONIO)
 	#for helper functions
 	library(yogitools)
 
-	#check that the file is indeed a csv file and can be read
-	stopifnot(grepl("\\.csv$",infile), canRead(infile))
+	if (!is.null(logger)) {
+		stopifnot(inherits(logger,"yogilogger"))
+	}
 
-	if (is.null(outfile)) {
-		# outfile <- sub("csv$","json",infile)
-		outfile <- sub("[^/]+$","parameters.json",filename)
+	logInfo <- function(...) {
+		if (!is.null(logger)) {
+			logger$info(...)
+		} else {
+			do.call(cat,c(list(...),"\n"))
+		}
+	}
+	logWarn <- function(...) {
+		if (!is.null(logger)) {
+			logger$warning(...)
+		} else {
+			do.call(cat,c("Warning:",list(...),"\n"))
+		}
+	}
+	logErr <- function(...) {
+		if (!is.null(logger)) {
+			logger$error(...)
+		} else {
+			do.call(cat,c("ERROR:",list(...),"\n"))
+		}
+	}
+
+
+	#check that the file is indeed a csv file and can be read
+	if(!grepl("\\.csv$",infile)) {
+		stop("Input file must be CSV file!")
+	}
+	if (!canRead(infile)) {
+		stop("Input file cannot be read!")
 	}
 
 	#read the file into a list of lists and extract the first column
@@ -198,13 +226,13 @@ csvParam2Json <- function(infile,outfile=NULL) {
 	validateParameters(output)
 
 	#convert output to JSON and write to file
-	cat("Writing output to",outfile,"\n")
+	logInfo("Writing output to",outfile,"\n")
 	
 	con <- file(outfile,open="w")
 	writeLines(toJSON(output),con)
 	close(con)
 
-	cat("Conversion successful!\n")
+	logInfo("Conversion successful!\n")
 	return(NULL)
 }
 
@@ -220,8 +248,8 @@ parseParameters <- function(filename) {
 	#for helper functions
 	library(yogitools)
 
-	#check that the file is indeed a csv file and can be read
-	stopifnot(grepl("\\.csv$",filename), canRead(filename))
+	#check that the file is indeed a json file and can be read
+	stopifnot(grepl("\\.json$",filename), canRead(filename))
 
 	#parse JSON to list of lists
 	params <- fromJSON(filename)

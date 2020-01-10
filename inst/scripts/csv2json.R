@@ -26,6 +26,7 @@ options(stringsAsFactors=FALSE)
 #load libraries
 library(tileseqMave)
 library(argparser)
+library(yogilog)
 
 #process command line arguments
 p <- arg_parser(
@@ -33,8 +34,17 @@ p <- arg_parser(
 	name="csv2json.R"
 )
 p <- add_argument(p, "infile", help="input file")
-p <- add_argument(p, "--outfile", help="output file")
+p <- add_argument(p, "--outfile", help="output file. Defaults to parameters.json in the same directory.")
+p <- add_argument(p, "--logfile", help="log file. Defaults to csv2json.log in the same directory")
 args <- parse_args(p)
-outfile <- if (is.na(args$outfile)) NULL else args$outfile
+outfile <- if (is.na(args$outfile)) sub("[^/]+$","parameters.json",args$infile) else args$outfile
+logfile <- if (is.na(args$logfile)) sub("[^/]+$","csv2json.log",args$infile) else args$logfile
 
-csvParam2Json(args$infile,outfile)
+#set up logger and shunt it into the error handler
+logger <- new.logger(logfile)
+registerLogErrorHandler(logger)
+
+#run the actual function
+invisible(
+	csvParam2Json(args$infile,outfile,logger)
+)
