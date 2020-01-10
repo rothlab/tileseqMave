@@ -15,6 +15,178 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with tileseqMave.  If not, see <https://www.gnu.org/licenses/>.
 
+#' converts legacy tileseq count data into the new count file format
+#'
+#' @param dataDir path to the existing data main directory
+#' @param outdir path to the desired output directory
+#' @param mut2funcFile path to the mut2func file. Defaults to <dataDir>/mut2func_info.csv
+#' @param countFolder path the mutationCallfile folder. Defaults to <dataDir>/mutationCallfile/
+#' @param logger An optional yogilogger object. Defaults to NULL, which just prints to stdout.
+#' @return NULL. Results are written to file. 
+#' @export
+legacyCountConverter <- function(dataDir, outdir, 
+	mut2funcFile=paste0(dataDir,"mut2func_info.csv"), 
+	countFolder=paste0(dataDir,"mutationCallfile/"),
+	logger=NULL) {
+	
+	library(hgvsParseR)
+	# library(yogilog)
+	library(yogitools)
+
+	op <- options(stringsAsFactors=FALSE)
+
+	if (!is.null(logger)) {
+		stopifnot(inherits(logger,"yogilogger"))
+	}
+
+	logInfo <- function(...) {
+		if (!is.null(logger)) {
+			logger$info(...)
+		} else {
+			do.call(cat,c(list(...),"\n"))
+		}
+	}
+	logWarn <- function(...) {
+		if (!is.null(logger)) {
+			logger$warning(...)
+		} else {
+			do.call(cat,c("Warning:",list(...),"\n"))
+		}
+	}
+	logErr <- function(...) {
+		if (!is.null(logger)) {
+			logger$error(...)
+		} else {
+			do.call(cat,c("ERROR:",list(...),"\n"))
+		}
+	}
+
+
+	canRead <- function(filename) file.access(filename,mode=4) == 0
+	
+	#make sure data and out dir exist and ends with a "/"
+	if (!grepl("/$",dataDir)) {
+		dataDir <- paste0(dataDir,"/")
+	}
+	if (!grepl("/$",outdir)) {
+		outdir <- paste0(outdir,"/")
+	}
+	if (!dir.exists(dataDir)) {
+		#we don't use the logger here, assuming that whichever script wraps our function
+		#catches the exception and writes to the logger (or uses the log error handler)
+		stop("Data folder does not exist!")
+	}
+	if (!dir.exists(outdir)) {
+		logWarn("Output folder does not exist, creating it now.")
+		dir.create(outdir,recursive=TRUE)
+	}
+
+	# mut2funcFile <- paste0(dataDir,"mut2func_info.csv")
+	if (!canRead(mut2funcFile)) {
+		stop("Unable to find or read 'mut2func_info.csv' file!")
+	}
+	# seqDepthFile <- paste0(dataDir,"resultfile/sequencingDepth.csv")
+	# if (!canRead(seqDepthFile)) {
+	# 	stop("Unable to find or read 'sequencingDepth.csv' file!")
+	# }
+
+	parseReport <- function(reportFile) {
+		lines <- scan(reportFile,what="character",sep="\n",quiet=TRUE)
+		mreads <- as.numeric(extract.groups(lines[[7]],"is: (.+) million")[1,1])
+		return(mreads*1e6)
+	}
+
+
+	#inverse lookup of sample IDs
+	mut2func <- read.csv(mut2funcFile)
+	tileRanges <- apply(extract.groups(colnames(mut2func)[-1],"X(\\d+)\\.(\\d+)"),2,as.integer)
+	sampleIDs <- unique(sort(do.call(c,mut2func[,-1])))
+	condRep <- extract.groups(mut2func[,1],"^(\\w+)(\\d+)$")
+	# rownames(condRep) <- mut2func[,1]
+	sampleMetadata <- as.df(lapply(sampleIDs,function(sid) {
+		idx <- which(mut2func==sid,arr.ind=TRUE)
+		reportFile <- paste0(countFolder,sid,"report.txt")
+		depth <- parseReport(reportFile)
+		list(
+			sample=sid, tile=unique(idx[,2]), 
+			condition=paste(unique(condRep[idx[,1],1]),collapse=","),
+			replicate=paste(unique(condRep[idx[,1],2]),collapse=","),
+			timepoint=1,depth=depth
+		)
+	}))
+
+	processCountFile <- function(countFile,depth) {
+		counts <- read.delim(countFile,header=FALSE)
+
+		cbuilder <- new.hgvs.builder.c()
+		hgvsc <- apply(counts,1,function(row) {
+			wt <- strsplit(row[[4]],"\\|")[[1]]
+			pos <- as.integer(strsplit(row[[2]],"\\|")[[1]])
+			mut <- strsplit(row[[5]],"\\|")[[1]]
+			#codon start indices
+			cstart <- pos*3-2
+			hgvscs <- mapply(function(wt,pos,mut,cstart) {
+				#calculate differences between codons
+				diffs <- sapply(1:3,function(i)substr(wt,i,i)!=substr(mut,i,i))
+				ndiff <- sum(diffs)
+				if (ndiff == 1) { #one difference is a SNV
+					offset <- which(diffs)
+					wtbase <- substr(wt,offset,offset)
+					mutbase <- substr(mut,offset,offset)
+					snvpos <- cstart+offset-1
+					cbuilder$substitution(snvpos,wtbase,mutbase)
+				} else if (ndiff > 1) { #multiple differences is a delIns
+					cbuilder$delins(cstart,cstart+2,mut)
+				} else {
+					stop("mutation must differ from wt!")
+				}
+			},wt,pos,mut,cstart)
+			if (length(hgvscs) > 1) {
+				do.call(cbuilder$cis,as.list(hgvscs))
+			} else {
+				hgvscs
+			}
+		})
+		data.frame(HGVS=hgvsc,count=round(counts[,6]*depth/1e6))
+	}
+
+
+	# #Sample: 14
+	# #Tile: 3
+	# #Condition: nonselect
+	# #Replicate: 1
+	# #Timepoint: 1
+	# #Read-depth: 30156
+	# HGVS,count
+	# c.21A>C,34
+	# c.[13_15delinsTTG;29G>C],10
+	# c.[8T>G;18_19del],8
+	# c.123_125delinsCCG,42
+	# ...
+
+	invisible(apply(sampleMetadata,1,function(row) {
+		sid <- as.integer(row[1])
+
+		multi <- processCountFile(paste0(countFolder,sid,"MultipleMut.txt"),as.integer(row["depth"]))
+		single <- processCountFile(paste0(countFolder,sid,"AAchange.txt"),as.integer(row["depth"]))
+		header <- mapply(
+			function(name,value) sprintf("#%s: %s",name,value), 
+			name=c("Sample","Tile","Condition","Replicate","Timepoint","Read-depth"),
+			value=row
+		)
+
+		con <- file(paste0(outdir,"counts_sample",sid,".csv"),open="w")
+		writeLines(header,con)
+		write.csv(rbind(multi,single),con,row.names=FALSE,quote=FALSE)
+		close(con)
+
+	}))
+
+	options(op)
+
+	return(NULL)
+}
+
 #' analyze tileseq counts from legacy pipeline
 #'
 #' This analysis function performs the following steps for each mutagenesis region:
@@ -851,3 +1023,442 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL,
 }
 
 
+
+#' QC plots for library coverage
+#' @param dataDir path to the existing data main directory
+#' @param outdir path to the output directory
+#' @param mut2funcFile path to the mut2func file. Defaults to <dataDir>/mut2func_info.csv
+#' @param logger optional yogilogger object. Defaults to NULL, in which case messages will go to stdout.
+#' @param mc.cores number of CPU cores to use in parallel
+#' @return NULL. Results are written to file.
+#' @export
+libraryQCLegacy <- function(dataDir,outdir,
+	mut2funcFile=paste0(dataDir,"mut2func_info.csv"),
+	logger=NULL,mc.cores=8) {
+
+	# library(hgvsParseR)
+	# library(yogilog)
+	library(yogitools)
+	library(hash)
+	library(pbmcapply)
+
+	options(stringsAsFactors=FALSE)
+
+	if (!is.null(logger)) {
+		stopifnot(inherits(logger,"yogilogger"))
+	}
+
+	logInfo <- function(...) {
+		if (!is.null(logger)) {
+			logger$info(...)
+		} else {
+			do.call(cat,c(list(...),"\n"))
+		}
+	}
+	logWarn <- function(...) {
+		if (!is.null(logger)) {
+			logger$warning(...)
+		} else {
+			do.call(cat,c("Warning:",list(...),"\n"))
+		}
+	}
+
+	##############
+	# Read and validate input data
+	##############
+
+	canRead <- function(filename) file.access(filename,mode=4) == 0
+	
+	#make sure data and out dir exist and ends with a "/"
+	if (!grepl("/$",dataDir)) {
+		dataDir <- paste0(dataDir,"/")
+	}
+	if (!grepl("/$",outdir)) {
+		outdir <- paste0(outdir,"/")
+	}
+	if (!dir.exists(dataDir)) {
+		#we don't use the logger here, assuming that whichever script wraps our function
+		#catches the exception and writes to the logger (or uses the log error handler)
+		stop("Data folder does not exist!")
+	}
+	if (!dir.exists(outdir)) {
+		logWarn("Output folder does not exist, creating it now.")
+		dir.create(outdir,recursive=TRUE)
+	}
+
+	# mut2funcFile <- paste0(dataDir,"mut2func_info.csv")
+	if (!canRead(mut2funcFile)) {
+		stop("Unable to find or read 'mut2func_info.csv' file!")
+	}
+	# seqDepthFile <- paste0(dataDir,"resultfile/sequencingDepth.csv")
+	# if (!canRead(seqDepthFile)) {
+	# 	stop("Unable to find or read 'sequencingDepth.csv' file!")
+	# }
+
+
+	mut2func <- read.csv(mut2funcFile)
+	tileRanges <- apply(extract.groups(colnames(mut2func)[-1],"X(\\d+)\\.(\\d+)"),2,as.integer)
+
+
+	#Interpret sequencing depth file and obtain sample information
+	# seqDepthTable <- read.csv(seqDepthFile)
+	# rxGroups <- extract.groups(seqDepthTable$SampleID,"SampleID(\\d+)_(\\w+)(\\d+)")
+	# seqDepthTable$sample <- as.integer(rxGroups[,1])
+	# seqDepthTable$condition <- rxGroups[,2]
+	# seqDepthTable$replicate <- as.integer(rxGroups[,3])
+
+	# #Isolate first replicate of nonselect samples
+	# ns1.rows <- with(seqDepthTable,which(condition=="NS" & replicate == 1))
+	# ns1.depth <- seqDepthTable[ns1.rows,]
+
+	nsSamples <- unlist(mut2func[which(mut2func$tiles=="nonselect1"),-1])
+	ns1.depth <- as.df(lapply(nsSamples, function(sid) {
+		reportFile <- paste0(dataDir,"mutationCallfile/",sid,"report.txt")
+		reportLines <- scan(reportFile,what="character",sep="\n",quiet=TRUE)
+		depth <- as.numeric(extract.groups(reportLines[grep("sequencing depth",reportLines)],"is: (.+) million")[,1])
+		list(sample=sid,depth=depth)
+	}))
+
+
+	logInfo("Compiling census...")
+
+	#iterate over tiles/samples
+	# censuses <- pbmclapply(1:nrow(ns1.depth), function(depth.row) {
+	censuses <- lapply(1:nrow(ns1.depth), function(depth.row) {
+		sample.id <- ns1.depth[depth.row,"sample"]
+		sample.depth <- ns1.depth[depth.row,2]
+
+
+		#read the file for mult-mutant CPMs (counts per million reads)
+		multiCounts <- read.delim(
+			paste0(dataDir,"mutationCallfile/",sample.id,"MultipleMut.txt"),
+			header=FALSE
+		)
+		colnames(multiCounts) <- c("wtaa","pos","mutaa","wtcodon","mutcodon","cpm")
+
+		wtaas <- strsplit(multiCounts$wtaa,"\\|")
+		mutaas <- strsplit(multiCounts$mutaa,"\\|")
+		positions <- strsplit(multiCounts$pos,"\\|")
+		#create ids for multimutants
+		multiVars <- mapply(function(w,p,m) paste0(w,p,m), wtaas, positions, mutaas, SIMPLIFY=FALSE)
+		#number of aa-changes per multimutant
+		nmuts <- sapply(multiVars,length)
+		maxMuts <- max(nmuts)
+
+		if (min(nmuts) < 2) {
+			logWarn("MultiMuts contains single mutations!")
+		}
+
+		#create a census of the number of co-occurring mutations
+		multiCensus <- tapply(multiCounts$cpm,nmuts,sum)
+		#make sure no number is skipped!
+		multiCensus <- multiCensus[as.character(2:maxMuts)]
+		names(multiCensus) <- as.character(2:maxMuts)
+		if (any(is.na(multiCensus))) {
+			multiCensus[which(is.na(multiCensus))] <- 0
+		}
+
+		#infer expected single-mutant CPMS from multimutant CPMs
+		multiTotals <- hash()
+		#also infer complexity underpinning each aa-change (i.e. the number of unique multimutants that contain it)
+		varComplexity <- hash()
+		for (i in 1:length(multiVars)) {
+			for (variant in multiVars[[i]]) {
+				if (hash::has.key(variant,multiTotals)) {
+					multiTotals[[variant]] <- multiTotals[[variant]] + multiCounts[i,"cpm"]
+					varComplexity[[variant]] <- varComplexity[[variant]] + 1
+				} else {
+					multiTotals[[variant]] <- multiCounts[i,"cpm"]
+					varComplexity[[variant]] <- 1
+				}
+			}
+		}
+
+		#Next, read the AAchange file. Note that these are not true single-mutants, but rather
+		#the marginal counts for each amino acid change
+		marginalCounts <- read.delim(
+			paste0(dataDir,"mutationCallfile/",sample.id,"AAchange.txt"),
+			header=FALSE
+		)
+		colnames(marginalCounts) <- c("wtaa","pos","mutaa","wtcodon","mutcodon","cpm")
+
+		#collapse by aa-change
+		marginalVariants <- with(marginalCounts,mapply(function(w,p,m) paste0(w,p,m), wtaa, pos, mutaa))
+		marginalTotals <- hash()
+		for (i in 1:length(marginalVariants)) {
+			v <- marginalVariants[[i]]
+			if (hash::has.key(v,marginalTotals)) {
+				marginalTotals[[v]] <- marginalTotals[[v]] + marginalCounts[[i,"cpm"]]
+			} else {
+				marginalTotals[[v]] <- marginalCounts[[i,"cpm"]]
+			}
+		}
+
+		#list of unique aa changes
+		uniqueVars <- keys(marginalTotals)
+
+		#calculate the true single mutant CPMs by subtracting the multi-mutant marginal CPMs
+		# from the total marginal CPMs
+		singletonCounts <- sapply(uniqueVars, function(uvar) {
+			if (has.key(uvar,multiTotals)) {
+				marginalTotals[[uvar]] - multiTotals[[uvar]]
+			} else {
+				marginalTotals[[uvar]] 
+			}
+		})
+
+
+		#Finally, read the deletion and inseration CPMs
+		delCounts <- read.delim(
+			paste0(dataDir,"mutationCallfile/",sample.id,"deletion.txt"),
+			header=FALSE
+		)
+		insCounts <- read.delim(
+			paste0(dataDir,"mutationCallfile/",sample.id,"insertion.txt"),
+			header=FALSE
+		)
+		indelCPM <- sum(delCounts[,2])+sum(insCounts[,4])
+
+
+		#Now, having compiled the required numbers, we can combine them into a census table.
+		#Unfortunately, we have to treat the indels separately, as we have no information on the 
+		# cross-talk between indels and missense/nonsense variants.
+		census <- c(
+			indel = indelCPM,
+			# WT = 1e6 - (indelCPM + sum(marginalCounts$cpm)),
+			WT = 1e6 - (sum(marginalCounts$cpm)),
+			single = sum(singletonCounts),
+			multiCensus
+		) * 100 / 1e6
+
+
+		#Fit a poisson-distribution to the census
+		lambdas <- seq(0.01,4,0.01)
+		dists <- sapply(lambdas, function(lambda) {
+			sum(abs(census[-1] - dpois(0:maxMuts,lambda)*100))
+		})
+		# cat(min(dists),"\n")
+		best.lambda <- lambdas[[which.min(dists)]]
+		
+
+		#Also generate a table that compares variant CPMs against variant complexity
+		countVComplexity <- data.frame(
+			cpm=singletonCounts[hash::keys(varComplexity)],
+			complexity=hash::values(varComplexity)
+		)
+
+		return(list(census=census,lambda=best.lambda,complexity=countVComplexity))
+
+	# },mc.cores=mc.cores)
+	})
+
+
+	censusRows <- lapply(censuses,`[[`,"census")
+	N <- max(sapply(censusRows,length))
+	censusTable <- do.call(rbind,lapply(censusRows,function(cr) c(cr,rep(0,N-length(cr)))))
+	colnames(censusTable)[-(1:3)] <- 2:(N-2)
+
+	lambdas <- sapply(censuses,`[[`,"lambda")
+
+	complexities <- do.call(rbind,lapply(censuses,`[[`,"complexity"))
+
+	###########################
+	# Plot read counts vs complexities
+	#############################
+
+	outfile <- paste0(outdir,"complexities.pdf")
+	pdf(outfile,5,5)
+	layout(rbind(c(2,4),c(1,3)),heights=c(2,8),widths=c(8,2))
+	op <- par(mar=c(5,4,0,0)+.1)
+	plot(complexities,pch=".",log="xy",ylab="unique variants per AA-change")
+	grid()
+	par(mar=c(0,4,1,0)+.1)
+	hist(
+		log10(complexities$cpm),breaks=50,main="",axes=FALSE,
+		col="gray",border=NA
+	)
+	# axis(1,c(-15,-11,-7,-3,1))
+	axis(2)
+	par(mar=c(5,0,0,1)+.1)
+	yhist <- hist(log10(complexities$complexity),breaks=50,plot=FALSE)
+	with(yhist,plot(
+		NA,xlim=c(0,max(counts)),ylim=range(breaks),
+		xlab="Frequency",ylab="",main="",axes=FALSE
+	))
+	axis(1)
+	# axis(2,c(0,1,2))
+	with(yhist,rect(0,breaks[-length(breaks)],counts,breaks[-1],col="gray",border=NA))
+	par(op)
+	invisible(dev.off())
+
+
+	############################
+	# Plot each tile's census
+	#############################
+
+	#function to find a good plot layout for a given number of tiles
+	layoutFactors <- function(x) {
+		sx <- sqrt(x)
+		a <- ceiling(sx)
+		b <- if (floor(sx)*a < x) a else floor(sx)
+		c(a,b)
+	}
+
+	cr <- layoutFactors(nrow(censusTable))
+
+	plotCensus <- function(i) {
+		depth <- ns1.depth[i,2]
+		barplot(censusTable[i,],
+			ylim=c(0,100),border=NA,ylab="% reads",xlab="mutant classes",
+			col=c("firebrick3","gray",rep("darkolivegreen3",N-2)),
+			main=sprintf("Tile #%d: %.02fM reads",i,depth)
+		)
+		grid(NA,NULL)
+		midx <- mean(par("usr")[1:2])
+		text(midx,60,bquote(lambda == .(lambdas[[i]])))
+		text(midx,40,sprintf("%.02f%% indels",censusTable[i,"indel"]))
+	}
+
+	outfile <- paste0(outdir,"tileCensus.pdf")
+	if (all(cr==c(2,1))) {
+		pdf(outfile,5,10)
+	} else {
+		pdf(outfile,2*cr[[1]],2.5*cr[[2]])
+	}
+	layout(t(matrix(1:(cr[[1]]*cr[[2]]),ncol=cr[[1]])))
+	op <- par(las=3,mar=c(6,4,3,1)+.1)
+	invisible(lapply(1:nrow(censusTable),plotCensus))
+	par(op)
+	invisible(dev.off())
+
+
+	###########################
+	# Extrapolate overall variant census
+	#############################
+
+
+	#extrapolate overall indel rate
+	# = 1 minus prob of zero indels in all tilesr
+	# overallIndel <- 100*(1-dbinom(0,nrow(censusTable),mean(censusTable[,"indel"])/100))
+	overallIndel <- 100*(1-(1-mean(censusTable[,"indel"])/100)^nrow(censusTable))
+	#and overall #mut per clone
+	# = mean of lambdas times number of tiles = sum of lambdas
+	overallLambda <- sum(lambdas)
+
+	overallCensus <- c(indel=overallIndel,setNames(dpois(0:8,overallLambda),0:8)*(100-overallIndel))
+
+	outfile <- paste0(outdir,"extrapolatedCensus.pdf")
+	pdf(outfile,5,5)
+	op <- par(las=3,mar=c(6,4,3,1)+.1)
+	barplot(overallCensus,
+		ylim=c(0,100),border=NA,ylab="% reads",xlab="mutant classes",
+		col=c("firebrick3","gray",rep("darkolivegreen3",length(overallCensus)-2)),
+		main="Extrapolation for whole CDS"
+	)
+	grid(NA,NULL)
+	midx <- mean(par("usr")[1:2])
+	text(midx,60,bquote(lambda == .(overallLambda)))
+	text(midx,40,sprintf("%.02f%% indels",overallCensus[["indel"]]))
+	par(op)
+	invisible(dev.off())
+
+	## Plot distribution of lambdas
+	# plot(function(x)dnorm(x,))
+	# abline(v=jitter(lambdas),col="gray")
+
+
+	###################
+	# Coverage heatmap
+	###################
+
+	#parse all variant CPMs of all tiles and combine in one table
+	allSingleCPMs <- do.call(rbind,lapply(1:nrow(ns1.depth), function(depth.row) {
+		sample.id <- ns1.depth[depth.row,"sample"]
+		sample.depth <- ns1.depth[depth.row,2]
+
+		singleCounts <- read.delim(
+			paste0(dataDir,"mutationCallfile/",sample.id,"AAchange.txt"),
+			header=FALSE
+		)
+		colnames(singleCounts) <- c("wtaa","pos","mutaa","wtcodon","mutcodon","cpm")
+		singleCounts
+	}))
+
+	#condense the table to unique amino acid changes
+	mutcpms <- tapply(allSingleCPMs$cpm, with(allSingleCPMs,paste0(wtaa,pos,mutaa)), sum)
+	allCPMs <- data.frame(
+		mutname=names(mutcpms),
+		wtaa=substr(names(mutcpms),1,1),
+		pos=as.integer(substr(names(mutcpms),2,nchar(names(mutcpms))-1)),
+		mutaa=substr(names(mutcpms),nchar(names(mutcpms)),nchar(names(mutcpms))),
+		cpm=mutcpms
+	)
+
+	#calculate divider positions between tiles
+	ntiles <- nrow(tileRanges)
+	tileDividers <- tileRanges[-ntiles,2]
+
+
+	#length protein (= highest AA position found)
+	start <- min(allCPMs$pos)
+	end <- max(allCPMs$pos)
+	#prepare list of all possible amino acids
+	aas <- toChars("AVILMFYWRHKDESTNQCGP_")
+
+	#Prepare a color mapping function for CPM values
+	# - find highest CPM value (to map to darkest color)
+	maxPower <- ceiling(log10(max(allCPMs$cpm)))
+	cmap <- yogitools::colmap(c(-1,2,maxPower),c("white","orange","firebrick3"))
+
+	#Prepare heatmap coordinates and associated colors
+	x <- allCPMs$pos
+	y <- sapply(allCPMs$mutaa,function(aa) 22-which(aas==aa))
+	colvals <- cmap(log10(allCPMs$cpm))
+
+	#Determine plot size
+	mapwidth <- end-start+2
+	plotwidth <- mapwidth/10 + 3
+	
+	#Draw the heatmap plot
+	outfile <- paste0(outdir,"coverageHeatmap.pdf")
+	pdf(outfile,plotwidth*2/3,4)
+	# layout(cbind(1,2),widths=c(mapwidth/10+1,3))
+	layout(
+		rbind(0:ntiles+3,c(rep(1,ntiles),2)),
+		widths=c(rep(mapwidth/ntiles/10+1,ntiles),3),
+		heights=c(1,1)
+	)
+	op <- par(xaxs="i",yaxs="i",mar=c(5,4,0,0)+.1)
+	plot(
+		NA,xlim=c(start-1,end+1),ylim=c(0,22),
+		xlab="AA position",ylab="AA residue",
+		axes=FALSE
+	)
+	axis(1)
+	axis(2,at=21:1,aas,las=2,cex.axis=0.7)
+	rect(start-0.5,0.5,end+.5,21.5,col="gray",border=NA)
+	rect(x-0.5,y-0.5,x+0.5,y+0.5,col=colvals,border=NA)
+	abline(v=tileDividers+.5)
+	par(op)
+	#legend
+	op <- par(mar=c(5,0,0,6))
+	plot(
+		NA,xlim=c(0,1),ylim=c(-2.5,maxPower+.5),
+		axes=FALSE,xlab="",ylab=""
+	)
+	rect(0,(-2:maxPower)-0.5,1,(-2:maxPower)+0.5,border=NA,
+		col=cmap(c(NA,(-1:maxPower)))
+	)
+	axis(4,at=-2:maxPower,c("0","< 0.1","1",10^(1:(maxPower-1)),paste(">",10^maxPower)),las=2)
+	mtext("Rel. reads (per mil.)",side=4,line=4)
+	par(op)
+	#census plots
+	op <- par(las=3,mar=c(6,6,3,3)+.1)
+	invisible(lapply(1:nrow(censusTable),plotCensus))
+	par(op)
+	invisible(dev.off())
+
+
+	logInfo("libraryQC function completed successfully.")
+
+}
