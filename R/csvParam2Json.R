@@ -15,10 +15,94 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with tileseqMave.  If not, see <https://www.gnu.org/licenses/>.
 
+#' run validation checks on parameters object
+#'
+#' @param params
+#' @return TRUE if everything checks out, otherwise it throws errors
+#' @export
+validateParameters <- function(params) {
+
+	#Validate template sequence
+	if (is.na(params$template$cds_start) || is.na(params$template$cds_end)) {
+		stop("CDS start and end must be integer numbers!")
+	}
+	if (params$template$cds_start < 1 || params$template$cds_start > nchar(params$template$seq)) {
+		stop("CDS start is out of bounds!")
+	}
+	if (params$template$cds_end < 1 || params$template$cds_end > nchar(params$template$seq)) {
+		stop("CDS end is out of bounds!")
+	}
+	if (!grepl("^[ACGT]{3,}$",params$template$seq)) {
+		stop("Template sequence is not a valid DNA sequence!")
+	}
+	cdsLength <- params$template$cds_end - params$template$cds_start + 1
+	if (cdsLength %% 3 != 0) {
+		stop("CDS end is not in-frame with start position!")
+	}
+	startCodon <- substr(params$template$seq,params$template$cds_start,params$template$cds_start+2)
+	if (startCodon != "ATG") {
+		stop("CDS start position is not a start codon (ATG)")
+	}
+
+	#Validate Uniprot Accession via Regex
+	uniprotRX <- "[OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9]([A-Z][A-Z0-9]{2}[0-9]){1,2}"
+	if (!grepl(uniprotRX,params$template$uniprot)) {
+		stop("Invalid Uniprot Accession!")
+	}
+
+	#check that at least four conditions are defined
+	if (length(params$conditions$names) < 4) {
+		stop("Must define at least 4 conditions!")
+	}
+
+	#check condition table for validity
+	if (!all(params$conditions$definitions[,"Condition 1"] %in% params$conditions$names) || 
+		!all(params$conditions$definitions[,"Condition 2"] %in% params$conditions$names)) {
+		stop("Undeclared condition name in definitions!")
+	}
+	relationships <- c("is_selection_for","is_wt_control_for")
+	if (!all(params$conditions$definitions[,"Relationship"] %in% relationships)) {
+		stop("Invalid relationship in condition definitions!")
+	}
+
+	#TODO: Check that each condition has a WT control
+	#TODO: Check that each selection has a nonselect
+
+	if (is.na(params$numReplicates)) {
+		stop("Number of replicates must be an integer number!")
+	}
+	if (params$numReplicates < 2) {
+		stop("Number of replicates must be at least 2!")
+	}
+
+	#validate the sample sheet
+	if (!all(params$samples[,"Tile ID"] %in% params$tiles[,"Tile Number"])) {
+		stop("Undeclared tiles found in sample sheet!")
+	}
+	if (!all(grepl("^[A-Za-z0-9]+$",params$samples[,"Sample ID"]))) {
+		stop("Sample IDs must not contain special characters!")
+	}
+	if (!all(params$samples[,"Condition"] %in% params$conditions$names)) {
+		stop("Undeclared conditions found in sample sheet!")
+	}
+	if (!all(params$samples[,"Time point"] %in% params$timepoints[,"Time point name"])) {
+		stop("Undeclared time points found in sample sheet!")
+	}
+	if (!all(params$samples[,"Replicate"] <= params$numReplicates)) {
+		stop("Undeclared time points found in sample sheet!")
+	}
+
+	#TODO: Validate that the entire CDS in covered with tiles and regions
+
+	return(TRUE)
+}
+
+
 #' convert CSV input parameter file to JSON format
 #'
 #' @param infile the input CSV file
-#' @return nothing, but an output file will be written in the same directory as the input file
+#' @param outfile the output JSON file. Defaults to parameters.json in the same directory
+#' @return NULL. Results are written to file.
 #' @export
 csvParam2Json <- function(infile,outfile=NULL) {
 
@@ -31,7 +115,8 @@ csvParam2Json <- function(infile,outfile=NULL) {
 	stopifnot(grepl("\\.csv$",infile), canRead(infile))
 
 	if (is.null(outfile)) {
-		outfile <- sub("csv$","json",infile)
+		# outfile <- sub("csv$","json",infile)
+		outfile <- sub("[^/]+$","parameters.json",filename)
 	}
 
 	#read the file into a list of lists and extract the first column
@@ -75,27 +160,13 @@ csvParam2Json <- function(infile,outfile=NULL) {
 	output$template$cds_end <- as.integer(csv[[getRow("CDS end:")]][[2]])
 	output$template$uniprot <- csv[[getRow("Uniprot Accession:")]][[2]]
 
-	#Validate Uniprot Accession via Regex
-	uniprotRX <- "[OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9]([A-Z][A-Z0-9]{2}[0-9]){1,2}"
-	if (!grepl(uniprotRX,output$gemplate$uniprot)) {
-		stop("Invalid Uniprot Accession!")
-	}
-
-	if (is.na(output$template$cds_start) || is.na(output$template$cds_end)) {
-		stop("CDS start and end must be integer numbers!")
-	}
-
 	#extract conditions, replicates and timepoints
 	conditions <- csv[[getRow("List of conditions:")]][-1]
 	conditions <- conditions[!(conditions=="" | is.na(conditions))]
 	output$conditions <- list()
 	output$conditions$names <- conditions
-	output$numReplicates <-  csv[[getRow("Number of Replicates:")]][[2]]
-	output$numTimepoints <-  csv[[getRow("Number of time points:")]][[2]]
-
-	if (is.na(output$template$cds_start) || is.na(output$template$cds_end)) {
-		stop("CDS start and end must be integer numbers!")
-	}
+	output$numReplicates <-  as.integer(csv[[getRow("Number of Replicates:")]][[2]])
+	output$numTimepoints <-  as.integer(csv[[getRow("Number of time points:")]][[2]])
 
 	#extract regions table
 	regionTable <- extractTable(firstField="Region Number",nextSection="Sequencing Tiles")
@@ -109,15 +180,6 @@ csvParam2Json <- function(infile,outfile=NULL) {
 
 	#extract condition definitions
 	conditionTable <- extractTable(firstField="Condition 1",nextSection="Time point definitions")
-	#check for validity
-	if (!all(conditionTable[,"Condition 1"] %in% conditions) || 
-		!all(conditionTable[,"Condition 2"] %in% conditions)) {
-		stop("Undeclared condition name in definitions!")
-	}
-	relationships <- c("is_selection_for","is_wt_control_for")
-	if (!all(conditionTable[,"Relationship"] %in% relationships)) {
-		stop("Invalid relationship in condition definitions!")
-	}
 	output$conditions$definitions <- conditionTable
 
 	#Time point definitions
@@ -130,26 +192,10 @@ csvParam2Json <- function(infile,outfile=NULL) {
 	sampleTable <- as.data.frame(extractTable(firstField="Sample ID",nextSection=""))
 	sampleTable$`Tile ID` <- as.integer(sampleTable$`Tile ID`)
 	sampleTable$Replicate <- as.integer(sampleTable$Replicate)
-
-	#validate the sample sheet
-	if (!all(sampleTable[,"Tile ID"] %in% tileTable[,"Tile Number"])) {
-		stop("Undeclared tiles found in sample sheet!")
-	}
-	if (!all(grepl("^[A-Za-z0-9]+$",sampleTable[,"Sample ID"]))) {
-		stop("Sample IDs must not contain special characters!")
-	}
-	if (!all(sampleTable[,"Condition"] %in% conditions)) {
-		stop("Undeclared conditions found in sample sheet!")
-	}
-	if (!all(sampleTable[,"Time point"] %in% timeTable[,"Time point name"])) {
-		stop("Undeclared time points found in sample sheet!")
-	}
-	if (!all(sampleTable[,"Replicate"] <= output$numReplicates)) {
-		stop("Undeclared time points found in sample sheet!")
-	}
 	output$samples <- sampleTable
 
-
+	#Run validation on all parameters
+	validateParameters(output)
 
 	#convert output to JSON and write to file
 	cat("Writing output to",outfile,"\n")
@@ -159,4 +205,79 @@ csvParam2Json <- function(infile,outfile=NULL) {
 	close(con)
 
 	cat("Conversion successful!\n")
+	return(NULL)
+}
+
+#' parse JSON parameter file
+#'
+#' @param filename the input CSV file
+#' @return the parameter object, as a list of lists
+#' @export
+parseParameters <- function(filename) { 
+
+	#for writing JSON output
+	library(RJSONIO)
+	#for helper functions
+	library(yogitools)
+
+	#check that the file is indeed a csv file and can be read
+	stopifnot(grepl("\\.csv$",filename), canRead(filename))
+
+	#parse JSON to list of lists
+	params <- fromJSON(filename)
+
+	#rebuild tables and dataframes from lists
+	params$conditions$definitions <- do.call(rbind,params$conditions$definitions)
+	params$regions <- do.call(rbind,params$regions)
+	params$tiles <- do.call(rbind,params$tiles)
+
+	timeCols <- names(params$timepoints)
+	params$timepoints <- as.data.frame(params$timepoints)
+	colnames(params$timepoints) <- timeCols
+
+	sampleCols <- names(params$samples)
+	params$samples <- as.data.frame(params$samples)
+	colnames(params$samples) <- sampleCols
+
+	#run full validation of the parameter object
+	validateParameters(params)
+
+	#calculate CDS and protein sequence
+	cdsLength <- params$template$cds_end - params$template$cds_start + 1
+	cdsSeq <- substr(params$template$seq,params$template$cds_start,params$template$cds_end)
+
+	data(trtable)
+	proteinSeq <- sapply(seq(1,cdsLength,3),function(pos) trtable[[substr(cdsSeq,pos,pos+2)]])
+	proteinLength <- length(proteinSeq)
+	if (proteinSeq[[proteinLength]] == "*") {
+		proteinSeq <- proteinSeq[-proteinLength]	
+		proteinLength <- proteinLength-1
+	}
+
+	params$template$cdsSeq <- cdsSeq
+	params$template$cdsLength <- cdsLength
+	params$template$proteinSeq <- paste(proteinSeq,collapse="")
+	params$template$proteinLength <- proteinLength
+
+
+	#convert region and tile positions to nucleotide positions
+	params$regions <- cbind(params$regions, 
+		`Start NC in CDS` = params$regions[,"Start AA"]*3-2,
+		`End NC in CDS` = params$regions[,"End AA"]*3
+	)
+	params$regions <- cbind(params$regions, 
+		`Start NC in Template` = params$regions[,"Start NC in CDS"]+ params$template$cds_start - 1,
+		`End NC in Template` = params$regions[,"End NC in CDS"]+ params$template$cds_start - 1
+	)
+
+	params$tiles <- cbind(params$tiles, 
+		`Start NC in CDS` = params$tiles[,"Start AA"]*3-2,
+		`End NC in CDS` = params$tiles[,"End AA"]*3
+	)
+	params$tiles <- cbind(params$tiles, 
+		`Start NC in Template` = params$tiles[,"Start NC in CDS"]+ params$template$cds_start - 1,
+		`End NC in Template` = params$tiles[,"End NC in CDS"]+ params$template$cds_start - 1
+	)
+
+	return(params)
 }
