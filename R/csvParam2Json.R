@@ -307,5 +307,54 @@ parseParameters <- function(filename) {
 		`End NC in Template` = params$tiles[,"End NC in CDS"]+ params$template$cds_start - 1
 	)
 
+
+	#Process the condition definitions to annotate the sample table
+	sampleTable <- params$samples
+	#Assign correct nonselect sample for each selection sample
+	sampleTable$nonselectRef <- sapply(1:nrow(sampleTable), function(i)with(sampleTable[i,], {
+		nsCond <- with(as.data.frame(params$conditions$definitions),{
+			`Condition 2`[which(Relationship == "is_selection_for" & `Condition 1` == Condition)]
+		})
+		if (length(nsCond) == 0) return(NA)
+		rows <- which(
+			sampleTable$`Tile ID` == `Tile ID` & 
+			sampleTable$Replicate == Replicate & 
+			sampleTable$`Time point` == `Time point` & 
+			sampleTable$Condition == nsCond
+		)
+		if (length(rows) == 0) {
+			return(NA)
+		} else if (length(rows) > 1) {
+			logWarn("More than one nonselect match found for sample",`Sample ID`)
+			paste(sampleTable$`Sample ID`[rows],collapse=",")
+		} else {
+			sampleTable$`Sample ID`[rows]
+		}
+	}))
+	#Assign correct WT control sample for each main sample
+	sampleTable$wtCtrlRef <- sapply(1:nrow(sampleTable), function(i)with(sampleTable[i,], {
+		wtCond <- with(as.data.frame(params$conditions$definitions),{
+			`Condition 1`[which(Relationship == "is_wt_control_for" & `Condition 2` == Condition)]
+		})
+		if (length(wtCond) == 0) return(NA)
+		rows <- which(
+			sampleTable$`Tile ID` == `Tile ID` & 
+			sampleTable$Replicate == Replicate & 
+			sampleTable$`Time point` == `Time point` & 
+			sampleTable$Condition == wtCond
+		)
+		if (length(rows) == 0) {
+			return(NA)
+		} else if (length(rows) > 1) {
+			logWarn("More than one WT control match found for sample",`Sample ID`)
+			paste(sampleTable$`Sample ID`[rows],collapse=",")
+		} else {
+			sampleTable$`Sample ID`[rows]
+		}
+	}))
+	params$samples <- sampleTable
+
+
 	return(params)
 }
+
