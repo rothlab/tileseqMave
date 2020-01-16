@@ -1,0 +1,158 @@
+{
+ "project": "CBS test",
+"template": {
+  "geneName": "CBS",
+ "seq": "TGCATAACCACTTTAACTAATACTTTCAACATTTTCGGTTTGTATTACTTCTTATTCAAATGTAATAAAAGTATCAACAAAAAATTGTTAATATACCTCTATACTTTAACGTCAAGGAGAAAAAACCCCGGATTCTAGAACTAGTGGATCCCCCATCACAAGTTTGTACAAAAAAGTTGGCATGCCTTCTGAGACCCCCCAGGCAGAAGTGGGGCCCACAGGCTGCCCCCACCGCTCAGGGCCACACTCGGCGAAGGGGAGCCTGGAGAAGGGGTCCCCAGAGGATAAGGAAGCCAAGGAGCCCCTGTGGATCCGGCCCGATGCTCCGAGCAGGTGCACCTGGCAGCTGGGCCGGCCTGCCTCCGAGTCCCCACATCACCACACTGCCCCGGCAAAATCTCCAAAAATCTTGCCAGATATTCTGAAGAAAATCGGGGACACCCCTATGGTCAGAATCAACAAGATTGGGAAGAAGTTCGGCCTGAAGTGTGAGCTCTTGGCCAAGTGTGAGTTCTTCAACGCGGGCGGGAGCGTGAAGGACCGCATCAGCCTGCGGATGATTGAGGATGCTGAGCGCGACGGGACGCTGAAGCCCGGGGACACGATTATCGAGCCGACATCCGGGAACACCGGGATCGGGCTGGCCCTGGCTGCGGCAGTGAGGGGCTATCGCTGCATCATCGTGATGCCAGAGAAGATGAGCTCCGAGAAGGTGGACGTGCTGCGGGCACTGGGGGCTGAGATTGTGAGGACGCCCACCAATGCCAGGTTCGACTCCCCGGAGTCACACGTGGGGGTGGCCTGGCGGCTGAAGAACGAAATCCCCAATTCTCACATCCTAGACCAGTACCGCAACGCCAGCAACCCCCTGGCTCACTACGACACCACCGCTGATGAGATCCTGCAGCAGTGTGATGGGAAGCTGGACATGCTGGTGGCTTCAGTGGGCACGGGCGGCACCATCACGGGCATTGCCAGGAAGCTGAAGGAGAAGTGTCCTGGATGCAGGATCATTGGGGTGGATCCCGAAGGGTCCATCCTCGCAGAGCCGGAGGAGCTGAACCAGACGGAGCAGACAACCTACGAGGTGGAAGGGATCGGCTACGACTTCATCCCCACGGTGCTGGACAGGACGGTGGTGGACAAGTGGTTCAAGAGCAACGATGAGGAGGCGTTCACCTTTGCCCGCATGCTGATCGCGCAAGAGGGGCTGCTGTGCGGTGGCAGTGCTGGCAGCACGGTGGCGGTGGCCGTGAAGGCTGCGCAGGAGCTGCAGGAGGGCCAGCGCTGCGTGGTCATTCTGCCCGACTCAGTGCGGAACTACATGACCAAGTTCCTGAGCGACAGGTGGATGCTGCAGAAGGGCTTTCTGAAGGAGGAGGACCTCACGGAGAAGAAGCCCTGGTGGTGGCACCTCCGTGTTCAGGAGCTGGGCCTGTCAGCCCCGCTGACCGTGCTCCCGACCATCACCTGTGGGCACACCATCGAGATCCTCCGGGAGAAGGGCTTCGACCAGGCGCCCGTGGTGGATGAGGCGGGGGTAATCCTGGGAATGGTGACGCTTGGGAACATGCTCTCGTCCCTGCTTGCCGGGAAGGTGCAGCCGTCAGACCAAGTTGGCAAAGTCATCTACAAGCAGTTCAAACAGATCCGCCTCACGGACACGCTGGGCAGGCTCTCGCACATCCTGGAGATGGACCACTTCGCCCTGGTGGTGCACGAGCAGATCCAGTACCACAGCACCGGGAAGTCCAGTCAGCGGCAGATGGTGTTCGGGGTGGTCACCGCCATTGACTTGCTGAACTTCGTGGCCGCCCAGGAGCGGGACCAGAAGTGACCAACTTTCTTGTACAAAGTGGTGATGGGCTGCAGGAATTCGATATCAAGCTCGAGTCATGTAATTAGTTATGTCACGCTTACATTCACGCCCTCCCCCCACATCCGCTCTAACCGAAAAGGAAGGAGTTAGACAACCTGAAGTCTAGGTCCCTATTTATTTTTTTATAGTTATGTTAGTATTAAGAACGTTATTTATATTTCAAATTTTTCTTTTTTTTCTGTACAGACGCGTGTACGCATGTAACATTATACTGAAAACCTTGCTTGAGAAGGTTTTGGGACGCTCGAAGGCTTTAATTTGCGGCCGGTACCCAATTCGCCCTATAGTGAGTCGTATTACGCGCGCTCACTGGCCGTCGTTTTACAACGTCGTGACTGGGAAAACCCTGGCGTTACCCAACTTAATCGCCTTGCAGCACATCCCCCTTTCGCCAGCTGGCGTAATAGCGAAGAGGCCCGCACCGATCGCCCTTCCCAACAGTTGCGC",
+"cds_start": 182,
+"cds_end": 1837,
+"uniprot": "P35520"
+},
+"conditions": {
+ "names": [ "nonselect", "select", "wtSelect", "wtNonselect" ],
+"definitions": [ {
+ "Condition 1": "select",
+"Relationship": "is_selection_for",
+"Condition 2": "nonselect" 
+},
+{
+ "Condition 1": "wtSelect",
+"Relationship": "is_wt_control_for",
+"Condition 2": "select" 
+},
+{
+ "Condition 1": "wtNonselect",
+"Relationship": "is_wt_control_for",
+"Condition 2": "nonselect" 
+} ] 
+},
+"numReplicates": 2,
+"numTimepoints": 1,
+"regions": [ {
+   "Region Number": 1,
+  "Start AA": 2,
+  "End AA": 551 
+  } ],
+"tiles": [ {
+   "Tile Number": 1,
+  "Start AA": 2,
+  "End AA": 36 
+  },
+{
+   "Tile Number": 2,
+  "Start AA": 37,
+  "End AA": 70 
+  },
+{
+   "Tile Number": 3,
+  "Start AA": 71,
+  "End AA": 108 
+  },
+{
+   "Tile Number": 4,
+  "Start AA": 109,
+  "End AA": 146 
+  },
+{
+   "Tile Number": 5,
+  "Start AA": 147,
+  "End AA": 184 
+  },
+{
+   "Tile Number": 6,
+  "Start AA": 185,
+  "End AA": 222 
+  },
+{
+   "Tile Number": 7,
+  "Start AA": 223,
+  "End AA": 258 
+  },
+{
+   "Tile Number": 8,
+  "Start AA": 259,
+  "End AA": 296 
+  },
+{
+   "Tile Number": 9,
+  "Start AA": 297,
+  "End AA": 334 
+  },
+{
+   "Tile Number": 10,
+  "Start AA": 335,
+  "End AA": 372 
+  },
+{
+   "Tile Number": 11,
+  "Start AA": 373,
+  "End AA": 410 
+  },
+{
+   "Tile Number": 12,
+  "Start AA": 411,
+  "End AA": 448 
+  },
+{
+   "Tile Number": 13,
+  "Start AA": 449,
+  "End AA": 485 
+  },
+{
+   "Tile Number": 14,
+  "Start AA": 486,
+  "End AA": 521 
+  },
+{
+   "Tile Number": 15,
+  "Start AA": 522,
+  "End AA": 551 
+  } ],
+"timepoints": {
+ "Time point name": [ "1" ],
+"Time": [        0 ],
+"Unit": [ "h" ] 
+},
+"samples": {
+ "Sample ID": [ 37, 38, 99, 100, 41, 102, 43, 44, 105, 46, 47, 48, 109, 20, 111, 
+121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 60, 112, 23, 24, 
+157, 158, 159, 160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 170, 171, 
+181, 182, 183, 184, 185, 186, 187, 188, 189, 190, 191, 192, 172, 173, 174, 
+1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 
+25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 84, 16, 17, 18, 
+1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 
+25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 84, 16, 17, 18 ],
+"Tile ID": [ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 ],
+"Condition": [ "nonselect", "nonselect", "nonselect", "nonselect", "nonselect", "nonselect", "nonselect", "nonselect", "nonselect", "nonselect", "nonselect", "nonselect", "nonselect", "nonselect", "nonselect",
+"nonselect", "nonselect", "nonselect", "nonselect", "nonselect", "nonselect", "nonselect", "nonselect", "nonselect", "nonselect", "nonselect", "nonselect", "nonselect", "nonselect", "nonselect",
+"select", "select", "select", "select", "select", "select", "select", "select", "select", "select", "select", "select", "select", "select", "select",
+"select", "select", "select", "select", "select", "select", "select", "select", "select", "select", "select", "select", "select", "select", "select",
+"wtNonselect", "wtNonselect", "wtNonselect", "wtNonselect", "wtNonselect", "wtNonselect", "wtNonselect", "wtNonselect", "wtNonselect", "wtNonselect", "wtNonselect", "wtNonselect", "wtNonselect", "wtNonselect", "wtNonselect",
+"wtNonselect", "wtNonselect", "wtNonselect", "wtNonselect", "wtNonselect", "wtNonselect", "wtNonselect", "wtNonselect", "wtNonselect", "wtNonselect", "wtNonselect", "wtNonselect", "wtNonselect", "wtNonselect", "wtNonselect",
+"wtSelect", "wtSelect", "wtSelect", "wtSelect", "wtSelect", "wtSelect", "wtSelect", "wtSelect", "wtSelect", "wtSelect", "wtSelect", "wtSelect", "wtSelect", "wtSelect", "wtSelect",
+"wtSelect", "wtSelect", "wtSelect", "wtSelect", "wtSelect", "wtSelect", "wtSelect", "wtSelect", "wtSelect", "wtSelect", "wtSelect", "wtSelect", "wtSelect", "wtSelect", "wtSelect"
+ ],
+"Time point": [ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
+1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
+1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
+1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
+1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
+1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
+1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
+1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 ],
+"Replicate": [ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
+2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 
+1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
+2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 
+1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
+2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 
+1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
+2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2] 
+} 
+}

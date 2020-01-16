@@ -233,7 +233,7 @@ csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",filename
 	close(con)
 
 	logInfo("Conversion successful!\n")
-	return(NULL)
+	invisible(return(NULL))
 }
 
 #' parse JSON parameter file
@@ -256,7 +256,13 @@ parseParameters <- function(filename) {
 
 	#rebuild tables and dataframes from lists
 	params$conditions$definitions <- do.call(rbind,params$conditions$definitions)
+	if (!inherits(params$regions,"list")) {
+		params$regions <- list(params$regions)
+	}
 	params$regions <- do.call(rbind,params$regions)
+	if (!inherits(params$tiles,"list")) {
+		params$tiles <- list(params$tiles)
+	}
 	params$tiles <- do.call(rbind,params$tiles)
 
 	timeCols <- names(params$timepoints)

@@ -3,9 +3,13 @@
 #' 
 #' @param hgvs a single cds-level HGVS string. May contain multiple mutations in-cis.
 #' @param params a parameter object with CDS definitions
+#' @param builder an optional protein HGVS builder object, if none is provided, a new one is created.
+#' @param strictMode whether HGVS will be validated against the reference sequence before translation
 #' @return translated HGVS string
 #' @export
-translateHGVS <- function(hgvs,params,builder=new.hgvs.builder.p(aacode=3)) {
+translateHGVS <- function(hgvs, params, 
+	builder=new.hgvs.builder.p(aacode=3),
+	strictMode=TRUE) {
 
 	library(yogitools)
 	library(hgvsParseR)
@@ -24,10 +28,15 @@ translateHGVS <- function(hgvs,params,builder=new.hgvs.builder.p(aacode=3)) {
 	codons <- sapply(codonStarts,function(i) substr(cdsSeq,i,i+2))
 
 	#load DNA translation table
-	data(trTable)
+	data(trtable)
 
 	#parse the DNA HGVS string
 	breakdown <- parseHGVS(hgvs)
+	#not every breakdown will have an end column, but we rely on it below
+	#so we add a fake one if it's missing.
+	if (!("end" %in% colnames(breakdown))) {
+		breakdown$end <- NA
+	}
 
 	#check for unsupported mutation types
 	if (any(breakdown$type %in% c("duplication","inversion","conversion","amplification"))) {
@@ -69,7 +78,7 @@ translateHGVS <- function(hgvs,params,builder=new.hgvs.builder.p(aacode=3)) {
 
 	#list affected codons of each mutation to identify potential overlap
 	affectedCodons <- lapply(1:nrow(breakdown),function(i) {
-		ncs <- if (!is.na(breakdown[i,"end"])) {
+		ncs <- if (!is.na(breakdown[i,"end"])) {   
 			seq(breakdown[i,"start"],breakdown[i,"end"])
 		} else {
 			breakdown[i,"start"]
@@ -95,6 +104,12 @@ translateHGVS <- function(hgvs,params,builder=new.hgvs.builder.p(aacode=3)) {
 			switch(
 				breakdown[mi,"type"],
 				substitution={
+					if (strictMode) {
+						wtNc <- breakdown[mi,"ancestral"]
+						if (substr(codon,mStartInner,mStartInner) != wtNc) {
+							stop("Reference mismatch!")
+						}
+					}
 					substr(codon,mStartInner,mStartInner) <- insSeq
 				},
 				#Reminder: deletion / insertion lengths can only be multiple of 3
@@ -148,7 +163,13 @@ translateHGVS <- function(hgvs,params,builder=new.hgvs.builder.p(aacode=3)) {
 			)
 		}
 		wtaa <- trtable[[codons[[codonIdx]]]]
-		mutaa <- if (codon == "") "-" else trtable[[codon]]
+		mutaa <- if (codon == "") {
+			"-"
+		} else if (nchar(codon) > 3) {
+			paste(sapply(seq(1,nchar(codon),3),function(i) trtable[[substr(codon,i,i+2)]]),collapse="")
+		} else {
+			trtable[[codon]]
+		}
 		list(pos=codonIdx,wtaa=wtaa,mutaa=mutaa)
 	}))
 
@@ -169,20 +190,25 @@ translateHGVS <- function(hgvs,params,builder=new.hgvs.builder.p(aacode=3)) {
 	#iterate over groups and build HGVS strings
 	aaHGVS <- lapply(aaChangeGroups, function(acs) {
 		if (nrow(acs) > 1) {
-			#large groups are always delins
+			#this is a chain
 			insSeq <- gsub("-","",paste0(acs$mutaa,collapse=""))
 			fromPos <- acs$pos[[1]]
 			fromAA <- acs$wtaa[[1]]
 			toPos <- acs$pos[[nrow(acs)]]
 			toAA <- acs$wtaa[[nrow(acs)]]
-			builder$delins(fromPos,fromAA,toPos,toAA,toChars(insSeq))
+			#if it's all "-" it's a deletion
+			if (insSeq == "") {
+				builder$deletion(fromPos,fromAA,toPos,toAA)
+			} else {
+				builder$delins(fromPos,fromAA,toPos,toAA,toChars(insSeq))
+			}
 		} else {
 			#singletons can be synonymous, deletions, delins or substitutions (which include nonsense)
 			with(acs,{
 				if (mutaa == wtaa) {
 					builder$synonymous(pos,wtaa)
 				} else if (mutaa == "-") {
-					builder$deletion(pos,wtaa,ppos,wtaa)
+					builder$deletion(pos,wtaa,pos,wtaa)
 				} else if (nchar(mutaa) > 1) {
 					builder$delins(pos,wtaa,pos,wtaa,toChars(mutaa))
 				} else {
@@ -204,3 +230,4 @@ translateHGVS <- function(hgvs,params,builder=new.hgvs.builder.p(aacode=3)) {
 	return(finalHGVS)
 
 }
+

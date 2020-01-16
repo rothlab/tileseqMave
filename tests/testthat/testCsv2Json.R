@@ -8,11 +8,12 @@ test_that("CSV2JSON", {
 		package = "tileseqMave",
 		mustWork = TRUE
 	)
-	outfile <- tempfile()
+	outfile <- tempfile(fileext=".json")
 	csvParam2Json(infile,outfile)
 
-	parameters <- fromJSON(outfile)	
+	parameters <- parseParameters(outfile)	
 
 	expect_type(parameters,"list")
 
 })
+

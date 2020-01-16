@@ -4,7 +4,8 @@
 \alias{libraryQC}
 \title{run library quality control (QC)}
 \usage{
-libraryQC(dataDir, paramFile = paste0(dataDir, "parameters.json"))
+libraryQC(dataDir, paramFile = paste0(dataDir, "parameters.json"),
+  logger = NULL)
 }
 \arguments{
 \item{dataDir}{working data directory}
