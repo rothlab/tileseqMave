@@ -31,6 +31,11 @@ test_that("translation works", {
 	)
 
 	expect_equal(
+		translateHGVS("c.[3G>T;4C>T]",parameters,builder),
+		"p.Met1_Pro2delinsIleSer"
+	)
+
+	expect_equal(
 		translateHGVS("c.[1A>T;10G>T]",parameters,builder),
 		"p.[Met1Leu;Glu4Ter]"
 	)

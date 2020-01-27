@@ -1,3 +1,46 @@
+# Copyright (C) 2018  Jochen Weile, Roth Lab
+#
+# This file is part of tileseqMave.
+#
+# tileseqMave is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# tileseqMave is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with tileseqMave.  If not, see <https://www.gnu.org/licenses/>.
+
+#' parse a count table
+#' @param filename input file
+#' @return data.frame with attributes containing header values
+#' @export
+parseCountFile <- function(filename) {
+	op <- options(stringsAsFactors=FALSE)
+
+	lines <- scan(filename,what="character",sep="\n",quiet=TRUE)
+	header <- do.call(c,lapply(strsplit(lines[grep("^#",lines)],":\\s+"),function(xs)setNames(xs[[2]],xs[[1]])))
+	metadata <- list(
+		sample=header[["#Sample"]],
+		tile=as.integer(header[["#Tile"]]),
+		condition=header[["#Condition"]],
+		replicate=as.integer(header[["#Replicate"]]),
+		timepoint=as.integer(header[["#Timepoint"]]),
+		depth=as.integer(header[["#Read-depth"]])
+	)
+
+	countTable <- read.csv(textConnection(lines),comment.char="#")
+
+	attributes(countTable) <- c(attributes(countTable),metadata)
+
+	options(op)
+
+	return(countTable)
+}
 
 #' Translate a single HGVS string from nucleotide to amino acid level
 #' 
