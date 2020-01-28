@@ -93,10 +93,10 @@ logger$info("Translating HGVS for",countfile)
 #setup HGVS builder
 builder <- new.hgvs.builder.p(aacode=3)
 #run translation
-hgvsp <- sapply(counts$HGVS,translateHGVS,params,builder)
+transl <- do.call(rbind,lapply(counts$HGVS,translateHGVS,params,builder))
 #add result columns
 logger$info("Calculating frequencies for",countfile)
-counts$HGVS_pro <- hgvsp
+counts$HGVS_pro <- transl[,1]
 counts$frequency <- counts$count/attr(counts,"depth")
 counts <- counts[,c("HGVS","HGVS_pro","count","frequency")]
 

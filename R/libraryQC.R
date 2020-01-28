@@ -68,6 +68,8 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger
 		`Condition 2`[which(Relationship == "is_selection_for")]
 	})
 
+	bigTableFile <- paste0(dataDir,"counts/allCounts.csv")
+	allCounts <- read.csv(bitTableFile)
 
 	#TODO: 
 	# * Filter down to nonselect and their WT control
@@ -79,7 +81,6 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger
 	#   * Complexity analysis
 	#   * Nucleotide bias
 
-	#FIXME: translateHGVS need additional output that lists codon-wise changes!!!
 
 
 

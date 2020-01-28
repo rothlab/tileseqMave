@@ -86,6 +86,10 @@ translateHGVS <- function(hgvs, params,
 		stop("Unsupported variant type:",hgvs)
 	}
 
+	#########################
+	# CHECK FOR FRAMESHIFTS #
+	#########################
+
 	#First, check for frameshifts. 
 	fsCandidates <- which(breakdown$type %in% c("singledeletion","deletion","insertion","delins"))
 	if (length(fsCandidates) > 0) {
@@ -114,10 +118,14 @@ translateHGVS <- function(hgvs, params,
 		fsStart <- min(breakdown[frameshifts,"start"])
 		codonIdx <- (fsStart -1) %/%3 + 1
 		aa <- trtable[[codons[[codonIdx]]]]
-		return(builder$frameshift(codonIdx,aa))
+		return(c(hgvsp=builder$frameshift(codonIdx,aa),codonChanges="fs",aaChanges="fs"))
 	}
 
 	#if there are no frameshifts, then we have a LOT more work to do...
+
+	########################################
+	# APPLY CHANGES TO EACH AFFECTED CODON #
+	########################################
 
 	#list affected codons of each mutation to identify potential overlap
 	affectedCodons <- lapply(1:nrow(breakdown),function(i) {
@@ -205,7 +213,8 @@ translateHGVS <- function(hgvs, params,
 				}
 			)
 		}
-		wtaa <- trtable[[codons[[codonIdx]]]]
+		wtcodon <- codons[[codonIdx]]
+		wtaa <- trtable[[wtcodon]]
 		mutaa <- if (codon == "") {
 			"-"
 		} else if (nchar(codon) > 3) {
@@ -213,11 +222,21 @@ translateHGVS <- function(hgvs, params,
 		} else {
 			trtable[[codon]]
 		}
-		list(pos=codonIdx,wtaa=wtaa,mutaa=mutaa)
+		list(pos=codonIdx,wtaa=wtaa,mutaa=mutaa,wtcodon=wtcodon,mutcodon=codon)
 	}))
+	
+	#sort aa changes by position
+	aaChanges <- aaChanges[order(aaChanges$pos),]
+
+	#build codon change strings for later output
+	codonChangeStr <- paste(with(aaChanges,paste0(wtcodon,pos,mutcodon)),collapse="|")
+	aaChangeStr <- paste(with(aaChanges,paste0(wtaa,pos,mutaa)),collapse="|")
+
+	######################
+	# BUILD PROTEIN HGVS #
+	######################
 
 	#Check for runs in the amino acid changes and group them accordingly
-	aaChanges <- aaChanges[order(aaChanges$pos),]
 	if (nrow(aaChanges) > 1) {
 		#chainHeads are mutations which are not immediately to the right of another one
 		chainHeads <- which(c(TRUE,sapply(2:nrow(aaChanges),function(i) aaChanges$pos[[i]]-aaChanges$pos[[i-1]] > 1)))
@@ -270,7 +289,7 @@ translateHGVS <- function(hgvs, params,
 	}
 
 	#and finally, return the result
-	return(finalHGVS)
+	return(c(hgvsp=finalHGVS,codonChanges=codonChangeStr,aaChanges=aaChangeStr))
 
 }
 

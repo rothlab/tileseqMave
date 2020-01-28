@@ -17,7 +17,7 @@
 
 #' run validation checks on parameters object
 #'
-#' @param params
+#' @param params parameter object to validate
 #' @return TRUE if everything checks out, otherwise it throws errors
 #' @export
 validateParameters <- function(params) {
@@ -105,7 +105,7 @@ validateParameters <- function(params) {
 #' @param logger yogilog logger. Defaults to NULL and writes to stdout.
 #' @return NULL. Results are written to file.
 #' @export
-csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",filename),logger=NULL) {
+csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",infile),logger=NULL) {
 
 	#for writing JSON output
 	library(RJSONIO)
@@ -149,6 +149,13 @@ csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",filename
 
 	#read the file into a list of lists and extract the first column
 	csv <- strsplit(scan(infile,what="character",sep="\n",quiet=TRUE),",")
+	#remove any potential quotes introduced by Excel
+	csv <- lapply(csv,function(row) {
+		sapply(row,function(cell) {
+			gsub("\"","",cell)
+		})
+	})
+	#Extract the first column
 	col1 <- sapply(csv,`[[`,1)
 
 	#helper function to locate a named row
