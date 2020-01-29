@@ -250,6 +250,8 @@ csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",infile),
 #' @export
 parseParameters <- function(filename) { 
 
+	op <- options(stringsAsFactors=FALSE)
+
 	#for writing JSON output
 	library(RJSONIO)
 	#for helper functions
@@ -367,6 +369,7 @@ parseParameters <- function(filename) {
 	}))
 	params$samples <- sampleTable
 
+	options(op)
 
 	return(params)
 }
