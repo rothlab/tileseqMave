@@ -53,14 +53,22 @@ parseCountFile <- function(filename) {
 
 #' Translate a single HGVS string from nucleotide to amino acid level
 #' 
+#' This function takes a codon-level HGVS string and translates it to amino acid level.
+#' It does so in two different ways: A joint view, that describes the overall effect of all mutations
+#' on the protein, as well as a codon-wise segmented way that describes changes on individual 
+#' codons/amino-acids separately, so that they are more easily separable for Marginal Frequency analysis
+#' 
 #' @param hgvs a single cds-level HGVS string. May contain multiple mutations in-cis.
 #' @param params a parameter object with CDS definitions
 #' @param builder an optional protein HGVS builder object, if none is provided, a new one is created.
 #' @param strictMode whether HGVS will be validated against the reference sequence before translation
-#' @return translated HGVS string
+#' @return a named vector containing the following strings: hgvsp: the translated HGVS string; 
+#'   codonChanges: A simple string expression of the involved codon changes; codonHGVS: A codon-wise
+#'   segmented HGVS string; aaChanges: A simple amino acid change string; and aaChangeHGVS: A codon-wise
+#'   segmented HGVS string.
 #' @export
 translateHGVS <- function(hgvs, params, 
-	builder=new.hgvs.builder.p(aacode=3),
+	builder=new.hgvs.builder.p(aacode=3),cbuilder=new.hgvs.builder.c(),
 	strictMode=TRUE) {
 
 	library(yogitools)
@@ -113,7 +121,7 @@ translateHGVS <- function(hgvs, params,
 					nchar(breakdown[i,"variant"])%%3==0
 				},
 				delins = {
-					with(breakdown[i,],nchar(breakdown[i,"variant"])-(end-start+1)%%3==0)
+					with(breakdown[i,],(nchar(breakdown[i,"variant"])-(end-start+1))%%3==0)
 				}
 			)
 		})
@@ -127,7 +135,8 @@ translateHGVS <- function(hgvs, params,
 		fsStart <- min(breakdown[frameshifts,"start"])
 		codonIdx <- (fsStart -1) %/%3 + 1
 		aa <- trtable[[codons[[codonIdx]]]]
-		return(c(hgvsp=builder$frameshift(codonIdx,aa),codonChanges="fs",aaChanges="fs"))
+		fsout <- builder$frameshift(codonIdx,aa)
+		return(c(hgvsp=fsout,codonChanges="fs",codonHGVS="c.?",aaChanges="fs",aaChangeHGVS=fsout))
 	}
 
 	#if there are no frameshifts, then we have a LOT more work to do...
@@ -237,13 +246,58 @@ translateHGVS <- function(hgvs, params,
 	#sort aa changes by position
 	aaChanges <- aaChanges[order(aaChanges$pos),]
 
-	#build codon change strings for later output
+	#######################################################
+	# Build codon-centric change strings for later output #
+	#######################################################
+	#Helper function to build codon-specific HGVS
+	codonWiseHGVS <- function(wt,pos,mut) {
+		cstart <- pos*3-2
+		diffs <- sapply(1:3,function(i)substr(wt,i,i)!=substr(mut,i,i))
+		ndiff <- sum(diffs)
+		if (mut == "") {
+			return(cbuilder$deletion(cstart,cstart+2))
+		} else if (nchar(mut) == 3 && ndiff == 1) { #SNV
+			offset <- which(diffs)
+			wtbase <- substr(wt,offset,offset)
+			mutbase <- substr(mut,offset,offset)
+			snvpos <- cstart+offset-1
+			return(cbuilder$substitution(snvpos,wtbase,mutbase))
+		} else { 
+			return(cbuilder$delins(cstart,cstart+nchar(mut)-1,mut))
+		}
+	}
+	#Helper function to single-AA specific HGVS
+	aaWiseHGVS <- function(wt,pos,mut) {
+		if(mut=="-") {
+			return(builder$deletion(pos,wt,pos,wt))
+		} else if (nchar(mut) > 1) {
+			return(builder$delins(pos,wt,pos,wt,toChars(mut)))
+		} else if (wt==mut) {
+			return(builder$synonymous(pos,wt))
+		} else {
+			return(builder$substitution(pos,wt,mut))
+		}
+	}
+	#simple codon change description string
 	codonChangeStr <- paste(with(aaChanges,paste0(wtcodon,pos,mutcodon)),collapse="|")
+	#HGVS-compliant codon change description string
+	codonChangeHGVS <- if (nrow(aaChanges) > 1) {
+		do.call(cbuilder$cis,with(aaChanges,mapply(codonWiseHGVS,wtcodon,pos,mutcodon,SIMPLIFY=FALSE)))
+	} else {
+		with(aaChanges,codonWiseHGVS(wtcodon,pos,mutcodon))
+	}
+	#simple AA change description string
 	aaChangeStr <- paste(with(aaChanges,paste0(wtaa,pos,mutaa)),collapse="|")
+	#HGVS-compliant AA change description string
+	aaChangeHGVS <- if (nrow(aaChanges) > 1) {
+		do.call(builder$cis,with(aaChanges,mapply(aaWiseHGVS,wtaa,pos,mutaa,SIMPLIFY=FALSE)))
+	} else {
+		with(aaChanges, aaWiseHGVS(wtaa,pos,mutaa))
+	}
 
-	######################
-	# BUILD PROTEIN HGVS #
-	######################
+	##############################
+	# BUILD OVERALL PROTEIN HGVS #
+	##############################
 
 	#Check for runs in the amino acid changes and group them accordingly
 	if (nrow(aaChanges) > 1) {
@@ -298,7 +352,11 @@ translateHGVS <- function(hgvs, params,
 	}
 
 	#and finally, return the result
-	return(c(hgvsp=finalHGVS,codonChanges=codonChangeStr,aaChanges=aaChangeStr))
+	return(c(
+		hgvsp=finalHGVS,
+		codonChanges=codonChangeStr,codonHGVS=codonChangeHGVS,
+		aaChanges=aaChangeStr,aaChangeHGVS=aaChangeHGVS
+	))
 
 }
 

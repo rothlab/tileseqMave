@@ -111,7 +111,8 @@ buildJointTable <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 	allVars <- Reduce(union,lapply(allCounts,function(x)x$HGVS))
 	#translate them to amino acid level
 	builder <- new.hgvs.builder.p(aacode=3)
-	transTable <- as.df(pbmclapply(allVars, translateHGVS, params, builder, mc.cores=mc.cores))
+	cbuilder <- new.hgvs.builder.c()
+	transTable <- as.df(pbmclapply(allVars, translateHGVS, params, builder, cbuilder, mc.cores=mc.cores))
 	#and build index of the translations
 	# trIdx <- hash(allVars,1:nrow(transTable))
 	# for (i in 1:length(allCounts)) {
@@ -193,20 +194,24 @@ buildJointTable <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 
 	logInfo("Calculating marginal frequencies")
 
-	codonChanges <- strsplit(transTable$codonChanges,"\\|")
-	aaChanges <- strsplit(transTable$aaChanges,"\\|")
+	# codonChanges <- strsplit(transTable$codonChanges,"\\|")
+	# aaChanges <- strsplit(transTable$aaChanges,"\\|")
+	codonChangeHGVSs <- strsplit(gsub("c\\.|c\\.\\[|\\]","",transTable$codonHGVS),";")
+	codonChangeHGVSs <- lapply(codonChangeHGVSs, function(x) paste0("c.",x))
+	aaChangeHGVSs <- strsplit(gsub("p\\.|p\\.\\[|\\]","",transTable$aaChangeHGVS),";")
+	aaChangeHGVSs <- lapply(aaChangeHGVSs, function(x) paste0("p.",x))
 	
 	#build codon change index
 	ccIdx <- hash()
 	aaIdx <- hash()
-	for (i in 1:length(codonChanges)) {
-		for (j in 1:length(codonChanges[[i]])) {
-			cc <- codonChanges[[i]][[j]]
+	for (i in 1:length(codonChangeHGVSs)) {
+		for (j in 1:length(codonChangeHGVSs[[i]])) {
+			cc <- codonChangeHGVSs[[i]][[j]]
 			if (has.key(cc,ccIdx)) {
 				ccIdx[[cc]] <- c(ccIdx[[cc]],i)
 			} else {
 				ccIdx[[cc]] <- i
-				aaIdx[[cc]] <- aaChanges[[i]][[j]]
+				aaIdx[[cc]] <- aaChangeHGVSs[[i]][[j]]
 			}
 		}
 	}
@@ -215,8 +220,8 @@ buildJointTable <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 	marginalCCs <- keys(ccIdx)
 	marginalCounts <- as.df(pbmclapply(marginalCCs, function(cc) {
 		c(
-			list(codonChange=cc,aaChange=aaIdx[[cc]]),
-			colSums(jointTable[ccIdx[[cc]],-(1:4)],na.rm=TRUE)
+			list(hgvsc=cc,hgvsp=aaIdx[[cc]]),
+			colSums(jointTable[ccIdx[[cc]],-(1:6)],na.rm=TRUE)
 		)
 	},mc.cores=mc.cores))
 
