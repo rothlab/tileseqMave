@@ -23,18 +23,27 @@ parseCountFile <- function(filename) {
 	op <- options(stringsAsFactors=FALSE)
 
 	lines <- scan(filename,what="character",sep="\n",quiet=TRUE)
-	header <- do.call(c,lapply(strsplit(lines[grep("^#",lines)],":\\s+"),function(xs)setNames(xs[[2]],xs[[1]])))
-	metadata <- list(
-		sample=header[["#Sample"]],
-		tile=as.integer(header[["#Tile"]]),
-		condition=header[["#Condition"]],
-		replicate=as.integer(header[["#Replicate"]]),
-		timepoint=as.integer(header[["#Timepoint"]]),
-		depth=as.integer(header[["#Read-depth"]])
+	#parse the header
+	header <- do.call(c,lapply(
+		strsplit(lines[grep("^#",lines)],":\\s+"),
+		function(xs) setNames(xs[[2]],trimws(xs[[1]]))
+	))
+	#Check that all required fields are present in the header
+	requiredFields <- c(
+		sample="#Sample",tile="#Tile",condition="#Condition",
+		replicate="#Replicate",timepoint="#Timepoint",depth="#Final read-depth"
 	)
+	#otherwise throw error
+	if (any(!(requiredFields %in% names(header)))) {
+		missingFields <- names(which(!(requiredFields %in% names(header))))
+		stop(filename," is missing header field(s): ",paste(missingFields,collapse=", "))
+	}
+	#prepare metdata object
+	metadata <- lapply(requiredFields,function(f) header[[f]])
 
+	#parse main table
 	countTable <- read.csv(textConnection(lines),comment.char="#")
-
+	#and attach metadata
 	attributes(countTable) <- c(attributes(countTable),metadata)
 
 	options(op)
@@ -104,7 +113,7 @@ translateHGVS <- function(hgvs, params,
 					nchar(breakdown[i,"variant"])%%3==0
 				},
 				delins = {
-					with(breakdown[i,],(end-start+1+nchar(breakdown[i,"variant"]))%%3==0)
+					with(breakdown[i,],nchar(breakdown[i,"variant"])-(end-start+1)%%3==0)
 				}
 			)
 		})

@@ -31,6 +31,7 @@ library(tileseqMave)
 library(argparser)
 library(yogilog)
 library(hgvsParseR)
+library(pbmcapply)
 
 #process command line arguments
 p <- arg_parser(
@@ -41,10 +42,12 @@ p <- add_argument(p, "infile", help="count data input file.")
 p <- add_argument(p, "paramfile", help="tileseq parameter file.")
 p <- add_argument(p, "--outfile", help="output file. Defaults to freqs_sampleN.csv in the same directory.")
 p <- add_argument(p, "--logfile", help="log file. Defaults to translateCounts_nn.log in the same directory")
+p <- add_argument(p, "--cores", help="number of CPU cores to use",default=4L)
 args <- parse_args(p)
 
 countfile <- args$infile
 paramFile <- args$paramfile
+mc.cores <- args$cores
 
 outfile <- if (is.na(args$outfile)) {
 	#if count file follows correct naming pattern, produce corresponding frequency file
@@ -81,7 +84,7 @@ counts <- parseCountFile(countfile)
 #reconstruct file header
 header <- unlist(mapply(
 	function(name,value) sprintf("#%s: %s",name,value), 
-	name=c("Sample","Tile","Condition","Replicate","Timepoint","Read-depth"),
+	name=c("Sample","Tile","Condition","Replicate","Timepoint","Final read-depth"),
 	value=sapply(
 		c("sample","tile","condition","replicate","timepoint","depth"),
 		function(a) attr(counts,a)
@@ -93,7 +96,14 @@ logger$info("Translating HGVS for",countfile)
 #setup HGVS builder
 builder <- new.hgvs.builder.p(aacode=3)
 #run translation
-transl <- do.call(rbind,lapply(counts$HGVS,translateHGVS,params,builder))
+transl <- do.call(rbind,lapply(counts$HGVS,function(hgvs) {
+	tryCatch({
+		translateHGVS(hgvs,params,builder)
+	},error=function(e) {
+		cat("Error processing string: ",hgvs,"\n")
+		stop(e)
+	})
+}))
 #add result columns
 logger$info("Calculating frequencies for",countfile)
 counts$HGVS_pro <- transl[,1]
