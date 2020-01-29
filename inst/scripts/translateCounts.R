@@ -96,14 +96,19 @@ logger$info("Translating HGVS for",countfile)
 #setup HGVS builder
 builder <- new.hgvs.builder.p(aacode=3)
 #run translation
+errors <- 0
 transl <- do.call(rbind,lapply(counts$HGVS,function(hgvs) {
 	tryCatch({
 		translateHGVS(hgvs,params,builder)
 	},error=function(e) {
-		cat("Error processing string: ",hgvs,"\n")
-		stop(e)
+		logger$warn("Error processing string: ",hgvs,"\n")
+		# stop(e)
+		errors <<- errors+1
 	})
 }))
+if (errors > 0) {
+	stop("Errors occurred during translation. Terminating process.")
+}
 #add result columns
 logger$info("Calculating frequencies for",countfile)
 counts$HGVS_pro <- transl[,1]
