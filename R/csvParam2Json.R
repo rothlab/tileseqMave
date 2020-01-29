@@ -199,7 +199,7 @@ csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",infile),
 	conditions <- csv[[getRow("List of conditions:")]][-1]
 	conditions <- conditions[!(conditions=="" | is.na(conditions))]
 	output$conditions <- list()
-	output$conditions$names <- conditions
+	output$conditions$names <- as.vector(conditions)
 	output$numReplicates <-  as.integer(csv[[getRow("Number of Replicates:")]][[2]])
 	output$numTimepoints <-  as.integer(csv[[getRow("Number of time points:")]][[2]])
 
