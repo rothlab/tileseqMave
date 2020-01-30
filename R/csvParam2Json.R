@@ -107,6 +107,8 @@ validateParameters <- function(params) {
 #' @export
 csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",infile),logger=NULL) {
 
+	op <- options(stringsAsFactors=FALSE)
+
 	#for writing JSON output
 	library(RJSONIO)
 	#for helper functions
@@ -238,6 +240,8 @@ csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",infile),
 	con <- file(outfile,open="w")
 	writeLines(toJSON(output),con)
 	close(con)
+
+	options(op)
 
 	logInfo("Conversion successful!\n")
 	invisible(return(NULL))

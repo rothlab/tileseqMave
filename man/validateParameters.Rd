@@ -6,6 +6,9 @@
 \usage{
 validateParameters(params)
 }
+\arguments{
+\item{params}{parameter object to validate}
+}
 \value{
 TRUE if everything checks out, otherwise it throws errors
 }

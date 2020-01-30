@@ -5,7 +5,7 @@
 \title{Translate a single HGVS string from nucleotide to amino acid level}
 \usage{
 translateHGVS(hgvs, params, builder = new.hgvs.builder.p(aacode = 3),
-  strictMode = TRUE)
+  cbuilder = new.hgvs.builder.c(), strictMode = TRUE)
 }
 \arguments{
 \item{hgvs}{a single cds-level HGVS string. May contain multiple mutations in-cis.}
@@ -17,8 +17,14 @@ translateHGVS(hgvs, params, builder = new.hgvs.builder.p(aacode = 3),
 \item{strictMode}{whether HGVS will be validated against the reference sequence before translation}
 }
 \value{
-translated HGVS string
+a named vector containing the following strings: hgvsp: the translated HGVS string; 
+  codonChanges: A simple string expression of the involved codon changes; codonHGVS: A codon-wise
+  segmented HGVS string; aaChanges: A simple amino acid change string; and aaChangeHGVS: A codon-wise
+  segmented HGVS string.
 }
 \description{
-Translate a single HGVS string from nucleotide to amino acid level
+This function takes a codon-level HGVS string and translates it to amino acid level.
+It does so in two different ways: A joint view, that describes the overall effect of all mutations
+on the protein, as well as a codon-wise segmented way that describes changes on individual 
+codons/amino-acids separately, so that they are more easily separable for Marginal Frequency analysis
 }
