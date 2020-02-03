@@ -26,6 +26,7 @@ buildJointTable <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 	op <- options(stringsAsFactors=FALSE)
 
 	library(yogitools)
+	library(hash)
 	library(hgvsParseR)
 	library(parallel)
 	library(pbmcapply)
@@ -73,8 +74,18 @@ buildJointTable <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 	logInfo("Accounting for all input count files")
 	sampleTable <- params$samples
 
+	#find counts folder
+	subDirs <- list.dirs(dataDir,recursive=FALSE)
+	countDirs <- subDirs[grepl("_mut_call$",subDirs)]
+	if (length(countDirs) == 0) {
+		stop("No mutation call output found!")
+	}
+	latestCountDir <- sort(countDirs,decreasing=TRUE)[[1]]
+	#extract time stamp
+	timeStamp <- extract.groups(latestCountDir,"/(\\d{4}-\\d{2}-\\d{2}-\\d{2}-\\d{2}-\\d{2})")
+
 	#find count table files and assign each to its respective sample
-	countfiles <- list.files(paste0(dataDir,"counts"),pattern="counts_sample\\d+\\.csv",full.names=TRUE)
+	countfiles <- list.files(latestCountDir,pattern="counts_sample\\d+\\.csv$",full.names=TRUE)
 	filesamples <- as.integer(extract.groups(countfiles,"counts_sample(\\d+)\\.csv")[,1])
 	sampleTable$countfile <- sapply(sampleTable$`Sample ID`, function(sid) {
 		i <- which(filesamples == sid)
@@ -101,7 +112,7 @@ buildJointTable <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 
 	#Calculate frequencies for all counts
 	allCounts <- lapply(allCounts,function(counts) {
-		counts$frequency <- counts$count/attr(counts,"depth")
+		counts$frequency <- counts$count/as.integer(attr(counts,"depth"))
 		counts
 	})
 
@@ -185,7 +196,7 @@ buildJointTable <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 	# WRITE OUTPUT TO FILE #
 	########################
 	logInfo("Writing results to file.")
-	outfile <- paste0(dataDir,"counts/allCounts.csv")
+	outfile <- paste0(latestCountDir,"/allCounts.csv")
 	write.csv(jointTable,outfile,row.names=FALSE)
 	
 	##################################
@@ -194,16 +205,18 @@ buildJointTable <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 
 	logInfo("Calculating marginal frequencies")
 
-	# codonChanges <- strsplit(transTable$codonChanges,"\\|")
-	# aaChanges <- strsplit(transTable$aaChanges,"\\|")
 	codonChangeHGVSs <- strsplit(gsub("c\\.|c\\.\\[|\\]","",transTable$codonHGVS),";")
 	codonChangeHGVSs <- lapply(codonChangeHGVSs, function(x) paste0("c.",x))
 	aaChangeHGVSs <- strsplit(gsub("p\\.|p\\.\\[|\\]","",transTable$aaChangeHGVS),";")
 	aaChangeHGVSs <- lapply(aaChangeHGVSs, function(x) paste0("p.",x))
+	codonChangeStrs <- strsplit(transTable$codonChanges,"\\|")
+	aaChangeStrs <- strsplit(transTable$aaChanges,"\\|")
 	
 	#build codon change index
 	ccIdx <- hash()
+	ccStrIdx <- hash()
 	aaIdx <- hash()
+	aaStrIdx <- hash()
 	for (i in 1:length(codonChangeHGVSs)) {
 		for (j in 1:length(codonChangeHGVSs[[i]])) {
 			cc <- codonChangeHGVSs[[i]][[j]]
@@ -212,6 +225,8 @@ buildJointTable <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 			} else {
 				ccIdx[[cc]] <- i
 				aaIdx[[cc]] <- aaChangeHGVSs[[i]][[j]]
+				ccStrIdx[[cc]] <- codonChangeStrs[[i]][[j]]
+				aaStrIdx[[cc]] <- aaChangeStrs[[i]][[j]]
 			}
 		}
 	}
@@ -221,6 +236,7 @@ buildJointTable <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 	marginalCounts <- as.df(pbmclapply(marginalCCs, function(cc) {
 		c(
 			list(hgvsc=cc,hgvsp=aaIdx[[cc]]),
+			codonChange=ccStrIdx[[cc]],aaChange=aaStrIdx[[cc]],
 			colSums(jointTable[ccIdx[[cc]],-(1:6)],na.rm=TRUE)
 		)
 	},mc.cores=mc.cores))
@@ -228,7 +244,7 @@ buildJointTable <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 	#TODO: Build HGVS strings for marginal variants!!
 
 	logInfo("Writing results to file.")
-	outfile <- paste0(dataDir,"counts/marginalCounts.csv")
+	outfile <- paste0(latestCountDir,"/marginalCounts.csv")
 	write.csv(marginalCounts,outfile,row.names=FALSE)
 
 
