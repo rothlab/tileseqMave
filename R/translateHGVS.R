@@ -25,17 +25,18 @@ parseCountFile <- function(filename) {
 	lines <- scan(filename,what="character",sep="\n",quiet=TRUE)
 	#parse the header
 	header <- do.call(c,lapply(
-		strsplit(lines[grep("^#",lines)],":\\s+"),
+		strsplit(lines[grep("^#",lines)],":\\s*"),
 		function(xs) setNames(xs[[2]],trimws(xs[[1]]))
 	))
 	#Check that all required fields are present in the header
 	requiredFields <- c(
 		sample="#Sample",tile="#Tile",condition="#Condition",
+		# replicate="#Replicate",timepoint="#Timepoint",depth="#Read-depth (pairs) after merging R1 and R2"
 		replicate="#Replicate",timepoint="#Timepoint",depth="#Final read-depth"
 	)
 	#otherwise throw error
 	if (any(!(requiredFields %in% names(header)))) {
-		missingFields <- names(which(!(requiredFields %in% names(header))))
+		missingFields <- requiredFields[which(!(requiredFields %in% names(header)))]
 		stop(filename," is missing header field(s): ",paste(missingFields,collapse=", "))
 	}
 	#prepare metdata object
