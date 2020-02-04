@@ -74,6 +74,10 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger
 	#extract time stamp
 	timeStamp <- extract.groups(latestCountDir,"/(\\d{4}-\\d{2}-\\d{2}-\\d{2}-\\d{2}-\\d{2})")
 
+	#create a matching output directory
+	outDir <- paste0(dataDir,timeStamp,"_QC/")
+	dir.create(outDir,recursive=TRUE,showWarnings=FALSE)
+
 
 	#identify nonselect conditions
 	nsConditions <- unique(with(as.data.frame(params$conditions$definitions),{
@@ -91,8 +95,7 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger
 
 	logInfo("Interpreting variant descriptors")
 
-	#parsing variant IDs
-	codonChangeList <- strsplit(allCounts$codonChanges,"\\|")
+
 
 	#Extract affected positions and codon details
 	splitCodonChanges <- function(ccs) {
@@ -104,8 +107,13 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger
 		df$pos <- as.integer(df$pos)
 		df
 	}
-	allSplitChanges <- pbmclapply(codonChangeList, splitCodonChanges,	mc.cores=mc.cores)
+	allSplitChanges <- pbmclapply(
+		strsplit(allCounts$codonChanges,"\\|"), 
+		splitCodonChanges, mc.cores=mc.cores
+	)
 	marginalSplitChanges <- splitCodonChanges(marginalCounts$codonChange)
+
+
 
 	#Infer tile assignments
 	tileStarts <- params$tiles[,"Start AA"]
@@ -115,28 +123,61 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger
 	allTiles <- pbmclapply(allSplitChanges,inferTiles,mc.cores=mc.cores)	
 	marginalTiles <- inferTiles(marginalSplitChanges)
 
+	#Quick Hack: Pull frameshift positions from initial HGVS strings
+	hackpos <- as.integer(extract.groups(allCounts$hgvsp,"(\\d+)fs")[,1])
+	allTiles[which(!is.na(hackpos))] <- sapply(
+		hackpos[which(!is.na(hackpos))],
+		function(pos) max(which(tileStarts <= pos))
+	)
+
+	#TODO: 
+	# * Iterate over (possibly multiple) nonselects and analyze:
+	#   * Coverage map and census for each tile
+	#   * Extrapolated census
+	#   * Complexity analysis
+	#   * Stacked barplots for missense/syn/stop/indel/frameshift (for each tile)
+
+	#helper function to find the WT control condition for a given condition
+	findWTCtrl <- function(params,cond) {
+		defs <- params$conditions$definitions
+		defs[which(defs[,3] == cond & defs[,2] == "is_wt_control_for"),1]
+	}
+
+
 	#Iterate over (possibly multiple) nonselects and analyze
 	for (nsCond in nsConditions) {
 
+		#pull out nonselect condition and average over replicates
 		nsReps <- sprintf("%s.t%s.rep%s.frequency",nsCond,params$timepoints[1,1],1:params$numReplicates)
 		nsMarginalMeans <- rowMeans(marginalCounts[,nsReps],na.rm=TRUE)
+		nsAllMeans <- rowMeans(allCounts[,nsReps],na.rm=TRUE)
 
+		#if WT controls are present, average over them as well and subtract from nonselect
 		wtCond <- findWTCtrl(params,nsCond)
 		if (length(wtcond) > 0) {
 			wtReps <- sprintf("%s.t%s.rep%s.frequency",wtCond,params$timepoints[1,1],1:params$numReplicates)
+
 			wtMarginalMeans <- rowMeans(marginalCounts[,wtReps],na.rm=TRUE)
 			nsMarginalMeans <- mapply(function(nsf,wtf) {
 				max(0,nsf-wtf)
 			},nsf=nsMarginalMeans,wtf=wtMarginalMeans)
+
+			wtAllMeans <- rowMeans(allCounts[,wtReps],na.rm=TRUE)
+			nsAllMeans <- mapply(function(nsf,wtf) {
+				max(0,nsf-wtf)
+			},nsf=nsAllMeans,wtf=wtAllMeans)
+
 		} else {
 			logWarn("No WT control defined for",nsCond,": Unable to perform error correction!")
 		}
 
+		#build a simplified marginal frequency table from the results
 		simplifiedMarginal <- cbind(marginalSplitChanges,freq=nsMarginalMeans,tile=marginalTiles)
 
-		opar <- par(mfrow=c(4,1))
-		# opar <- par(mfrow=c(nrow(params$tiles),1),oma=c(0,1,0,0))
-		nuclRates <- lapply(16:19, function(tile) {
+		#generate nuclotide bias analysis output
+		pdf(paste0(outDir,nsCond,"_nucleotide_bias.pdf"),8.5,11)
+		opar <- par(mfrow=c(6,1))
+		nuclRates <- lapply(params$tiles[,1], function(tile) {
 			if (any(simplifiedMarginal$tile == tile)){
 				nucleotideBiasAnalysis(
 					simplifiedMarginal[which(simplifiedMarginal$tile == tile),],
@@ -144,37 +185,100 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger
 				)
 			} else {
 				plot.new()
+				rect(0,0,1,1,col="gray80",border="gray30",lty="dotted")
 				text(0.5,0.5,"no data")
+				mtext(paste0("Tile #",tile),side=4)
 				return(NA)
 			}
 		})
 		par(opar)
+		dev.off()
+
+		#calculate global filters that can be combined with tile-specific filters below
+		isFrameshift <- allCounts$aaChanges=="fs"
+		isInFrameIndel <- sapply(allSplitChanges, function(changes) {
+			any(nchar(changes[,3]) != 3)
+		})
+		numChanges <- sapply(allSplitChanges, nrow)
+		maxChanges <- max(numChanges)
+		
+		#Census per tile
+		tileCensi <- do.call(rbind,lapply(params$tiles[,1], function(tile) {
+			#filter for entries in given tile
+			isInTile <- sapply(allTiles,function(tiles) !any(is.na(tiles)) && tile %in% tiles)
+			if (!any(isInTile)) {
+				return(c(fs=NA,indel=NA,WT=NA,setNames(rep(NA,maxChanges),1:maxChanges)))
+			}
+			# WT frequency
+			wtFreq <- 1 - sum(nsAllMeans[isInTile])
+			#frameshift freq
+			fsFreq <- sum(nsAllMeans[isInTile & isFrameshift])
+			#indel frequency
+			indelFreq <- sum(nsAllMeans[isInTile & !isFrameshift & isInFrameIndel])
+			#substitution mutation census
+			isSubst <- which(isInTile & !isFrameshift & !isInFrameIndel)
+			census <- tapply(nsAllMeans[isSubst], numChanges[isSubst],sum)
+			census <- c(
+				fs=fsFreq,
+				indel=indelFreq,
+				WT=wtFreq,
+				sapply(as.character(1:maxChanges),function(n) if (n %in% names(census)) census[[n]] else 0)
+			)
+			return(census)
+		}))
+
+		#calculate best fitting lambda per census
+		tileLambdas <- do.call(rbind,lapply(1:nrow(tileCensi), function(tile) {
+			freqs <- tileCensi[tile,-c(1,2)]
+			if (any(is.na(freqs))) {
+				return(c(lambda=NA,rmsd=NA))
+			}
+			ns <- 1:length(freqs)-1
+			lambda <- sum(ns*(freqs/sum(freqs)))
+			rmsd <- sqrt(mean((freqs-dpois(ns,lambda))^2))
+			return(c(lambda=lambda,rmsd=rmsd))
+		}))
+
+		#FIXME: THIS NEEDS TO BE DONE PER REGION! NOT PER WHOLE CDS!!!
+		#Extrapolate overall census
+		#overall frameshift/indel rates
+		# = 1 minus prob of zero frameshifts/indels in all tiles
+		overallFS <- 1-(1-mean(tileCensi[,"fs"],na.rm=TRUE))^nrow(tileCensi)
+		overallIndel <- 1-(1-mean(tileCensi[,"indel"],na.rm=TRUE))^nrow(tileCensi)
+		#and overall #mut per clone
+		# = mean of lambdas times number of tiles = sum of lambdas
+		# This assumes that tiles are of equal size. Weighted sum over relative tile size would be better
+		overallLambda <- sum(tileLambdas[,"lambda"],na.rm=TRUE)
+
+		overallCensus <- c(fs=overallFS,indel=overallIndel,
+			setNames(dpois(0:maxChanges,overallLambda), 0:maxChanges)*(1-(overallIndel+overallFS))
+		)
+
+		#Plot overall census
+		pdf(paste0(outDir,nsCond,"_census.pdf"),5,5)
+		plotCensus(overallCensus,overallLambda,main="Extrapolation for whole CDS")
+		dev.off()
 
 	}
-
-	#TODO: 
-	# * Filter down to nonselect and their WT control
-	# * Average over replicates
-	# * subtract WT control from nonselect and floor
-	# * Iterate over (possibly multiple) nonselects and analyze:
-	#   * Coverage map and census for each tile
-	#   * Extrapolated census
-	#   * Complexity analysis
-	#   * Nucleotide bias
-
-
-
-
-
 
 	options(op)
 	return(NULL)
 }
 
-#helper function to find the WT control condition for a given condition
-findWTCtrl <- function(params,cond) {
-	defs <- params$conditions$definitions
-	defs[which(defs[,3] == cond & defs[,2] == "is_wt_control_for"),1]
+
+
+plotCensus <- function(census,lambda,main="") {
+	op <- par(las=2)
+	barplot(
+		census*100, ylim=c(0,100),
+		col=c(rep("firebrick2",2),"gray",rep("darkolivegreen3",length(census)-3)),
+		border=NA, main=main,
+		xlab="mutant classes",ylab="% reads"
+	)
+	midx <- mean(par("usr")[1:2])
+	midy <- mean(par("usr")[3:4])
+	text(midx,midy,bquote(lambda == .(round(lambda,digits=3))))
+	par(op)
 }
 
 nucleotideBiasAnalysis <- function(simplifiedMarginal,tile,draw=TRUE) {
@@ -248,8 +352,8 @@ nucleotideBiasAnalysis <- function(simplifiedMarginal,tile,draw=TRUE) {
 			}), 
 			cex=0.8
 		))
-		text(c(2.5,7.5,12.5,18.5,23.5,28.5),4.33,rep(c("First","Second","Third"),2))
-		text(c(7.5,23.5),4.66,c("SNV","MNV"))
+		text(c(2,7,12,18,23,28),4.33,rep(c("First","Second","Third"),2),cex=0.9)
+		text(c(7,23),4.66,c("SNV","MNV"),cex=0.9)
 		axis(2,at=(4:1)-.5,toChars("ACGT"))
 		axis(1,at=c(1:4,6:9,11:14,17:20,22:25,27:30)-.5,rep(toChars("ACGT"),6))
 		mtext(paste0("Tile #",tile),side=4)
