@@ -110,6 +110,14 @@ buildJointTable <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 	logInfo("Reading count data")
 	allCounts <- lapply(sampleTable$countfile,parseCountFile)
 
+	#extract sequencing depths for each sample
+	sampleTable$depth <- sapply(allCounts,function(counts) as.integer(attr(counts,"depth"))) 
+	#and save the sample table for future reference
+	logInfo("Exporting sequencing depth information.")
+	outfile <- paste0(latestCountDir,"/sampleDepths.csv")
+	write.csv(sampleTable,outfile,row.names=FALSE)
+	
+
 	#Calculate frequencies for all counts
 	allCounts <- lapply(allCounts,function(counts) {
 		counts$frequency <- counts$count/as.integer(attr(counts,"depth"))

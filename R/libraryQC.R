@@ -93,9 +93,11 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger
 	marginalCountFile <- paste0(latestCountDir,"/marginalCounts.csv")
 	marginalCounts <- read.csv(marginalCountFile)
 
+	depthTableFile <-  paste0(latestCountDir,"/sampleDepths.csv")
+	depthTable <- read.csv(depthTableFile)
+
+
 	logInfo("Interpreting variant descriptors")
-
-
 
 	#Extract affected positions and codon details
 	splitCodonChanges <- function(ccs) {
@@ -113,8 +115,6 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger
 	)
 	marginalSplitChanges <- splitCodonChanges(marginalCounts$codonChange)
 
-
-
 	#Infer tile assignments
 	tileStarts <- params$tiles[,"Start AA"]
 	inferTiles <- function(cct) {
@@ -130,13 +130,6 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger
 		function(pos) max(which(tileStarts <= pos))
 	)
 
-	#TODO: 
-	# * Iterate over (possibly multiple) nonselects and analyze:
-	#   * Coverage map and census for each tile
-	#   * Extrapolated census
-	#   * Complexity analysis
-	#   * Stacked barplots for missense/syn/stop/indel/frameshift (for each tile)
-
 	#helper function to find the WT control condition for a given condition
 	findWTCtrl <- function(params,cond) {
 		defs <- params$conditions$definitions
@@ -144,9 +137,17 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger
 	}
 
 
-	#Iterate over (possibly multiple) nonselects and analyze
+	################################################################################
+	# ITERATE OVER (POSSIBLY MULTIPLE) NONSELECT CONDITIONS AND ANALYZE SEPARATELY
+	################################################################################
+
 	for (nsCond in nsConditions) {
 
+		logInfo("Processing",nsCond)
+
+		#########################################
+		# CALCULATE NONSELECT MEANS AND NORMALIZE
+		#########################################
 		#pull out nonselect condition and average over replicates
 		nsReps <- sprintf("%s.t%s.rep%s.frequency",nsCond,params$timepoints[1,1],1:params$numReplicates)
 		nsMarginalMeans <- rowMeans(marginalCounts[,nsReps],na.rm=TRUE)
@@ -174,7 +175,11 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger
 		#build a simplified marginal frequency table from the results
 		simplifiedMarginal <- cbind(marginalSplitChanges,freq=nsMarginalMeans,tile=marginalTiles)
 
-		#generate nuclotide bias analysis output
+
+		#################################
+		# RUN NUCLEOTIDE BIAS ANALYSIS
+		#################################
+		logInfo("Checking nucleotide distribution")
 		pdf(paste0(outDir,nsCond,"_nucleotide_bias.pdf"),8.5,11)
 		opar <- par(mfrow=c(6,1))
 		nuclRates <- lapply(params$tiles[,1], function(tile) {
@@ -192,7 +197,7 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger
 			}
 		})
 		par(opar)
-		dev.off()
+		invisible(dev.off())
 
 		#calculate global filters that can be combined with tile-specific filters below
 		isFrameshift <- allCounts$aaChanges=="fs"
@@ -202,6 +207,11 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger
 		numChanges <- sapply(allSplitChanges, nrow)
 		maxChanges <- max(numChanges)
 		
+		###########################
+		# CALCULATE VARIANT CENSUS
+		###########################
+
+		logInfo("Calculating variant census")
 		#Census per tile
 		tileCensi <- do.call(rbind,lapply(params$tiles[,1], function(tile) {
 			#filter for entries in given tile
@@ -227,7 +237,7 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger
 			return(census)
 		}))
 
-		#calculate best fitting lambda per census
+		#calculate lambda and Poisson fits for each census
 		tileLambdas <- do.call(rbind,lapply(1:nrow(tileCensi), function(tile) {
 			freqs <- tileCensi[tile,-c(1,2)]
 			if (any(is.na(freqs))) {
@@ -239,25 +249,109 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger
 			return(c(lambda=lambda,rmsd=rmsd))
 		}))
 
-		#FIXME: THIS NEEDS TO BE DONE PER REGION! NOT PER WHOLE CDS!!!
-		#Extrapolate overall census
-		#overall frameshift/indel rates
-		# = 1 minus prob of zero frameshifts/indels in all tiles
-		overallFS <- 1-(1-mean(tileCensi[,"fs"],na.rm=TRUE))^nrow(tileCensi)
-		overallIndel <- 1-(1-mean(tileCensi[,"indel"],na.rm=TRUE))^nrow(tileCensi)
-		#and overall #mut per clone
-		# = mean of lambdas times number of tiles = sum of lambdas
-		# This assumes that tiles are of equal size. Weighted sum over relative tile size would be better
-		overallLambda <- sum(tileLambdas[,"lambda"],na.rm=TRUE)
+		####################################################
+		# Extrapolate overall census per mutagenesis region
+		####################################################
 
-		overallCensus <- c(fs=overallFS,indel=overallIndel,
-			setNames(dpois(0:maxChanges,overallLambda), 0:maxChanges)*(1-(overallIndel+overallFS))
-		)
+		#determine which tiles are in which regions
+		tilesPerRegion <- tilesInRegions(params)
+		pdf(paste0(outDir,nsCond,"_census.pdf"),8.5,11)
+		opar <- par(mfrow=c(4,3))
+		regionCensi <- lapply(1:length(tilesPerRegion), function(ri) {
 
-		#Plot overall census
-		pdf(paste0(outDir,nsCond,"_census.pdf"),5,5)
-		plotCensus(overallCensus,overallLambda,main="Extrapolation for whole CDS")
-		dev.off()
+			relevantTiles <- tilesPerRegion[[ri]]
+			#if there is no data for any of those tiles
+			if (all(is.na(tileCensi[relevantTiles,"WT"]))) {
+				plot.new()
+				rect(0,0,1,1,col="gray80",border="gray30",lty="dotted")
+				text(0.5,0.5,"no data")
+				mtext(paste0("Extrapolation for Region #",ri))
+				return(c(fs=NA,indel=NA,WT=NA,setNames(rep(NA,maxChanges),1:maxChanges)))
+			}
+
+			#extrapolate overall frameshift and indel rates
+			overallFS <- 1-(1-mean(tileCensi[relevantTiles,"fs"],na.rm=TRUE))^length(relevantTiles)
+			overallIndel <- 1-(1-mean(tileCensi[relevantTiles,"indel"],na.rm=TRUE))^length(relevantTiles)
+			#FIXME: This assumes that tiles are of equal size. Weighted sum over relative tile size would be better
+			overallLambda <- sum(tileLambdas[relevantTiles,"lambda"],na.rm=TRUE)
+			overallCensus <- c(fs=overallFS,indel=overallIndel,
+				setNames(dpois(0:maxChanges,overallLambda), 0:maxChanges)*(1-(overallIndel+overallFS))
+			)
+
+			#Plot overall census
+			plotCensus(overallCensus,overallLambda,main=paste0("Extrapolation for Region #",ri))
+			return(overallCensus)
+		})
+		par(opar)
+		invisible(dev.off())
+
+
+		######################
+		# BUILD COVERAGE MAP #
+		######################
+		#load translation table
+		data(trtable)
+		#translate marginals and join by translation
+		aaMarginal <- simplifiedMarginal[with(simplifiedMarginal,which(!is.na(pos) & nchar(to)==3)),]
+		aaMarginal$toaa <- sapply(aaMarginal$to,function(codon)trtable[[codon]])
+		aaMarginal <- as.df(with(aaMarginal,tapply(1:nrow(aaMarginal),paste0(pos,toaa), function(is) {
+			list(
+				from=trtable[[unique(from[is])]],
+				pos=unique(pos[is]),
+				to=unique(toaa[is]),
+				tile=unique(tile[is]),
+				freq=sum(freq[is])
+			)
+		})))
+
+		#plan page layout
+		tpr <- 4 #tiles per row
+		rpp <- 3 #rows per page
+		ntiles <- nrow(params$tiles)
+		#build layout plan
+		tileLayout <- lapply(seq(1,ntiles,tpr),function(i)i:min(ntiles,i+tpr-1))
+		nrows <- length(tileLayout)
+		pageLayout <- lapply(seq(1,nrows,rpp), function(i) tileLayout[i:min(nrows,i+rpp-1)])
+
+		#build a matrix that indicate the grid positions of plot in order of drawing
+		plotIndex <- do.call(rbind,lapply(1:rpp, function(ri) {
+			bottom <- (ri-1)*5+1
+			#position map on bottom of the row, and census plots for the corresponding tiles above
+			rbind(bottom+1:tpr, rep(bottom,tpr))
+		}))
+
+		#now do the actual plotting.
+		pdf(paste0(outDir,nsCond,"_coverage.pdf"),8.5,11)
+		layout(plotIndex)
+		invisible(lapply(pageLayout, function(tileSets) {
+			#For each row on the current page...
+			lapply(tileSets, function(tiles) {
+				#plot coverage map
+				startPos <- min(params$tiles[tiles,"Start AA"])
+				endPos <- max(params$tiles[tiles,"End AA"])
+				seps <- params$tiles[tiles,"Start AA"][-1]
+				coverageSubmap(startPos,endPos,aaMarginal,seps)
+				#TODO: Obtain number of reads in each tile and add to plot
+				#and plot the corresponding censi
+				lapply(tiles, function(tile) {
+					depths <- with(depthTable,depth[
+						Condition==nsCond & Time.point==params$timepoints[1,1] & Tile.ID==tile
+					])
+					plotCensus(
+						tileCensi[tile,],
+						lambda=tileLambdas[tile,"lambda"],
+						d=if(length(depths)>0) min(depths,na.rm=TRUE) else NULL,
+						main=paste0("Tile #",tile)
+					)
+				})
+			})
+		}))
+		invisible(dev.off())
+
+		#TODO: 
+		# * Complexity analysis?
+		# * Stacked barplots for missense/syn/stop/indel/frameshift (for each tile)
+		# * % coverage w.r.t AA changes / reachable AA changes / codon changes
 
 	}
 
@@ -265,9 +359,73 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger
 	return(NULL)
 }
 
+#helper function to draw a subsection of the coverage map.
+coverageSubmap <- function(startPos,endPos,aaMarginal,seps=NULL,thresholds=c(1e-6,5e-5)) {
+	mapwidth <- endPos-startPos+2
+	aas <- toChars("AVILMFYWRHKDESTNQCGP*")
+	#TODO: Adjust color thresholds based on sequencing depth
+	cmap <- yogitools::colmap(c(log10(thresholds[[1]]),log10(thresholds[[2]]),0),c("white","orange","firebrick3"))
 
+	#set a filter for positions in the selected part of the map
+	is <- with(aaMarginal,which(pos >= startPos & pos <= endPos))
+	#if there is no data, return an empty plot
+	if (length(is) == 0) {
+		plot.new()
+		rect(0,0,1,1,col="gray80",border="gray30",lty="dotted")
+		text(0.5,0.5,"no data")
+		invisible(return(NULL))	
+	}
 
-plotCensus <- function(census,lambda,main="") {
+	plotData <- as.df(lapply(is, function(i) with(aaMarginal[i,],list(
+		x=pos,
+		y=22-which(aas==to),
+		colval=cmap(log10(freq))
+	))))
+
+	#prepare canvas
+	op <- par(xaxs="i",yaxs="i",mar=c(5,4,0,1)+.1)
+	plot(
+		NA,xlim=c(startPos-1,endPos+1),ylim=c(0,22),
+		xlab="AA position",ylab="AA residue",
+		axes=FALSE
+	)
+	#add axis labels
+	axis(1)
+	axis(2,at=21:1,aas,las=2,cex.axis=0.7)
+	#gray background
+	rect(startPos-0.5,0.5,endPos+.5,21.5,col="gray",border=NA)
+	#heatmap squares
+	with(plotData,rect(x-0.5,y-0.5,x+0.5,y+0.5,col=colval,border=NA))
+	#tile separator lines
+	if (!is.null(seps)) {
+		abline(v=seps-.5)
+	}
+	par(op)
+
+	invisible(return(NULL))	
+}
+
+#helper function to find the tiles that belong to each region
+tilesInRegions <- function(params) {
+	lapply(1:nrow(params$regions), function(ri) {
+		rs <- params$regions[ri,"Start AA"]
+		re <- params$regions[ri,"End AA"]
+		which(sapply(params$tiles[,"Start AA"], function(ts){
+			ts >=rs && ts < re
+		}))
+	})
+}
+
+#helper function to plot a census dataset
+plotCensus <- function(census,lambda,d=NULL,main="") {
+	if (is.null(census) || any(is.na(census))) {
+		plot.new()
+		rect(0,0,1,1,col="gray80",border="gray30",lty="dotted")
+		text(0.5,0.5,"no data")
+		mtext(main)
+		invisible(return(NULL))
+	}
+
 	op <- par(las=2)
 	barplot(
 		census*100, ylim=c(0,100),
@@ -275,12 +433,21 @@ plotCensus <- function(census,lambda,main="") {
 		border=NA, main=main,
 		xlab="mutant classes",ylab="% reads"
 	)
-	midx <- mean(par("usr")[1:2])
-	midy <- mean(par("usr")[3:4])
-	text(midx,midy,bquote(lambda == .(round(lambda,digits=3))))
+	grid(NA,NULL)
+	u <- par("usr")
+	midx <- mean(u[1:2])
+	midy <- mean(u[3:4])
+	uppermid <- 0.4*u[[3]]+0.6*u[[4]]
+	lowermid <- 0.6*u[[3]]+0.4*u[[4]]
+	text(midx,lowermid,bquote(lambda == .(round(lambda,digits=3))))
+	if (!is.null(d)) {
+		text(midx,uppermid,paste("#reads =",d))
+	}
 	par(op)
+	invisible(return(NULL))
 }
 
+#helper function to perform nucleotide bias analysis and draw the corresponding plot
 nucleotideBiasAnalysis <- function(simplifiedMarginal,tile,draw=TRUE) {
 	
 	counters <- replicate(2,array(0, dim=c(4,4,3),
