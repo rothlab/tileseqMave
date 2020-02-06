@@ -129,6 +129,12 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger
 		hackpos[which(!is.na(hackpos))],
 		function(pos) max(which(tileStarts <= pos))
 	)
+	hackpos <- as.integer(extract.groups(marginalCounts$hgvsp,"(\\d+)fs")[,1])
+	marginalTiles[which(!is.na(hackpos))] <- sapply(
+		hackpos[which(!is.na(hackpos))],
+		function(pos) max(which(tileStarts <= pos))
+	)
+	
 
 	#helper function to find the WT control condition for a given condition
 	findWTCtrl <- function(params,cond) {
@@ -155,7 +161,7 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger
 
 		#if WT controls are present, average over them as well and subtract from nonselect
 		wtCond <- findWTCtrl(params,nsCond)
-		if (length(wtcond) > 0) {
+		if (length(wtCond) > 0) {
 			wtReps <- sprintf("%s.t%s.rep%s.frequency",wtCond,params$timepoints[1,1],1:params$numReplicates)
 
 			wtMarginalMeans <- rowMeans(marginalCounts[,wtReps],na.rm=TRUE)
@@ -272,7 +278,7 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger
 			#extrapolate overall frameshift and indel rates
 			overallFS <- 1-(1-mean(tileCensi[relevantTiles,"fs"],na.rm=TRUE))^length(relevantTiles)
 			overallIndel <- 1-(1-mean(tileCensi[relevantTiles,"indel"],na.rm=TRUE))^length(relevantTiles)
-			#FIXME: This assumes that tiles are of equal size. Weighted sum over relative tile size would be better
+			#Neat: Potential length differences between tiles cancel out, as the lambdas are not length-normalized!
 			overallLambda <- sum(tileLambdas[relevantTiles,"lambda"],na.rm=TRUE)
 			overallCensus <- c(fs=overallFS,indel=overallIndel,
 				setNames(dpois(0:maxChanges,overallLambda), 0:maxChanges)*(1-(overallIndel+overallFS))
@@ -348,10 +354,175 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger
 		}))
 		invisible(dev.off())
 
-		#TODO: 
-		# * Complexity analysis?
-		# * Stacked barplots for missense/syn/stop/indel/frameshift (for each tile)
-		# * % coverage w.r.t AA changes / reachable AA changes / codon changes
+		#######################
+		# Complexity analysis #
+		#######################
+		ccList <- strsplit(allCounts$codonChanges,"\\|")
+		#count the number of combinations in which each codon change occurs (="complexity")
+		ccComplex <- hash()
+		for (ccs in ccList) {
+			for (cc in ccs) {
+				if (has.key(cc,ccComplex)) {
+					ccComplex[[cc]] <- ccComplex[[cc]]+1
+				} else {
+					ccComplex[[cc]] <- 1
+				}
+			}
+		}
+		#tabulate "complexity" vs marginal frequency
+		cplxPlot <- do.call(rbind,lapply(1:nrow(simplifiedMarginal), function(i) with(simplifiedMarginal[i,],{
+			cplx <- ccComplex[[paste0(from,pos,to)]]
+			c(cplx=if (is.null(cplx)) NA else cplx,freq=freq,tile=tile)
+		})))
+
+		#draw the plot for each tile
+		pdf(paste0(outDir,nsCond,"_complexity.pdf"),8.5,11)
+		opar <- par(mfrow=c(3,2))
+		tapply(1:nrow(cplxPlot),cplxPlot[,"tile"],function(is) {
+			if (length(is) > 1) {
+				tile <- unique(cplxPlot[is,3])
+				plot(cplxPlot[is,1:2],log="xy",
+					xlab="#unique contexts in tile",ylab="marginal frequency",
+					main=paste0("Tile #",tile)
+				)
+			}
+		})
+		par(opar)
+		invisible(dev.off())
+		
+		##############################
+		# Well-measuredness analysis #
+		##############################
+		reachable <- reachableChanges(params)
+
+		data(trtable)
+		#add translations to marginal table
+		simplifiedMarginal$toaa <- sapply(simplifiedMarginal$to, function(codon){
+			if (is.na(codon)) {
+				"fs"
+			} else if (nchar(codon) < 3) {
+				"del"
+			} else if (nchar(codon) == 3) {
+				trtable[[codon]]
+			} else {
+				"ins"
+			}
+		})
+
+		#filter out frameshifts and indels
+		codonMarginal <- simplifiedMarginal[nchar(simplifiedMarginal$toaa)==1,]
+		#add flag for SNVs
+		codonMarginal$isSNV <- sapply(1:nrow(codonMarginal), function(i) with(codonMarginal[i,], {
+			sum(sapply(1:3,function(j) substr(from,j,j) != substr(to,j,j)))==1
+		}))
+		#and collapse by aa change
+		aaMarginal <- as.df(with(codonMarginal,tapply(1:length(pos),paste0(pos,toaa),function(is) {
+			list(pos=unique(pos[is]),toaa=unique(toaa[is]),freq=sum(freq[is]),tile=unique(tile[is]))
+		})))
+		#add index for quick lookup
+		aaMarginal$index <- with(aaMarginal,paste0(pos,toaa))
+
+		#list of frequency thresholds to test
+		thresholds <- 10^seq(-7,-2,0.1)
+
+		#iterate over regions and analyze separately
+		pdf(paste0(outDir,nsCond,"_wellmeasured.pdf"),8.5,11)
+		opar <- par(mfrow=c(3,2))
+		coverageCurves <- lapply(1:length(tilesPerRegion), function(ri) {
+
+			tiles <- tilesPerRegion[[ri]]
+			rStart <- min(params$tiles[tiles,"Start AA"])
+			rEnd <- max(params$tiles[tiles,"End AA"])
+			rLength <- rEnd-rStart+1
+
+			#if there's no data, return an empty plot
+			if (!any(aaMarginal$tile %in% tiles)) {
+				plot.new()
+				rect(0,0,1,1,col="gray80",border="gray30",lty="dotted")
+				text(0.5,0.5,"no data")
+				mtext(paste0("Region #",ri))
+				return(NULL)
+			}
+
+			regionReachable <- reachable[with(reachable,pos >= rStart & pos <= rEnd),]
+			regionReachable$index <- with(regionReachable,paste0(pos,mutaa))
+
+			nreachableAA <- nrow(regionReachable)
+			npossibleAA <- rLength * 21 #includes syn + stop options
+			npossibleSNV <- rLength * 9 # = three possible changes at three positions per codon
+			npossibleCodon <- rLength * 63 # = 4*4*4-1
+
+			#calculate coverage curves
+			coverageCurves <- as.df(lapply(thresholds, function(thr) {
+				list(
+					freqCutoff = thr,
+					fracPossibleCodon = with(codonMarginal,sum(freq > thr & tile %in% tiles))/npossibleCodon,
+					fracSNV=with(codonMarginal,sum(freq > thr & tile %in% tiles & isSNV))/npossibleSNV,
+					fracPossibleAA = with(aaMarginal,sum(freq > thr & tile %in% tiles))/npossibleAA,
+					fracReachableAA = with(aaMarginal,
+						sum(freq > thr & tile %in% tiles & index %in% regionReachable$index)
+					)/nreachableAA
+				)
+			}))
+
+			#draw the plot
+			plotcolors <- c(
+				`codon changes`="black",`SNVs`="gray",
+				`AA changes`="firebrick3",`SNV-reachable AA changes`="firebrick2"
+			)
+			plot(NA,type="n",
+				log="x",xlim=range(thresholds),ylim=c(0,1),
+				xlab="Marginal read frequency cutoff",
+				ylab="Fraction of possible variants measured",
+				main=paste0("Region #",ri)
+			)
+			for (i in 1:4) {
+				lines(coverageCurves[,c(1,i+1)],col=plotcolors[[i]])
+			}
+			grid()
+			legend("bottomleft",names(plotcolors),col=plotcolors,lty=1)
+
+			return(coverageCurves)
+
+		})
+		par(opar)
+		invisible(dev.off())
+		
+		#################################################
+		# Stacked barplots for missense/syn/stop/indel/frameshift (for each tile)
+		##################################################
+		#FIXME: Frameshifts have been accidentally joined into one entry
+		simplifiedMarginal$fromaa <- sapply(simplifiedMarginal$from, 
+			function(codon) if (is.na(codon)) "" else trtable[[codon]]
+		)
+		mutbreakdown <- do.call(cbind,lapply(1:nrow(params$tiles), function(tile) {
+			if (!any(simplifiedMarginal$tile == tile)) {
+				return(setNames(rep(NA,5),c("fs","indel","stop","syn","mis")))
+			}
+			marginalSubset <- simplifiedMarginal[simplifiedMarginal$tile == tile,]
+			freqsums <- with(marginalSubset,{
+				c(
+					fs=sum(freq[toaa=="fs"]),
+					indel=sum(freq[which(toaa !="fs" & nchar(to) != 3)]),
+					stop=sum(freq[toaa=="*"]),
+					syn=sum(freq[fromaa==toaa])
+				)
+			})
+			freqsums[["mis"]] <- sum(marginalSubset$freq)-sum(freqsums)
+			return(freqsums)
+		}))
+		colnames(mutbreakdown) <- params$tiles[,1]
+		
+		plotcols <- c(
+			frameshift="firebrick3",indel="orange",nonsense="gold",
+			synonymous="steelblue3",missense="darkolivegreen3"
+		)
+		pdf(paste0(outDir,nsCond,"_mutationtypes.pdf"),8.5,11)
+		barplot(mutbreakdown,col=plotcols,border=NA,horiz=TRUE,
+			xlab="sum of marginal frequencies",ylab="Tile",main="Mutation types"
+		)
+		legend("right",names(plotcols),fill=plotcols)
+		invisible(dev.off())
 
 	}
 
