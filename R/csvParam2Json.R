@@ -378,3 +378,46 @@ parseParameters <- function(filename) {
 	return(params)
 }
 
+#' Convenience function to calculate the list of SNV-reachable AA changes
+#'
+#' Given a parameter object containing a coding sequence, this function will calculate a table
+#' of all SNV-reachable amino acid changes, detailing which codon changes correspond to each.
+#'
+#' @param param the parameter object
+#' @return a data.frame containing wt and mutant codons as well as wt and mutant AAs for all possible SNVs
+#' @export
+reachableChanges <- function(params) {
+	data(trtable)
+	library(hgvsParseR)
+	hgvsp <- new.hgvs.builder.p(aacode=3)
+	codons <- sapply(
+		seq(1,params$template$cdsLength,3),
+		function(s) substr(params$template$cdsSeq,s,s+2)
+	)
+	changes <- expand.grid(i=1:3,base=toChars("ACGT"),stringsAsFactors=FALSE)
+	reachable <- do.call(rbind,lapply(1:length(codons), function(pos) {
+		wtcodon <- codons[[pos]]
+		wtaa <- trtable[[wtcodon]]
+		muts <- as.df(lapply(1:nrow(changes),function(k) with(changes[k,],{
+			mutcodon <- wtcodon
+			substr(mutcodon,changes[k,"i"],changes[k,"i"]) <- changes[k,"base"]
+			mutaa <- trtable[[mutcodon]]
+			return(list(
+				wtcodon=wtcodon,pos=pos,mutcodon=mutcodon,
+				wtaa=wtaa,mutaa=mutaa
+			))
+		})))
+		muts <- muts[with(muts,wtaa!=mutaa),]
+		as.df(with(muts,tapply(1:nrow(muts),mutaa,function(is) {
+			list(
+				wtcodon=unique(wtcodon[is]),pos=unique(pos[is]),
+				mutcodons=paste0(mutcodon[is],collapse="|"),
+				wtaa=unique(wtaa[is]),mutaa=unique(mutaa[is])
+			)
+		})))
+	}))
+	reachable$aachange <- with(reachable,paste0(wtaa,pos,mutaa))
+	reachable$hgvsp <- sapply(1:nrow(reachable),function(i) with(reachable[i,],hgvsp$substitution(pos,wtaa,mutaa)))
+
+	return(reachable)
+}
