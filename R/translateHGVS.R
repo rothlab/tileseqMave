@@ -100,8 +100,10 @@ translateHGVS <- function(hgvs, params,
 	}
 
 	#check for unsupported mutation types
-	if (any(breakdown$type %in% c("duplication","inversion","conversion","amplification"))) {
-		stop("Unsupported variant type:",hgvs)
+	unsupportedTypes <- c("duplication","inversion","conversion","amplification")
+	if (any(breakdown$type %in% unsupportedTypes)) {
+		offenders <- with(breakdown,unique(type[which(type %in% unsupportedTypes)]))
+		stop("Unsupported variant type(s): ",paste(offenders, collapse=","), " in ", hgvs)
 	}
 
 	#########################
@@ -133,11 +135,14 @@ translateHGVS <- function(hgvs, params,
 
 	#if any frameshifts were found, describe the first of them and we're done.
 	if (length(frameshifts) > 0) {
-		fsStart <- min(breakdown[frameshifts,"start"])
+		first <- frameshifts[[which.min(breakdown[frameshifts,"start"])]]
+		fsStart <- breakdown[first,"start"]
 		codonIdx <- (fsStart -1) %/%3 + 1
 		aa <- trtable[[codons[[codonIdx]]]]
 		fsout <- builder$frameshift(codonIdx,aa)
-		return(c(hgvsp=fsout,codonChanges="fs",codonHGVS="c.?",aaChanges="fs",aaChangeHGVS=fsout))
+		fsSimple <- paste0(aa,codonIdx,"fs")
+		fsCodon <- paste0(codons[[codonIdx]],codonIdx,"indel")
+		return(c(hgvsp=fsout,codonChanges=fsCodon,codonHGVS=breakdown[first,"hgvs"],aaChanges=fsSimple,aaChangeHGVS=fsout))
 	}
 
 	#if there are no frameshifts, then we have a LOT more work to do...
