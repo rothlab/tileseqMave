@@ -80,9 +80,10 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger
 
 
 	#identify nonselect conditions
-	nsConditions <- unique(with(as.data.frame(params$conditions$definitions),{
-		`Condition 2`[which(Relationship == "is_selection_for")]
-	}))
+	nsConditions <- getNonselects(params)
+	# nsConditions <- unique(with(as.data.frame(params$conditions$definitions),{
+	# 	`Condition 2`[which(Relationship == "is_selection_for")]
+	# }))
 
 
 	logInfo("Reading count data")
@@ -123,24 +124,24 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger
 	allTiles <- pbmclapply(allSplitChanges,inferTiles,mc.cores=mc.cores)	
 	marginalTiles <- inferTiles(marginalSplitChanges)
 
-	#Quick Hack: Pull frameshift positions from initial HGVS strings
-	hackpos <- as.integer(extract.groups(allCounts$hgvsp,"(\\d+)fs")[,1])
-	allTiles[which(!is.na(hackpos))] <- sapply(
-		hackpos[which(!is.na(hackpos))],
-		function(pos) max(which(tileStarts <= pos))
-	)
-	hackpos <- as.integer(extract.groups(marginalCounts$hgvsp,"(\\d+)fs")[,1])
-	marginalTiles[which(!is.na(hackpos))] <- sapply(
-		hackpos[which(!is.na(hackpos))],
-		function(pos) max(which(tileStarts <= pos))
-	)
+	# #Quick Hack: Pull frameshift positions from initial HGVS strings
+	# hackpos <- as.integer(extract.groups(allCounts$hgvsp,"(\\d+)fs")[,1])
+	# allTiles[which(!is.na(hackpos))] <- sapply(
+	# 	hackpos[which(!is.na(hackpos))],
+	# 	function(pos) max(which(tileStarts <= pos))
+	# )
+	# hackpos <- as.integer(extract.groups(marginalCounts$hgvsp,"(\\d+)fs")[,1])
+	# marginalTiles[which(!is.na(hackpos))] <- sapply(
+	# 	hackpos[which(!is.na(hackpos))],
+	# 	function(pos) max(which(tileStarts <= pos))
+	# )
 	
 
 	#helper function to find the WT control condition for a given condition
-	findWTCtrl <- function(params,cond) {
-		defs <- params$conditions$definitions
-		defs[which(defs[,3] == cond & defs[,2] == "is_wt_control_for"),1]
-	}
+	# findWTCtrl <- function(params,cond) {
+	# 	defs <- params$conditions$definitions
+	# 	defs[which(defs[,3] == cond & defs[,2] == "is_wt_control_for"),1]
+	# }
 
 
 	################################################################################
@@ -160,7 +161,8 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger
 		nsAllMeans <- rowMeans(allCounts[,nsReps],na.rm=TRUE)
 
 		#if WT controls are present, average over them as well and subtract from nonselect
-		wtCond <- findWTCtrl(params,nsCond)
+		wtCond <- getWTControlFor(params,nsCond)
+		# wtCond <- findWTCtrl(params,nsCond)
 		if (length(wtCond) > 0) {
 			wtReps <- sprintf("%s.t%s.rep%s.frequency",wtCond,params$timepoints[1,1],1:params$numReplicates)
 
@@ -206,9 +208,9 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger
 		invisible(dev.off())
 
 		#calculate global filters that can be combined with tile-specific filters below
-		isFrameshift <- allCounts$aaChanges=="fs"
+		isFrameshift <- grepl("fs$",allCounts$aaChanges)
 		isInFrameIndel <- sapply(allSplitChanges, function(changes) {
-			any(nchar(changes[,3]) != 3)
+			any(changes[,3] != "indel" & nchar(changes[,3]) != 3)
 		})
 		numChanges <- sapply(allSplitChanges, nrow)
 		maxChanges <- max(numChanges)
@@ -629,7 +631,9 @@ nucleotideBiasAnalysis <- function(simplifiedMarginal,tile,draw=TRUE) {
 	#iterate over each variant entry
 	for (i in 1:nrow(simplifiedMarginal)) {
 		#skip frameshifts and deletions
-		if (any(is.na(simplifiedMarginal[i,])) || nchar(simplifiedMarginal[i,"to"]) < 3) {
+		if (any(is.na(simplifiedMarginal[i,])) 
+			|| nchar(simplifiedMarginal[i,"to"]) < 3
+			|| simplifiedMarginal[i,"to"] == "indel") {
 			next
 		}
 
