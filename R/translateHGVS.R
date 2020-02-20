@@ -142,10 +142,17 @@ translateHGVS <- function(hgvs, params,
 		fsout <- builder$frameshift(codonIdx,aa)
 		fsSimple <- paste0(aa,codonIdx,"fs")
 		fsCodon <- paste0(codons[[codonIdx]],codonIdx,"indel")
-		return(c(hgvsp=fsout,codonChanges=fsCodon,codonHGVS=breakdown[first,"hgvs"],aaChanges=fsSimple,aaChangeHGVS=fsout))
+		return(c(
+			hgvsp=fsout,codonChanges=fsCodon,codonHGVS=breakdown[first,"hgvs"],
+			aaChanges=fsSimple,aaChangeHGVS=fsout
+		))
 	}
 
-	#if there are no frameshifts, then we have a LOT more work to do...
+	# Note: Occasionally there can be a frameshift that is rescued by a complementary indel further
+	# downstream. But detecting those cases would require simulating the entire coding sequence. So
+	# we're not bothering to deal with that here in the interest of compute time (and coding time).
+
+	# Either way, if there are no frameshifts, then we're only just getting started...
 
 	########################################
 	# APPLY CHANGES TO EACH AFFECTED CODON #
