@@ -2,6 +2,8 @@
 
 differenceMap <- function(condMapFile,refMapFile,outFile,pdfFile) {
 	
+	op <- options(stringsAsFactors=FALSE)
+	
 	library(mavevis)
 	library(hgvsParseR)
 	library(yogitools)
@@ -14,7 +16,7 @@ differenceMap <- function(condMapFile,refMapFile,outFile,pdfFile) {
 	condIdx <- hash(condMap$hgvs_pro,1:nrow(condMap))
 	refIdx <- hash(refMap$hgvs_pro,1:nrow(refMap))
 
-	deltaMap <- as.df(lapply(union(keys(condIdx),keys(refIdx)),function(mut) {
+	deltaMap <- to.df(do.call(rbind,lapply(union(keys(condIdx),keys(refIdx)),function(mut) {
 		if (!has.key(mut,condIdx) || !has.key(mut,refIdx)) {
 			return(NULL)
 		}
@@ -37,7 +39,7 @@ differenceMap <- function(condMapFile,refMapFile,outFile,pdfFile) {
 			deltaSD=deltaSD,
 			deltaSE=deltaSD/sqrt(condDF+refDF)
 		)
-	}))
+	})))
 
 	write.csv(deltaMap,outFile,row.names=FALSE)
 
@@ -64,13 +66,13 @@ differenceMap <- function(condMapFile,refMapFile,outFile,pdfFile) {
 	)
 	invisible(dev.off())
 	
-
+	options(op)
+	
 }
 
 
-refMapFile <- "/home/jweile/projects/tileseqMave/workspace/output/CBS/merged/lowB6/CBS_low_imputation_refined_mavedb.csv"
-condMapFile <- "/home/jweile/projects/tileseqMave/workspace/output/CBS/merged/highB6/CBS_high_imputation_refined_mavedb.csv"
-outFile <- "/home/jweile/projects/tileseqMave/workspace/output/CBS/merged/highB6/CBS_delta.csv"
-pdfFile <- "/home/jweile/projects/tileseqMave/workspace/output/CBS/merged/highB6/CBS_delta.pdf"
-
-differenceMap(condMapFile,refMapFile,outFile,pdfFile)
+#refMapFile <- "/home/jweile/projects/tileseqMave/workspace/output/CBS/merged/lowB6/CBS_low_imputation_refined_mavedb.csv"
+#condMapFile <- "/home/jweile/projects/tileseqMave/workspace/output/CBS/merged/highB6/CBS_high_imputation_refined_mavedb.csv"
+#outFile <- "/home/jweile/projects/tileseqMave/workspace/output/CBS/merged/highB6/CBS_delta.csv"
+#pdfFile <- "/home/jweile/projects/tileseqMave/workspace/output/CBS/merged/highB6/CBS_delta.pdf"
+#differenceMap(condMapFile,refMapFile,outFile,pdfFile)#
