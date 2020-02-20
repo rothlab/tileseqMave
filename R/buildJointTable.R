@@ -142,7 +142,7 @@ buildJointTable <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 	# Merge tables #
 	################
 
-	logInfo("Merging tables. This may take some time...")
+	logInfo("Merging tables...")
 
 	#make lists of unique conditions, timepoints and replicates
 	conditions <- unique(sampleTable$Condition)
@@ -151,30 +151,18 @@ buildJointTable <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 
 	#helper function to combine a set of count/frequency tables, ordered by allVars
 	joinTables <- function(tables, allVars) {
-		#extract the union of variants
-		cnts <- hash(allVars,0)
-		freqs <- hash(allVars,0)
+		out <- data.frame(count=rep(0,length(allVars)),frequency=rep(0,length(allVars)),row.names=allVars)
 		for (i in 1:length(tables)) {
-			for (j in 1:nrow(tables[[i]])) {
-				mut <- tables[[i]][j,"HGVS"]
-				#TODO: think about whether summing is appropriate or if max() is better.
-				#but really this should be unnecessary as long as sequences are clipped and 
-				#filtered based on match positions.
-				cnts[[mut]] <- cnts[[mut]] + tables[[i]][j,"count"]
-				freqs[[mut]] <- freqs[[mut]] + tables[[i]][j,"frequency"]
-			}
+			out[tables[[i]]$HGVS,] <- out[tables[[i]]$HGVS,] + tables[[i]][,c("count","frequency")]
 		}
-		data.frame(
-			count=values(cnts,keys=allVars),
-			frequency=values(freqs,keys=allVars)
-		)
+		return(out)
 	}
 
 	#join all samples together into one comprehensive table
 	condTables <- lapply(conditions, function(cond) {
 		tpTables <- lapply(timepoints, function(tp) {
 			logInfo("Processing condition",cond,"timepoint",tp)
-			replTables <- mclapply(replicates, function(repl) {
+			replTables <- lapply(replicates, function(repl) {
 				#find the set of samples that represent the tiles for this specific
 				# combination of condition / timepoint / replicate
 				is <- with(sampleTable,{
@@ -182,7 +170,8 @@ buildJointTable <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 				})
 				#And join into a single table
 				joinTables(allCounts[is],allVars)
-			},mc.cores=min(length(replicates),mc.cores))
+			# },mc.cores=min(length(replicates),mc.cores))
+			})
 			#bind columns together
 			names(replTables) <- paste0("rep",replicates)
 			do.call(cbind,replTables)
@@ -226,7 +215,8 @@ buildJointTable <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 	aaIdx <- hash()
 	aaStrIdx <- hash()
 	for (i in 1:length(codonChangeHGVSs)) {
-		for (j in 1:length(codonChangeHGVSs[[i]])) {
+		js <- min(length(codonChangeHGVSs[[i]]), length(aaChangeHGVSs[[i]]))
+		for (j in 1:js) {
 			cc <- codonChangeHGVSs[[i]][[j]]
 			if (has.key(cc,ccIdx)) {
 				ccIdx[[cc]] <- c(ccIdx[[cc]],i)
@@ -248,8 +238,6 @@ buildJointTable <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 			colSums(jointTable[ccIdx[[cc]],-(1:6)],na.rm=TRUE)
 		)
 	},mc.cores=mc.cores))
-
-	#TODO: Build HGVS strings for marginal variants!!
 
 	logInfo("Writing results to file.")
 	outfile <- paste0(latestCountDir,"/marginalCounts.csv")
