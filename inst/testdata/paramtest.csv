@@ -1,4 +1,4 @@
-Project name:,My favorite gene,,,
+Project name:,My favorite project,,,
 ,,,,
 Template construct,,,,
 Gene name:,CBS,,,
@@ -7,10 +7,14 @@ CDS start:,182,,,
 CDS end:,1837,,,
 Uniprot Accession:,P35520,,,
 ,,,,
+Assay,,,,
+Assay Type:,Yeast complementation,,,
+Selection:,Positive,,,
+,,,,
 Conditions and replicates,,,,
 List of conditions:,nonselect,select,wtSelect,wtNonselect
-Number of Replicates:,2,,,
-Number of time points:,1,,,
+Number of Replicates:,2,2,2,2
+Number of time points:,1,1,1,1
 ,,,,
 Mutagenesis Regions,,,,
 Region Number,Start AA,End AA,,

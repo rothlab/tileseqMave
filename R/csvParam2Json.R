@@ -50,9 +50,14 @@ validateParameters <- function(params) {
 		stop("Invalid Uniprot Accession!")
 	}
 
-	#check that at least four conditions are defined
-	if (length(params$conditions$names) < 4) {
-		stop("Must define at least 4 conditions!")
+	#Check assay parameters
+	if (!params$assay$selection %in% c("Positive","Negative")) {
+		stop("Assay Selection must be either 'Positive' or 'Negative'!")
+	}
+
+	#check that at least one condition is defined
+	if (length(params$conditions$names) < 1) {
+		stop("Must define at least one condition!")
 	}
 
 	#check condition table for validity
@@ -196,6 +201,11 @@ csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",infile),
 	output$template$cds_start <- as.integer(csv[[getRow("CDS start:")]][[2]])
 	output$template$cds_end <- as.integer(csv[[getRow("CDS end:")]][[2]])
 	output$template$uniprot <- csv[[getRow("Uniprot Accession:")]][[2]]
+
+	#extract assay parameters
+	output$assay <- list()
+	output$assay$type <- csv[[getRow("Assay Type:")]][[2]]
+	output$assay$selection <- csv[[getRow("Selection:")]][[2]]
 
 	#extract conditions, replicates and timepoints
 	conditions <- csv[[getRow("List of conditions:")]][-1]
