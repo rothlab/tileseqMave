@@ -118,7 +118,7 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=N
 
 			#iterate over mutagenesis regions and process separately.
 			regions <- 1:nrow(params$regions)
-			regionalResults <- do.call(rbind,lapply(regions, function(region) {
+			scoreTable <- do.call(rbind,lapply(regions, function(region) {
 
 				#complain if there's no data for this region
 				if (!any(marginalCounts$region == region)) {
@@ -143,20 +143,65 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=N
 				msc$filter <- rawFilter(msc,countThreshold)
 
 				#Calculate enrichment ratios (phi) and propagate error
-				#(This should be moved into its own function)
 				msc <- cbind(msc,calcPhi(msc))
 
-				#TODO: Introduce flag for inverse selection assays!!
+				#if this is a negative assay, invert the scores
+				if (params$assay[["selection"]] == "Negative") {
+					msc$logPhi <- -msc$logPhi
+				}
 
 				#Normalize to synonymous and nonsense medians
-				#(This should be moved into its own function)
-				aac <- regionalCounts$aaChange
-				msc <- cbind(msc,normalizeScores(msc,aac,sdThreshold))
-				
-				#TODO: Flooring and SD adjustment
-				return(cbind(regionalCounts[,1:4],msc))
+				msc <- cbind(msc,normalizeScores(msc,regionalCounts$aaChange,sdThreshold))
 
+				#Flooring and SD adjustment
+				msc <- cbind(msc,flooring(msc,params))
+
+				#add stderr
+				msc$se.floored <- msc$sd.floored/sqrt(params$numReplicates)
+				
+				#attach labels and return
+				return(cbind(regionalCounts[,1:4],msc))
 			}))
+
+			#apply some vanity formatting
+			type.idx <- which(colnames(scoreTable)=="type")
+			filter.idx <- which(colnames(scoreTable)=="filter")
+			new.order <- c(1:4,type.idx,filter.idx,setdiff(5:ncol(scoreTable),c(type.idx,filter.idx)))
+			scoreTable <- scoreTable[,new.order]
+
+			#export to file
+			outFile <- paste0(outDir,sCond,"_t",tp,"_complete.csv")
+			write.csv(scoreTable,outFile,row.names=FALSE)
+
+			#simplified (MaveDB-compatible) format
+			simpleTable <- scoreTable[
+				is.na(scoreTable$filter),
+				c("hgvsc","hgvsp","score.floored","sd.floored","se.floored")
+			]
+			colnames(simpleTable) <- c("hgvs_nt","hgvs_pro","score","sd","se")
+
+			#export to file
+			outFile <- paste0(outDir,sCond,"_t",tp,"_simple.csv")
+			write.csv(simpleTable,outFile,row.names=FALSE)
+
+			#collapse by amino acid change
+			aaTable <- as.df(with(simpleTable,tapply(1:length(hgvs_pro),hgvs_pro, function(is) {
+				joint <- join.datapoints(
+					score[is],
+					sd[is],
+					rep(params$numReplicates,length(is))
+				)
+				list(
+					hgvs_pro=unique(hgvs_pro[is]),
+					score=joint[["mj"]],
+					sd=joint[["sj"]],
+					df=joint[["dfj"]],
+					se=joint[["sj"]]/sqrt(joint[["dfj"]])
+				)
+			})))
+
+			outFile <- paste0(outDir,sCond,"_t",tp,"_simple_aa.csv")
+			write.csv(aaTable,outFile,row.names=FALSE)
 
 		}
 
@@ -167,7 +212,111 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=N
 	return(NULL)
 }
 
-#Calculate enrichment ratios (phi) and perform error propagation
+#' Error propagation formula for ratios of Random Variables
+#'
+#' @param m1 the mean of the numerator RV
+#' @param m2 the mean of the denominator RV
+#' @param sd1 the stdev of the numerator RV
+#' @param sd2 the stdev of the denominator RV
+#' @param cov12 the covariance of the two variables
+ratio.sd <- function(m1,m2,sd1,sd2,cov12=0) {
+	abs(m1/m2) * sqrt( (sd1/m1)^2 + (sd2/m2)^2 - 2*cov12/(m1*m2) )
+}
+
+#' Error propagation formula for the logarithm of a Random Variable
+#'
+#' @param m1 the mean of the random variable
+#' @param sd1 the standard deviation of the RV
+#' @param base the logarithm base (default 10)
+log.sd <- function(m1,sd1,base=10) {
+	abs(sd1/(m1*log(base)))
+}
+
+#' Helper function to bottom-out a vector of numbers, so that no element is smaller than 'bottom'
+#'
+#' @param xs the input numerical vector
+#' @param bottom the minimum to which the vector will be forced.
+floor0 <- function(xs,bottom=0) sapply(xs, function(x) if (x < bottom) bottom else x)
+
+#' Baldi & Long's formula
+#'
+#' @param pseudo.n the number of pseudo-replicates (the weight of the prior)
+#' @param n the number of empirical replicates
+#' @param model.sd the prior expectation of the standard deviation
+#' @param empiric.sd the empircal standard deviation
+bnl <- function(pseudo.n,n,model.sd,empiric.sd) {
+	sqrt((pseudo.n * model.sd^2 + (n - 1) * empiric.sd^2)/(pseudo.n + n - 2))
+}
+
+
+#' Function to form mean, stdev and average raw count for a given condition
+#'
+#' @param cond the names of the condition (e.g. select, nonselect)
+#' @param regionalCounts the region-specific subset of the marginal counts dataframe
+#' @param tp the time point ID
+#' @param params the global parameters object
+mean.sd.count <- function(cond,regionalCounts,tp,params) {
+	freqs <- regionalCounts[,sprintf("%s.t%s.rep%d.frequency",cond,tp,1:params$numReplicates)]
+	counts <- regionalCounts[,sprintf("%s.t%s.rep%d.count",cond,tp,1:params$numReplicates)]
+	means <- rowMeans(freqs,na.rm=TRUE)
+	sds <- apply(freqs,1,sd,na.rm=TRUE)
+	out <- data.frame(
+		mean=means,
+		sd=sds,
+		cv=sds/means,
+		count=rowMeans(counts,na.rm=TRUE)
+		# csd=apply(counts,1,sd,na.rm=TRUE)
+	)
+	return(out)
+}
+
+#' Function to apply filtering based on raw counts / frequency
+#'
+#' @param msc dataframe containing the output of the 'mean.sd.count()' function.
+#' @param countThreshold the threshold of raw counts that must be met
+#' @return a vector listing for each row in the table which (if any) filters apply, otherwise NA.
+rawFilter <- function(msc,countThreshold) {
+	#apply nonselect filter
+	nsFilter <- with(msc, 
+		nonselect.count < countThreshold | nonselect.mean <= nonWT.mean + 3*nonWT.sd.bayes
+	)
+	sFilter <- with(msc, 
+		select.mean <= selWT.mean + 3*selWT.sd.bayes
+	)
+	mapply(function(ns,s) {
+		if (ns) "frequency" else if (s) "bottleneck" else NA
+	},nsFilter,sFilter)
+}
+
+#' Function to perform Baldi & Long's error regularization
+#'
+#' @param msc dataframe containing the output of the 'mean.sd.count()' function
+#' @param condNames the names of the different count conditions (select, nonselect etc)
+#' @param n the number of replicates present for each datapoint
+#' @param pseudo.n the number of pseudo-replicates that detemine the weight of the prior
+#'    in the regularization
+#' @return a data.frame containing for each condition the possion prior, bayesian regularized, and
+#'    pessimistic (maximum) standard deviation.
+regularizeRaw <- function(msc,condNames,n,pseudo.n) {
+	regul <- do.call(cbind,lapply(condNames, function(cond) {
+		sd.empiric <- msc[,paste0(cond,".sd")]
+		cv.poisson <- 1/sqrt(msc[,paste0(cond,".count")])
+		cv.poisson[which(msc[,paste0(cond,".mean")] == 0)] <- 0
+		sd.poisson <- cv.poisson*msc[,paste0(cond,".mean")]
+		sd.bayes <- bnl(pseudo.n,n,sd.poisson,sd.empiric)
+		sd.pessim <- mapply(max,sd.empiric,sd.poisson)
+		out <- cbind(sd.poisson=sd.poisson,sd.bayes=sd.bayes,sd.pessim=sd.pessim)
+		colnames(out) <- paste0(cond,c(".sd.poisson",".sd.bayes",".sd.pessim"))
+		out
+	}))
+	return(regul)
+}
+
+
+#' Calculate enrichment ratios (phi) and perform error propagation
+#'
+#' @param msc data.frame containing the output of the 'mean.sd.count()' function
+#' @return a data.frame containing phi, log(phi) and their respective stdevs
 calcPhi <- function(msc) {
 	#calculate phi
 	phi <- with(msc,{
@@ -186,7 +335,11 @@ calcPhi <- function(msc) {
 	return(data.frame(phi=phi,phi.sd=phi.sd,logPhi=logPhi,logPhi.sd=logPhi.sd))
 }
 
-#calculate scores by normalizing logPhi values to syn/nonsense medians
+#' Calculate scores by normalizing logPhi values to syn/nonsense medians
+#' @param msc data.frame containing the enrichment ratios (phi) and log(phi)
+#' @param aac the vector of corresponding amino acid changes
+#' @param sdThreshold the maximum stdev of logPhi to filter for before calculating medians
+#' @return data.frame with variant type, score and stdev
 normalizeScores <- function(msc,aac,sdThreshold) {
 	#determine mutation types
 	fromAA <- substr(aac,1,1)
@@ -205,127 +358,62 @@ normalizeScores <- function(msc,aac,sdThreshold) {
 	score <- (msc$logPhi - nonsenseMedian) / (synonymousMedian - nonsenseMedian)
 	score.sd <- msc$logPhi.sd / (synonymousMedian - nonsenseMedian)
 
-	return(cbind(type=type,score=score,score.sd=score.sd))
+	return(data.frame(type=type,score=score,score.sd=score.sd))
 }
 
-
-#error propagation for ratios
-ratio.sd <- function(m1,m2,sd1,sd2,cov12=0) {
-	abs(m1/m2) * sqrt( (sd1/m1)^2 + (sd2/m2)^2 - 2*cov12/(m1*m2) )
-}
-
-#error propagation for logarithms
-log.sd <- function(m1,sd1,base=10) {
-	abs(sd1/(m1*log(base)))
-}
-
-floor0 <- function(xs,bottom=0) sapply(xs, function(x) if (x < bottom) bottom else x)
-
-#Baldi & Long's formula
-bnl <- function(pseudo.n,n,model.sd,empiric.sd) {
-	sqrt((pseudo.n * model.sd^2 + (n - 1) * empiric.sd^2)/(pseudo.n + n - 2))
-}
-
-#' Helper function to form mean, stdev and average raw count for a given condition
-mean.sd.count <- function(cond,regionalCounts,tp,params) {
-	freqs <- regionalCounts[,sprintf("%s.t%s.rep%d.frequency",cond,tp,1:params$numReplicates)]
-	counts <- regionalCounts[,sprintf("%s.t%s.rep%d.count",cond,tp,1:params$numReplicates)]
-	means <- rowMeans(freqs,na.rm=TRUE)
-	sds <- apply(freqs,1,sd,na.rm=TRUE)
-	out <- data.frame(
-		mean=means,
-		sd=sds,
-		cv=sds/means,
-		count=rowMeans(counts,na.rm=TRUE)
-		# csd=apply(counts,1,sd,na.rm=TRUE)
+#' Apply flooring and SD adjustment to negative scores
+#' 
+#' This assumes that no cell can be "deader than dead", and that negative scores are just due to 
+#' measurement error. From this follows that the more negative the score, the more certain we 
+#' can be that the cell is dead. We can therefore adjust the SD to reflect this, by setting 
+#' the score to zero and shifting the SD such that the implied probability of being above 0 
+#' remains the same.
+#' 
+#' @param msc the score matrix
+#' @param params the global parameter object
+#' @return a matrix containing the floored scores and SDs
+flooring <- function(msc,params) {
+	#depending on the selection type of the assay, we're either flooring at the top or bottom.
+	switch(params$assay[["selection"]],
+		Positive={
+			#the target null-like score towards which we will shift these values
+			targetScore <- 0
+			#the quantile for which we want to keep the p-value fixed
+			quantile <- 1
+			#the row numbers containing the cases to be fixed
+			toFix <- which(msc$score < targetScore)
+		},
+		Negative={
+			#if we're dealing with an inverse assay, we have to apply a ceiling instead of flooring
+			#the target functional (but dead) score towards which we will shift these values
+			targetScore <- 1
+			#the quantile for which we want to keep the p-value fixed
+			quantile <- 0
+			#the row numbers containing the cases to be fixed
+			toFix <- which(msc$score > targetScore)
+		}
 	)
-	return(out)
+	score.floored <- msc$score
+	sd.floored <- msc$score.sd
+	score.floored[toFix] <- targetScore
+	#the equivalent sds of a normal distribution with the target mean based on the above area
+	sd.floored[toFix] <- with(msc[toFix,], score.sd*(quantile-targetScore)/(quantile-score))
+
+	return(cbind(score.floored=score.floored,sd.floored=sd.floored))
 }
 
-#' Helper function to apply raw count / frequecy filtering
-#' @param msc dataframe containing the output of the 'mean.sd.count()' function.
-#' @return a vector listing for each row in the table which (if any) filters apply, otherwise NA.
-rawFilter <- function(msc,countThreshold) {
-	#apply nonselect filter
-	nsFilter <- with(msc, 
-		nonselect.count < countThreshold | nonselect.mean <= nonWT.mean + 3*nonWT.sd.bayes
-	)
-	sFilter <- with(msc, 
-		select.mean <= selWT.mean + 3*selWT.sd.bayes
-	)
-	mapply(function(ns,s) {
-		if (ns) "frequency" else if (s) "bottleneck" else NA
-	},nsFilter,sFilter)
+#' join multiple datapoints weighted by stdev
+#' @param ms data means
+#' @param sds data stdevs
+#' @param degrees of freedom for each data point
+#' @return a vector containing the joint mean and joint stdev
+join.datapoints <- function(ms,sds,dfs) {
+	#weights
+	ws <- (1/sds)/sum(1/sds)
+	#weighted mean
+	mj <- sum(ws*ms)
+	#weighted joint variance
+	vj <- sum(ws*(sds^2+ms^2)) -mj^2
+	#return output
+	return(c(mj=mj,sj=sqrt(vj),dfj=sum(dfs)))
 }
-
-regularizeRaw <- function(msc,condNames,n,pseudo.n) {
-	regul <- do.call(cbind,lapply(condNames, function(cond) {
-		sd.empiric <- msc[,paste0(cond,".sd")]
-		cv.poisson <- 1/sqrt(msc[,paste0(cond,".count")])
-		cv.poisson[which(msc[,paste0(cond,".mean")] == 0)] <- 0
-		sd.poisson <- cv.poisson*msc[,paste0(cond,".mean")]
-		sd.bayes <- bnl(pseudo.n,n,sd.poisson,sd.empiric)
-		sd.pessim <- mapply(max,sd.empiric,sd.poisson)
-		out <- cbind(sd.poisson=sd.poisson,sd.bayes=sd.bayes,sd.pessim=sd.pessim)
-		colnames(out) <- paste0(cond,c(".sd.poisson",".sd.bayes",".sd.pessim"))
-		out
-	}))
-	return(regul)
-}
-
-
-
-##########################
-# SCRAPS BELOW!!!!!!!!!!
-##########################
-
-op <- par(mfrow=c(2,2))
-with(msc,plot(nonselect.count,phi.sd,log="xy",pch=".",main="Unfiltered"))
-with(msc[is.na(msc$filter),],plot(nonselect.count,phi.sd,log="xy",pch=".",main="Filtered"))
-with(msc,plot(logPhi,logPhi.sd,log="y",pch=".",main="Unfiltered"))
-with(msc[is.na(msc$filter),],plot(logPhi,logPhi.sd,log="y",pch=".",main="Filtered"))
-par(op)
-
-
-
-layout(cbind(1,2,3))
-plot(sd.poisson,sd.empiric,log="xy",xlim=c(1e-8,1e-3),ylim=c(1e-8,1e-3),pch=".")
-abline(0,1,col="gray",lty="dotted")
-plot(sd.poisson,sd.bayes,log="xy",xlim=c(1e-8,1e-3),ylim=c(1e-8,1e-3),pch=".")
-abline(0,1,col="gray",lty="dotted")
-plot(sd.empiric,sd.bayes,log="xy",xlim=c(1e-8,1e-3),ylim=c(1e-8,1e-3),pch=".")
-abline(0,1,col="gray",lty="dotted")
-
-
-
-
-
-
-logcv <- log10(mscFiltered[,paste0(cond,".cv")])
-# logmean <- log10(mscFiltered[,paste0(cond,".mean")])
-logexpect <- log10(1/sqrt(mscFiltered[,paste0(cond,".count")]))
-inverse <- 1/logexpect
-z <- coefficients(lm(logcv~logexpect+inverse))
-priorCV <- function(count) 10^(z[[1]] + z[["logexpect"]]*log10(1/sqrt(count)) + z[["inverse"]]/log10(1/sqrt(count)))
-oneoversqr <- function(x)1/sqrt(x)
-with(mscFiltered,plot(nonselect.count,nonselect.cv,log="xy"))
-# curve(priorCV,from=.1,to=5000,col="red",add=TRUE)
-curve(oneoversqr,from=.1,to=5000,col="gray",add=TRUE)
-# runningMean <- with(mscFiltered,runningFunction(nonselect.count,nonselect.cv,10,100,fun=median,logScale=TRUE))
-# lines(runningMean,col="red",lwd=2)
-
-# m2cv <- function(m,n=600000) 1/sqrt(m*n)
-# with(mscFiltered,plot(nonselect.mean,nonselect.cv,pch=".",log="xy"))
-# curve(priorCV,add=TRUE,from=1e-6,to=1e-2)
-# curve(m2cv,add=TRUE,from=1e-6,to=1e-2,col="red")
-# x11()
-# curve(priorCV,from=1e-6,to=1e-2)
-# curve(m2cv,add=TRUE,from=1e-6,to=1e-2,col="red")
-# x11()
-with(mscFiltered,plot(1/sqrt(nonselect.count),nonselect.cv,log="xy",xlim=c(1e-4,1),ylim=c(1e-4,1)))
-runningMean <- with(mscFiltered,runningFunction(1/sqrt(nonselect.count),nonselect.cv,0.02,100))
-lines(runningMean,col="red",lwd=2)
-abline(0,1,col="gray",lty="dotted")
-
-abline(v=1/sqrt(600))
-
