@@ -51,7 +51,7 @@ validateParameters <- function(params) {
 	}
 
 	#Check assay parameters
-	if (!params$assay$selection %in% c("Positive","Negative")) {
+	if (!params$assay[["selection"]] %in% c("Positive","Negative")) {
 		stop("Assay Selection must be either 'Positive' or 'Negative'!")
 	}
 
