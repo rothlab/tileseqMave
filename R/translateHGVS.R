@@ -106,6 +106,16 @@ translateHGVS <- function(hgvs, params,
 		stop("Unsupported variant type(s): ",paste(offenders, collapse=","), " in ", hgvs)
 	}
 
+	#check for any cases that are reported backwards and correct them
+	if (with(breakdown,any(start > end,na.rm=TRUE))) {
+		culprits <- with(breakdown,which(start > end))
+		for (culprit in culprits) {
+			newStart <- breakdown[culprit,"end"]
+			breakdown[culprit,"end"] <- breakdown[culprit,"start"]
+			breakdown[culprit,"start"] <- newStart
+		}
+	}
+
 	#########################
 	# CHECK FOR FRAMESHIFTS #
 	#########################
@@ -154,9 +164,9 @@ translateHGVS <- function(hgvs, params,
 
 	# Either way, if there are no frameshifts, then we're only just getting started...
 
-	########################################
-	# APPLY CHANGES TO EACH AFFECTED CODON #
-	########################################
+	#############################
+	# DETERMINE AFFECTED CODONS #
+	#############################
 
 	#list affected codons of each mutation to identify potential overlap
 	affectedCodons <- lapply(1:nrow(breakdown),function(i) {
@@ -165,8 +175,28 @@ translateHGVS <- function(hgvs, params,
 		} else {
 			breakdown[i,"start"]
 		}
-		unique((ncs -1) %/%3 + 1)
+		afpos <- unique((ncs -1) %/%3 + 1)
+		return(afpos[afpos <= length(codons) & afpos > 0])
 	})
+
+	#If the affected Codons include the stop codon, it's a stop-loss!
+	if (length(codons) %in% Reduce(union,affectedCodons)) {
+		culprit <- which(sapply(affectedCodons, function(cs) length(codons) %in% cs))
+		fsStart <- breakdown[culprit,"start"]
+		codonIdx <- (fsStart -1) %/%3 + 1		
+		aa <- trtable[[codons[[codonIdx]]]]
+		fsout <- builder$frameshift(codonIdx,aa)
+		fsSimple <- paste0(aa,codonIdx,"fs")
+		fsCodon <- paste0(codons[[codonIdx]],codonIdx,"indel")
+		return(c(
+			hgvsp=fsout,codonChanges=fsCodon,codonHGVS=breakdown[culprit,"hgvs"],
+			aaChanges=fsSimple,aaChangeHGVS=fsout
+		))
+	}
+
+	########################################
+	# APPLY CHANGES TO EACH AFFECTED CODON #
+	########################################
 
 	#calculate cumulative AA changes by iterating over each codon affected at least once
 	aaChanges <- as.df(lapply(Reduce(union,affectedCodons), function(codonIdx) {
@@ -222,21 +252,47 @@ translateHGVS <- function(hgvs, params,
 					codon <- paste0(preSeq,insSeq,sufSeq)
 				},
 				delins={
-					#check if we're starting mid-codon
-					if (mStart > cStart) {
-						preSeq <- substr(codon,1,mStartInner-1)
-						sufLen <- 3-nchar(preSeq)
-						sufSeq <- substr(insSeq,1,sufLen)
-						codon <- paste0(preSeq,sufSeq)
-					} else if (mEnd > cStart+2) {
-						#if this is not the last codon in the replacement area, we replace everything
-						offset <- cStart-mStart
-						codon <- substr(insSeq,offset+1,offset+3)
+					#check if the insertion is shorter than the deletion
+					if (nchar(insSeq) < (mEnd-mStart+1)) {
+						#if we're in the first codon and are starting in the middle of it
+						preSeq <- if (mStart > cStart && mStart < cStart+3) {
+							substr(codon,1,mStartInner-1)
+						} else {
+							""
+						}
+						#how much of the insertion sequence has already been used?
+						used <- cStart - mStart
+						#how much do we need to still fill this codon?
+						needed <- 3-nchar(preSeq)
+						midSeq <- substr(insSeq,used+1,used+needed)
+						#if we ran out of insertion sequence, make up the rest from downstream CDS
+						sufLen <- needed-nchar(midSeq)
+						sufSeq <- substr(cdsSeq,mEnd+1,mEnd+sufLen)
+						#if there is no insertion sequence for this codon, it's been entirely deleted.
+						#or previously used up in a suffix.
+						if (midSeq=="") {
+							codon <- ""
+						} else {
+							codon <- paste0(preSeq,midSeq,sufSeq)
+						}
+					#otherwise the insertion is longer than (or equal to) the deletion
 					} else {
-						#this is the last codon, which may have a suffix, as well as leftover insertion sequence
-						sufSeq <- substring(codon,mEndInner+1,3)
-						offset <- cStart-mStart
-						codon <- paste0(substr(insSeq,offset+1,nchar(insSeq)),sufSeq)
+						#check if we're starting mid-codon
+						if (mStart > cStart) {
+							preSeq <- substr(codon,1,mStartInner-1)
+							sufLen <- 3-nchar(preSeq)
+							sufSeq <- substr(insSeq,1,sufLen)
+							codon <- paste0(preSeq,sufSeq)
+						} else if (mEnd > cStart+2) {
+							#if this is not the last codon in the replacement area, we replace everything
+							offset <- cStart-mStart
+							codon <- substr(insSeq,offset+1,offset+3)
+						} else {
+							#this is the last codon, which may have a suffix, as well as leftover insertion sequence
+							sufSeq <- substring(codon,mEndInner+1,3)
+							offset <- cStart-mStart
+							codon <- paste0(substr(insSeq,offset+1,nchar(insSeq)),sufSeq)
+						}
 					}
 				},
 				{#any other type

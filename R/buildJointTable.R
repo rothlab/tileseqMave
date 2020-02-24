@@ -125,13 +125,38 @@ buildJointTable <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 	})
 
 
-	logInfo("Translating variant calls to protein level. This may take some time...")
 	#find the union of all variants
 	allVars <- Reduce(union,lapply(allCounts,function(x)x$HGVS))
+	logInfo(sprintf(
+		"Translating %d unique variant calls to protein level. This may take some time...", 
+		length(allVars)
+	))
 	#translate them to amino acid level
 	builder <- new.hgvs.builder.p(aacode=3)
 	cbuilder <- new.hgvs.builder.c()
-	transTable <- as.df(pbmclapply(allVars, translateHGVS, params, builder, cbuilder, mc.cores=mc.cores))
+	# transTable <- as.df(pbmclapply(allVars, translateHGVS, params, builder, cbuilder, mc.cores=mc.cores))
+	transTable <- as.df(pbmclapply(allVars, function(mut) {
+		tryCatch({
+			translateHGVS(mut, params, builder, cbuilder)
+		},error=function(e){
+			c(
+				hgvsp=as.character(e),codonChanges=NA,codonHGVS=NA,
+				aaChanges=NA,aaChangeHGVS=NA
+			)
+		})
+	},mc.cores=mc.cores))
+
+	if (any(is.na(transTable[,2]))) {
+		for (i in which(is.na(transTable[,2]))) {
+			logWarn("Translation for variant ",allVars[[i]],"failed: ",transTable[i,1])
+		}
+		stop("Translations for ",sum(is.na(transTable[,2]))," variants failed! See log for details.")
+	}
+
+
+	#TODO: detect failed translations
+
+
 	#and build index of the translations
 	# trIdx <- hash(allVars,1:nrow(transTable))
 	# for (i in 1:length(allCounts)) {

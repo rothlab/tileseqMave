@@ -7,6 +7,11 @@
 "cds_end": 1837,
 "uniprot": "P35520"
 },
+"assay": {
+ "type": "Yeast Complementation",
+ "selection": "Positive"
+},
+
 "conditions": {
  "names": [ "nonselect", "select", "wtSelect", "wtNonselect" ],
 "definitions": [ {

@@ -77,5 +77,10 @@ test_that("translation works", {
 		"p.Pro2_Glu4delinsLeuPheTrp"
 	)
 
+	expect_equal(
+		translateHGVS("c.5_8delinsA",parameters,builder)[[1]],
+		"p.Pro2_Ser3delinsHis"
+	)
+
 })
 
