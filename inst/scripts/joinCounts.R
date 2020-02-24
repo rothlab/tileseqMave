@@ -52,6 +52,7 @@ if (!dir.exists(dataDir)) {
 }
 paramfile <- if (is.na(args$parameters)) paste0(args$dataDir,"parameters.json") else args$parameters
 logfile <- if (is.na(args$logfile)) paste0(args$dataDir,"joinCounts.log") else args$logfile
+mc.cores <- if (is.na(args$cores)) 6 else args$cores
 
 #set up logger and shunt it into the error handler
 logger <- new.logger(logfile)
