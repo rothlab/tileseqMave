@@ -65,6 +65,10 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=N
 	logInfo("Reading parameters")
 	params <- parseParameters(paramFile)
 
+	logInfo("Scoring function uses the following parameters:")
+	logInfo("countThreshold = ",countThreshold)
+	logInfo("pseudoReplicates (pseudo.n) = ",pseudo.n)
+	logInfo("sdThreshold = ",sdThreshold)
 
 	#find counts folder
 	subDirs <- list.dirs(dataDir,recursive=FALSE)
@@ -110,6 +114,14 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=N
 			selWT=getWTControlFor(sCond,params),
 			nonWT=getWTControlFor(nCond,params)
 		)
+
+		#Workaround: Since R doesn't like variable names starting with numerals, 
+		# we need to adjust any of those cases
+		if (any(grepl("^\\d",condQuad))) {
+			culprits <- which(grepl("^\\d",condQuad))
+			#we add the prefix "X" to the name, just like the table parser does.
+			condQuad[culprits] <- paste0("X",condQuad[culprits])
+		}
 
 		#iterate over time points
 		for (tp in params$timepoints$`Time point name`) {
@@ -163,12 +175,15 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=N
 				return(cbind(regionalCounts[,1:4],msc))
 			}))
 
+			logInfo("Apply formatting...")
+
 			#apply some vanity formatting
 			type.idx <- which(colnames(scoreTable)=="type")
 			filter.idx <- which(colnames(scoreTable)=="filter")
 			new.order <- c(1:4,type.idx,filter.idx,setdiff(5:ncol(scoreTable),c(type.idx,filter.idx)))
 			scoreTable <- scoreTable[,new.order]
 
+			logInfo("Writing full table to file.")
 			#export to file
 			outFile <- paste0(outDir,sCond,"_t",tp,"_complete.csv")
 			write.csv(scoreTable,outFile,row.names=FALSE)
@@ -181,10 +196,12 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=N
 			colnames(simpleTable) <- c("hgvs_nt","hgvs_pro","score","sd","se")
 
 			#export to file
+			logInfo("Writing simplified table to file.")
 			outFile <- paste0(outDir,sCond,"_t",tp,"_simple.csv")
 			write.csv(simpleTable,outFile,row.names=FALSE)
 
 			#collapse by amino acid change
+			logInfo("Collapsing amino acid changes...")
 			aaTable <- as.df(with(simpleTable,tapply(1:length(hgvs_pro),hgvs_pro, function(is) {
 				joint <- join.datapoints(
 					score[is],
@@ -200,6 +217,7 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=N
 				)
 			})))
 
+			logInfo("Writing AA-centric table to file.")
 			outFile <- paste0(outDir,sCond,"_t",tp,"_simple_aa.csv")
 			write.csv(aaTable,outFile,row.names=FALSE)
 
@@ -207,8 +225,8 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=N
 
 	}
 
-
 	options(op)
+	logInfo("Scoring complete.")
 	return(NULL)
 }
 
