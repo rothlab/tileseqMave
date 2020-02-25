@@ -4,8 +4,13 @@
 \alias{translateHGVS}
 \title{Translate a single HGVS string from nucleotide to amino acid level}
 \usage{
-translateHGVS(hgvs, params, builder = new.hgvs.builder.p(aacode = 3),
-  cbuilder = new.hgvs.builder.c(), strictMode = TRUE)
+translateHGVS(
+  hgvs,
+  params,
+  builder = new.hgvs.builder.p(aacode = 3),
+  cbuilder = new.hgvs.builder.c(),
+  strictMode = TRUE
+)
 }
 \arguments{
 \item{hgvs}{a single cds-level HGVS string. May contain multiple mutations in-cis.}

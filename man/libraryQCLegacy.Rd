@@ -4,8 +4,13 @@
 \alias{libraryQCLegacy}
 \title{QC plots for library coverage}
 \usage{
-libraryQCLegacy(dataDir, outdir, mut2funcFile = paste0(dataDir,
-  "mut2func_info.csv"), logger = NULL, mc.cores = 8)
+libraryQCLegacy(
+  dataDir,
+  outdir,
+  mut2funcFile = paste0(dataDir, "mut2func_info.csv"),
+  logger = NULL,
+  mc.cores = 8
+)
 }
 \arguments{
 \item{dataDir}{path to the existing data main directory}

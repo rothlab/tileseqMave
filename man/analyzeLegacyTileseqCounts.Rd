@@ -4,9 +4,15 @@
 \alias{analyzeLegacyTileseqCounts}
 \title{analyze tileseq counts from legacy pipeline}
 \usage{
-analyzeLegacyTileseqCounts(countfile, regionfile, outdir, logger = NULL,
-  inverseAssay = FALSE, pseudoObservations = 2,
-  conservativeMode = TRUE)
+analyzeLegacyTileseqCounts(
+  countfile,
+  regionfile,
+  outdir,
+  logger = NULL,
+  inverseAssay = FALSE,
+  pseudoObservations = 2,
+  conservativeMode = TRUE
+)
 }
 \arguments{
 \item{countfile}{the path to the "rawData.txt" file produced by the legacy pipeline.}

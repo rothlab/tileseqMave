@@ -4,8 +4,11 @@
 \alias{csvParam2Json}
 \title{convert CSV input parameter file to JSON format}
 \usage{
-csvParam2Json(infile, outfile = sub("[^/]+$", "parameters.json", infile),
-  logger = NULL)
+csvParam2Json(
+  infile,
+  outfile = sub("[^/]+$", "parameters.json", infile),
+  logger = NULL
+)
 }
 \arguments{
 \item{infile}{the input CSV file}

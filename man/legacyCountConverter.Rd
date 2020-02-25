@@ -4,9 +4,13 @@
 \alias{legacyCountConverter}
 \title{converts legacy tileseq count data into the new count file format}
 \usage{
-legacyCountConverter(dataDir, outdir, mut2funcFile = paste0(dataDir,
-  "mut2func_info.csv"), countFolder = paste0(dataDir,
-  "mutationCallfile/"), logger = NULL)
+legacyCountConverter(
+  dataDir,
+  outdir,
+  mut2funcFile = paste0(dataDir, "mut2func_info.csv"),
+  countFolder = paste0(dataDir, "mutationCallfile/"),
+  logger = NULL
+)
 }
 \arguments{
 \item{dataDir}{path to the existing data main directory}
