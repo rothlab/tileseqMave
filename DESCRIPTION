@@ -11,4 +11,4 @@ Suggests:
     testthat, mavevis
 Imports: rapimave, hgvsParseR, yogitools, yogilog, argparser, pbmcapply, hash
 Remotes: github::VariantEffect/rapimave, github::VariantEffect/hgvsParseR, github::jweile/yogitools, github::jweile/yogilog, github::VariantEffect/mavevis
-RoxygenNote: 6.1.1
+RoxygenNote: 7.0.2
