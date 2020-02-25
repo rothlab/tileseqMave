@@ -18,10 +18,12 @@
 # along with tileseqMave.  If not, see <https://www.gnu.org/licenses/>.
 
 #####################################################
-# This is a command line wrapper for buildJointTable
+# This is a command line wrapper for scoring
 #####################################################
 
-# buildJointTable(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=NULL,mc.cores=6) {
+# scoring(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=NULL,mc.cores=6, 
+#	countThreshold=10,pseudo.n=8,sdThreshold=0.3)
+
 
 options(
 	stringsAsFactors=FALSE,
@@ -35,13 +37,16 @@ library(yogilog)
 
 #process command line arguments
 p <- arg_parser(
-	"Reads the output of fastq2Count to construct allCounts.csv and marginalCounts.csv",
-	name="joinCounts.R"
+	"Performs a library QC analysis on the output of joinCounts.R, yielding informative plots.",
+	name="runScoring.R"
 )
 p <- add_argument(p, "dataDir", help="workspace data directory")
 p <- add_argument(p, "--parameters", help="parameter file. Defaults to parameters.json in the data directory.")
-p <- add_argument(p, "--logfile", help="log file. Defaults to joinCounts.log in the same directory")
-p <- add_argument(p, "--cores", default=6, help="number of CPU cores to use in parallel for multi-threading")
+p <- add_argument(p, "--countThreshold", default=10L, help="Filter threshold for minimal required read counts. Default 10")
+p <- add_argument(p, "--pseudoReplicates", default=8L, help="Number of pseudo-replicates for Baldi&Long regularization. Default 8")
+p <- add_argument(p, "--sdThreshold", default=0.3, help="Stdev threshold for determination of syn/stop medians. Default 0.3")
+p <- add_argument(p, "--logfile", help="log file. Defaults to scoring.log in the same directory")
+p <- add_argument(p, "--cores", default=6L, help="number of CPU cores to use in parallel for multi-threading")
 args <- parse_args(p)
 
 #ensure datadir ends in "/" and exists
@@ -54,8 +59,7 @@ if (!dir.exists(dataDir)) {
 	stop("Data folder does not exist!")
 }
 paramfile <- if (is.na(args$parameters)) paste0(args$dataDir,"parameters.json") else args$parameters
-logfile <- if (is.na(args$logfile)) paste0(args$dataDir,"joinCounts.log") else args$logfile
-mc.cores <- if (is.na(args$cores)) 6 else args$cores
+logfile <- if (is.na(args$logfile)) paste0(args$dataDir,"scoring.log") else args$logfile
 
 #set up logger and shunt it into the error handler
 logger <- new.logger(logfile)
@@ -63,6 +67,9 @@ registerLogErrorHandler(logger)
 
 #run the actual function
 invisible(
-	buildJointTable(dataDir,paramfile,logger,mc.cores)
+	scoring(
+		dataDir,paramfile,logger,args$cores,
+		args$countThreshold,args$pseudoReplicates,args$sdThreshold
+	)
 )
 
