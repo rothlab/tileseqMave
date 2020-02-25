@@ -61,17 +61,42 @@ validateParameters <- function(params) {
 	}
 
 	#check condition table for validity
-	if (!all(params$conditions$definitions[,"Condition 1"] %in% params$conditions$names) || 
-		!all(params$conditions$definitions[,"Condition 2"] %in% params$conditions$names)) {
-		stop("Undeclared condition name in definitions!")
+	#for QC runs, no relationships are declared, but in any other case, the following rules must apply:
+	if (nrow(params$conditions$definitions) > 0) {
+		#check that definitions use valid condition names
+		if (!all(params$conditions$definitions[,"Condition 1"] %in% params$conditions$names) || 
+			!all(params$conditions$definitions[,"Condition 2"] %in% params$conditions$names)) {
+			stop("Undeclared condition name in definitions!")
+		}
+		#and that they use valid relationship names
+		relationships <- c("is_selection_for","is_wt_control_for")
+		if (!all(params$conditions$definitions[,"Relationship"] %in% relationships)) {
+			stop("Invalid relationship in condition definitions!")
+		}
+		#check that each conditon has at least one relationship
+		used <- sapply(params$conditions$names, function(cname) {
+			cname %in% params$conditions$definitions[,"Condition 1"] || 
+			cname %in% params$conditions$definitions[,"Condition 2"]
+		})
+		if (!all(used)) {
+			stop("Conditions not in relationships: ",paste(params$conditions$names[!used],collapse=", "))
+		}
+		#at least one selection condition must be declared:
+		if (!("is_selection_for" %in% params$conditions$definitions[,"Relationship"])) {
+			stop("No select-nonselect relationship was defined!")
+		}
+		#Check that each sel/nonsel condition has a WT control
+		mainConds <- c(getSelects(params),getNonselects(params))
+		hasWT <- sapply(mainConds, function(cond) {
+			length(getWTControlFor(cond,params)) > 0
+		})
+		if (!all(hasWT)) {
+			stop("No WT control defined for: ",paste(mainConds[!hasWT],collapse=", "))
+		}
+	} else {
+		warning("No condition definitions detected! Is this a QC run?")
 	}
-	relationships <- c("is_selection_for","is_wt_control_for")
-	if (!all(params$conditions$definitions[,"Relationship"] %in% relationships)) {
-		stop("Invalid relationship in condition definitions!")
-	}
-
-	#TODO: Check that each condition has a WT control
-	#TODO: Check that each selection has a nonselect
+	
 
 	if (is.na(params$numReplicates)) {
 		stop("Number of replicates must be an integer number!")
