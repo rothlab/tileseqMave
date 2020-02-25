@@ -98,7 +98,7 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger
 	depthTable <- read.csv(depthTableFile)
 
 
-	logInfo("Interpreting variant descriptors")
+	logInfo("Interpreting variant descriptors. This may take some time...")
 
 	#Extract affected positions and codon details
 	splitCodonChanges <- function(ccs) {
@@ -117,6 +117,7 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger
 	marginalSplitChanges <- splitCodonChanges(marginalCounts$codonChange)
 
 	#Infer tile assignments
+	logInfo("Calculating tile assignments. This may take some time...")
 	tileStarts <- params$tiles[,"Start AA"]
 	inferTiles <- function(cct) {
 		sapply(cct$pos,function(pos) max(which(tileStarts <= pos)))
@@ -161,7 +162,7 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger
 		nsAllMeans <- rowMeans(allCounts[,nsReps],na.rm=TRUE)
 
 		#if WT controls are present, average over them as well and subtract from nonselect
-		wtCond <- getWTControlFor(params,nsCond)
+		wtCond <- getWTControlFor(nsCond,params)
 		# wtCond <- findWTCtrl(params,nsCond)
 		if (length(wtCond) > 0) {
 			wtReps <- sprintf("%s.t%s.rep%s.frequency",wtCond,params$timepoints[1,1],1:params$numReplicates)
@@ -261,6 +262,7 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger
 		# Extrapolate overall census per mutagenesis region
 		####################################################
 
+		logInfo("Extrapolating variant censi for each region")
 		#determine which tiles are in which regions
 		tilesPerRegion <- tilesInRegions(params)
 		pdf(paste0(outDir,nsCond,"_census.pdf"),8.5,11)
@@ -297,6 +299,7 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger
 		######################
 		# BUILD COVERAGE MAP #
 		######################
+		logInfo("Building coverage map.")
 		#load translation table
 		data(trtable)
 		#translate marginals and join by translation
@@ -359,6 +362,7 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger
 		#######################
 		# Complexity analysis #
 		#######################
+		logInfo("Running complexity analysis.")
 		ccList <- strsplit(allCounts$codonChanges,"\\|")
 		#count the number of combinations in which each codon change occurs (="complexity")
 		ccComplex <- hash()
@@ -395,12 +399,13 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger
 		##############################
 		# Well-measuredness analysis #
 		##############################
+		logInfo("Running Well-measuredness analysis")
 		reachable <- reachableChanges(params)
 
 		data(trtable)
 		#add translations to marginal table
 		simplifiedMarginal$toaa <- sapply(simplifiedMarginal$to, function(codon){
-			if (is.na(codon)) {
+			if (codon=="indel") {
 				"fs"
 			} else if (nchar(codon) < 3) {
 				"del"
@@ -493,6 +498,8 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger
 		#################################################
 		# Stacked barplots for missense/syn/stop/indel/frameshift (for each tile)
 		##################################################
+
+		logInfo("Plotting mutation type breakdown per tile")
 		#FIXME: Frameshifts have been accidentally joined into one entry
 		simplifiedMarginal$fromaa <- sapply(simplifiedMarginal$from, 
 			function(codon) if (is.na(codon)) "" else trtable[[codon]]
@@ -529,6 +536,7 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger
 	}
 
 	options(op)
+	logInfo("QC analysis complete.")
 	return(NULL)
 }
 
