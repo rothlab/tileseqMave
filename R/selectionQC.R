@@ -115,8 +115,9 @@ selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logg
 				replicateCorrelation(scores, marginalCounts, params, sCond, tp, outDir)
 			}
 
-			#TODO: Regularization analysis
-
+			#Regularization analysis
+			regularizationQC(scores,params,sCond,tp,outDir)
+			
 			#TODO: Score distributions & syn/non medians
 
 			#TODO: Error profile
@@ -124,6 +125,103 @@ selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logg
 		}
 	}
 
+}
+
+regularizationQC <- function(scores,params,sCond,tp,outDir) {
+
+	#calculate tile assignments
+	tileStarts <- params$tiles[,"Start AA"]
+	positions <- as.integer(extract.groups(scores$codonChange,"(\\d+)")[,1])
+	tiles <- sapply(positions,function(pos) max(which(tileStarts <= pos)))
+	
+	outfile <- paste0(outDir,sCond,"_t",tp,"_errorModel.pdf")
+	pdf(outfile,8.5,11)
+	opar <- par(mfrow=c(3,2))
+	for (tile in params$tiles[,"Tile Number"]) {
+		model.fit <- tryCatch({
+			fit.cv.model(scores[which(tiles==tile),])
+		},error=function(e) {
+			NULL
+		})
+		with(scores[which(tiles==tile),],{
+
+			plot(nonselect.count,nonselect.cv,log="xy",main=paste("Tile",tile))
+			runningMean <- runningFunction(
+				nonselect.count,nonselect.cv,nbins=20,logScale=TRUE
+			)
+			nsSamples <- seq(1,max(nonselect.count,na.rm=TRUE),length.out=100)
+			lines(nsSamples,1/sqrt(nsSamples),col="red",lty="dashed")
+			lines(runningMean,col="firebrick3",lwd=2)
+			if (!is.null(model.fit)) {
+				lines(nsSamples,model.fit$cv.model(nsSamples),col="blue",lwd=2)
+			}
+
+			plot(nonselect.sd.poisson, nonselect.sd,log="xy")
+			runningMean <- runningFunction(
+				nonselect.sd.poisson, nonselect.sd,nbins=20,logScale=TRUE
+			)
+			lines(runningMean,col="firebrick3",lwd=2)
+			abline(0,1,col="red",lty="dashed")
+			depth <- mean(nonselect.count/nonselect.mean,na.rm=TRUE)
+			if (!is.null(model.fit)) {
+				lines(
+					sqrt(nsSamples)/depth,
+					model.fit$cv.model(nsSamples)*(nsSamples/depth),
+					col="blue",lwd=2
+				)
+			}
+		})
+	}
+	par(opar)
+	invisible(dev.off())
+
+}
+
+# subscores <- scores[which(tiles==tile),]
+
+fit.cv.model <- function(subscores) {
+
+	#poisson model of CV
+	cv.poisson <- 1/sqrt(subscores$nonselect.count)
+	#filter out NAs and infinites
+	filter <- which(is.na(cv.poisson) | is.infinite(cv.poisson) | 
+		is.na(subscores$nonselect.cv) | is.infinite(subscores$nonselect.cv))
+
+	#model function
+	log.cv.model <- function(log.cv.poisson,static,additive,multiplicative) {
+		sapply(log.cv.poisson, function(x) max(static, multiplicative*x + additive))
+	}
+	#objective function
+	objective <- function(theta) {
+		static <- theta[[1]]
+		additive <- theta[[2]]
+		multiplicative <- theta[[3]]
+		reference <- log10(subscores$nonselect.cv[-filter])
+		prediction <- log.cv.model(log10(cv.poisson[-filter]),static,additive,multiplicative)
+		rmsd <- sum((prediction-reference)^2,na.rm=TRUE)
+		return(rmsd)
+	}
+	#run optimization
+	theta.start <- c(static=-2,additive=0,multiplicative=1)
+	z <- optim_nm(objective,start=theta.start)
+	theta.optim <- setNames(z$par,names(theta.start))
+
+	cv.model <- function(count) {
+		cv.poisson <- 1/sqrt(count)
+		10^log.cv.model(
+			log10(cv.poisson),
+			theta.optim[["static"]],
+			theta.optim[["additive"]],
+			theta.optim[["multiplicative"]]
+		)
+	}
+
+	# plot(cv.poisson,subscores$nonselect.cv,log="xy")
+	# lines(runningFunction(cv.poisson,subscores$nonselect.cv,nbins=20,logScale=TRUE),col=2)
+	# abline(0,1)
+	# lines(seq(0,1,0.01), 10^log.cv.model(log10(seq(0,1,0.01)),z$par[[1]],z$par[[2]],z$par[[3]]),col="blue")
+
+	return(c(list(cv.model=cv.model),theta.optim))
 }
 
 
@@ -139,7 +237,6 @@ replicateCorrelation <- function(scores, marginalCounts, params, sCond, tp, outD
 		selWT=getWTControlFor(sCond,params),
 		nonWT=getWTControlFor(nCond,params)
 	)
-
 	#Workaround: Since R doesn't like variable names starting with numerals, 
 	# we need to adjust any of those cases
 	if (any(grepl("^\\d",condQuad))) {
@@ -153,7 +250,7 @@ replicateCorrelation <- function(scores, marginalCounts, params, sCond, tp, outD
 		stop("Variants differ between counts and scores!")
 	}
 
-	#replicate correlations
+	#replicate column name matrix
 	repMatrix <- do.call(cbind,lapply(1:nrep,
 		function(repi) sprintf("%s.t%s.rep%d.frequency",condQuad,tp,repi)
 	))
