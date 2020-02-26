@@ -150,10 +150,14 @@ regularizationQC <- function(scores,params,sCond,tp,outDir) {
 				nonselect.count,nonselect.cv,nbins=20,logScale=TRUE
 			)
 			nsSamples <- seq(1,max(nonselect.count,na.rm=TRUE),length.out=100)
-			lines(nsSamples,1/sqrt(nsSamples),col="red",lty="dashed")
+			lines(nsSamples,1/sqrt(nsSamples),col="chartreuse3",lty="dashed",lwd=2)
 			lines(runningMean,col="firebrick3",lwd=2)
 			if (!is.null(model.fit)) {
 				lines(nsSamples,model.fit$cv.model(nsSamples),col="blue",lwd=2)
+				with(model.fit,mtext(sprintf(
+					"stat.=%.02f; add.=%.02f; mult.=%.02f",
+					static,additive,log10(multiplicative)
+				)))
 			}
 
 			plot(nonselect.sd.poisson, nonselect.sd,log="xy")
@@ -161,7 +165,7 @@ regularizationQC <- function(scores,params,sCond,tp,outDir) {
 				nonselect.sd.poisson, nonselect.sd,nbins=20,logScale=TRUE
 			)
 			lines(runningMean,col="firebrick3",lwd=2)
-			abline(0,1,col="red",lty="dashed")
+			abline(0,1,col="chartreuse3",lty="dashed",lwd=2)
 			depth <- mean(nonselect.count/nonselect.mean,na.rm=TRUE)
 			if (!is.null(model.fit)) {
 				lines(
