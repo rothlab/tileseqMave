@@ -339,53 +339,53 @@ replicateCorrelation <- function(scores, marginalCounts, params, sCond, tp, outD
 # SCRAPS BELOW!!!!!!!!!!
 ##########################
 
-op <- par(mfrow=c(2,2))
-with(msc,plot(nonselect.count,phi.sd,log="xy",pch=".",main="Unfiltered"))
-with(msc[is.na(msc$filter),],plot(nonselect.count,phi.sd,log="xy",pch=".",main="Filtered"))
-with(msc,plot(logPhi,logPhi.sd,log="y",pch=".",main="Unfiltered"))
-with(msc[is.na(msc$filter),],plot(logPhi,logPhi.sd,log="y",pch=".",main="Filtered"))
-par(op)
+# op <- par(mfrow=c(2,2))
+# with(msc,plot(nonselect.count,phi.sd,log="xy",pch=".",main="Unfiltered"))
+# with(msc[is.na(msc$filter),],plot(nonselect.count,phi.sd,log="xy",pch=".",main="Filtered"))
+# with(msc,plot(logPhi,logPhi.sd,log="y",pch=".",main="Unfiltered"))
+# with(msc[is.na(msc$filter),],plot(logPhi,logPhi.sd,log="y",pch=".",main="Filtered"))
+# par(op)
 
 
 
-layout(cbind(1,2,3))
-plot(sd.poisson,sd.empiric,log="xy",xlim=c(1e-8,1e-3),ylim=c(1e-8,1e-3),pch=".")
-abline(0,1,col="gray",lty="dotted")
-plot(sd.poisson,sd.bayes,log="xy",xlim=c(1e-8,1e-3),ylim=c(1e-8,1e-3),pch=".")
-abline(0,1,col="gray",lty="dotted")
-plot(sd.empiric,sd.bayes,log="xy",xlim=c(1e-8,1e-3),ylim=c(1e-8,1e-3),pch=".")
-abline(0,1,col="gray",lty="dotted")
+# layout(cbind(1,2,3))
+# plot(sd.poisson,sd.empiric,log="xy",xlim=c(1e-8,1e-3),ylim=c(1e-8,1e-3),pch=".")
+# abline(0,1,col="gray",lty="dotted")
+# plot(sd.poisson,sd.bayes,log="xy",xlim=c(1e-8,1e-3),ylim=c(1e-8,1e-3),pch=".")
+# abline(0,1,col="gray",lty="dotted")
+# plot(sd.empiric,sd.bayes,log="xy",xlim=c(1e-8,1e-3),ylim=c(1e-8,1e-3),pch=".")
+# abline(0,1,col="gray",lty="dotted")
 
 
 
 
 
 
-logcv <- log10(mscFiltered[,paste0(cond,".cv")])
-# logmean <- log10(mscFiltered[,paste0(cond,".mean")])
-logexpect <- log10(1/sqrt(mscFiltered[,paste0(cond,".count")]))
-inverse <- 1/logexpect
-z <- coefficients(lm(logcv~logexpect+inverse))
-priorCV <- function(count) 10^(z[[1]] + z[["logexpect"]]*log10(1/sqrt(count)) + z[["inverse"]]/log10(1/sqrt(count)))
-oneoversqr <- function(x)1/sqrt(x)
-with(mscFiltered,plot(nonselect.count,nonselect.cv,log="xy"))
-# curve(priorCV,from=.1,to=5000,col="red",add=TRUE)
-curve(oneoversqr,from=.1,to=5000,col="gray",add=TRUE)
-# runningMean <- with(mscFiltered,runningFunction(nonselect.count,nonselect.cv,10,100,fun=median,logScale=TRUE))
+# logcv <- log10(mscFiltered[,paste0(cond,".cv")])
+# # logmean <- log10(mscFiltered[,paste0(cond,".mean")])
+# logexpect <- log10(1/sqrt(mscFiltered[,paste0(cond,".count")]))
+# inverse <- 1/logexpect
+# z <- coefficients(lm(logcv~logexpect+inverse))
+# priorCV <- function(count) 10^(z[[1]] + z[["logexpect"]]*log10(1/sqrt(count)) + z[["inverse"]]/log10(1/sqrt(count)))
+# oneoversqr <- function(x)1/sqrt(x)
+# with(mscFiltered,plot(nonselect.count,nonselect.cv,log="xy"))
+# # curve(priorCV,from=.1,to=5000,col="red",add=TRUE)
+# curve(oneoversqr,from=.1,to=5000,col="gray",add=TRUE)
+# # runningMean <- with(mscFiltered,runningFunction(nonselect.count,nonselect.cv,10,100,fun=median,logScale=TRUE))
+# # lines(runningMean,col="red",lwd=2)
+
+# # m2cv <- function(m,n=600000) 1/sqrt(m*n)
+# # with(mscFiltered,plot(nonselect.mean,nonselect.cv,pch=".",log="xy"))
+# # curve(priorCV,add=TRUE,from=1e-6,to=1e-2)
+# # curve(m2cv,add=TRUE,from=1e-6,to=1e-2,col="red")
+# # x11()
+# # curve(priorCV,from=1e-6,to=1e-2)
+# # curve(m2cv,add=TRUE,from=1e-6,to=1e-2,col="red")
+# # x11()
+# with(mscFiltered,plot(1/sqrt(nonselect.count),nonselect.cv,log="xy",xlim=c(1e-4,1),ylim=c(1e-4,1)))
+# runningMean <- with(mscFiltered,runningFunction(1/sqrt(nonselect.count),nonselect.cv,0.02,100))
 # lines(runningMean,col="red",lwd=2)
+# abline(0,1,col="gray",lty="dotted")
 
-# m2cv <- function(m,n=600000) 1/sqrt(m*n)
-# with(mscFiltered,plot(nonselect.mean,nonselect.cv,pch=".",log="xy"))
-# curve(priorCV,add=TRUE,from=1e-6,to=1e-2)
-# curve(m2cv,add=TRUE,from=1e-6,to=1e-2,col="red")
-# x11()
-# curve(priorCV,from=1e-6,to=1e-2)
-# curve(m2cv,add=TRUE,from=1e-6,to=1e-2,col="red")
-# x11()
-with(mscFiltered,plot(1/sqrt(nonselect.count),nonselect.cv,log="xy",xlim=c(1e-4,1),ylim=c(1e-4,1)))
-runningMean <- with(mscFiltered,runningFunction(1/sqrt(nonselect.count),nonselect.cv,0.02,100))
-lines(runningMean,col="red",lwd=2)
-abline(0,1,col="gray",lty="dotted")
-
-abline(v=1/sqrt(600))
+# abline(v=1/sqrt(600))
 
