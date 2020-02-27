@@ -118,117 +118,27 @@ selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logg
 			#Regularization analysis
 			regularizationQC(scores,params,sCond,tp,outDir)
 			
-			#TODO: Score distributions & syn/non medians
+			#Score distributions & syn/non medians
+			scoreDistributions(scores,sCond,tp,outDir)
 
-			#TODO: Error profile
+			#Error profile
+			errorProfile(scores,sCond,tp,outDir)
 
 		}
 	}
 
 }
 
-regularizationQC <- function(scores,params,sCond,tp,outDir) {
 
-	#calculate tile assignments
-	tileStarts <- params$tiles[,"Start AA"]
-	positions <- as.integer(extract.groups(scores$codonChange,"(\\d+)")[,1])
-	tiles <- sapply(positions,function(pos) max(which(tileStarts <= pos)))
-	
-	outfile <- paste0(outDir,sCond,"_t",tp,"_errorModel.pdf")
-	pdf(outfile,8.5,11)
-	opar <- par(mfrow=c(3,2))
-	for (tile in params$tiles[,"Tile Number"]) {
-		model.fit <- tryCatch({
-			fit.cv.model(scores[which(tiles==tile),])
-		},error=function(e) {
-			NULL
-		})
-		with(scores[which(tiles==tile),],{
-
-			plot(nonselect.count,nonselect.cv,log="xy",main=paste("Tile",tile))
-			runningMean <- runningFunction(
-				nonselect.count,nonselect.cv,nbins=20,logScale=TRUE
-			)
-			nsSamples <- seq(1,max(nonselect.count,na.rm=TRUE),length.out=100)
-			lines(nsSamples,1/sqrt(nsSamples),col="chartreuse3",lty="dashed",lwd=2)
-			lines(runningMean,col="firebrick3",lwd=2)
-			if (!is.null(model.fit)) {
-				lines(nsSamples,model.fit$cv.model(nsSamples),col="blue",lwd=2)
-				with(model.fit,mtext(sprintf(
-					"stat.=%.02f; add.=%.02f; mult.=%.02f",
-					static,additive,log10(multiplicative)
-				)))
-			}
-
-			plot(nonselect.sd.poisson, nonselect.sd,log="xy")
-			runningMean <- runningFunction(
-				nonselect.sd.poisson, nonselect.sd,nbins=20,logScale=TRUE
-			)
-			lines(runningMean,col="firebrick3",lwd=2)
-			abline(0,1,col="chartreuse3",lty="dashed",lwd=2)
-			depth <- mean(nonselect.count/nonselect.mean,na.rm=TRUE)
-			if (!is.null(model.fit)) {
-				lines(
-					sqrt(nsSamples)/depth,
-					model.fit$cv.model(nsSamples)*(nsSamples/depth),
-					col="blue",lwd=2
-				)
-			}
-		})
-	}
-	par(opar)
-	invisible(dev.off())
-
-}
-
-# subscores <- scores[which(tiles==tile),]
-
-fit.cv.model <- function(subscores) {
-
-	#poisson model of CV
-	cv.poisson <- 1/sqrt(subscores$nonselect.count)
-	#filter out NAs and infinites
-	filter <- which(is.na(cv.poisson) | is.infinite(cv.poisson) | 
-		is.na(subscores$nonselect.cv) | is.infinite(subscores$nonselect.cv))
-
-	#model function
-	log.cv.model <- function(log.cv.poisson,static,additive,multiplicative) {
-		sapply(log.cv.poisson, function(x) max(static, multiplicative*x + additive))
-	}
-	#objective function
-	objective <- function(theta) {
-		static <- theta[[1]]
-		additive <- theta[[2]]
-		multiplicative <- theta[[3]]
-		reference <- log10(subscores$nonselect.cv[-filter])
-		prediction <- log.cv.model(log10(cv.poisson[-filter]),static,additive,multiplicative)
-		rmsd <- sum((prediction-reference)^2,na.rm=TRUE)
-		return(rmsd)
-	}
-	#run optimization
-	theta.start <- c(static=-2,additive=0,multiplicative=1)
-	z <- optim_nm(objective,start=theta.start)
-	theta.optim <- setNames(z$par,names(theta.start))
-
-	cv.model <- function(count) {
-		cv.poisson <- 1/sqrt(count)
-		10^log.cv.model(
-			log10(cv.poisson),
-			theta.optim[["static"]],
-			theta.optim[["additive"]],
-			theta.optim[["multiplicative"]]
-		)
-	}
-
-	# plot(cv.poisson,subscores$nonselect.cv,log="xy")
-	# lines(runningFunction(cv.poisson,subscores$nonselect.cv,nbins=20,logScale=TRUE),col=2)
-	# abline(0,1)
-	# lines(seq(0,1,0.01), 10^log.cv.model(log10(seq(0,1,0.01)),z$par[[1]],z$par[[2]],z$par[[3]]),col="blue")
-
-	return(c(list(cv.model=cv.model),theta.optim))
-}
-
-
+#' Draw replicate correlation plots
+#' 
+#' @param scores the score table
+#' @param marginalCounts the marginal counts table
+#' @param params the global parameter object
+#' @param sCond the condition for which to draw the plot
+#' @param tp the time point
+#' @param outDir the output directory
+#' @return NULL
 replicateCorrelation <- function(scores, marginalCounts, params, sCond, tp, outDir) {
 
 	nrep <- params$numReplicates
@@ -331,61 +241,240 @@ replicateCorrelation <- function(scores, marginalCounts, params, sCond, tp, outD
 		)
 		invisible(dev.off())
 	}
+
+	return(NULL)
+}
+
+#' Draw error regulariztion model QC plots
+#' 
+#' @param scores the score table
+#' @param params the global parameter object
+#' @param sCond the condition for which to draw the plot
+#' @param tp the time point
+#' @param outDir the output directory
+#' @return NULL
+regularizationQC <- function(scores,params,sCond,tp,outDir) {
+
+	#calculate tile assignments
+	tileStarts <- params$tiles[,"Start AA"]
+	positions <- as.integer(extract.groups(scores$codonChange,"(\\d+)")[,1])
+	tiles <- sapply(positions,function(pos) max(which(tileStarts <= pos)))
+	
+	outfile <- paste0(outDir,sCond,"_t",tp,"_errorModel.pdf")
+	pdf(outfile,8.5,11)
+	opar <- par(mfrow=c(3,2))
+	for (tile in params$tiles[,"Tile Number"]) {
+		model.fit <- tryCatch({
+			fit.cv.model(scores[which(tiles==tile),])
+		},error=function(e) {
+			NULL
+		})
+		with(scores[which(tiles==tile),],{
+
+			plot(nonselect.count,nonselect.cv,log="xy",main=paste("Tile",tile))
+			runningMean <- runningFunction(
+				nonselect.count,nonselect.cv,nbins=20,logScale=TRUE
+			)
+			nsSamples <- seq(1,max(nonselect.count,na.rm=TRUE),length.out=100)
+			lines(nsSamples,1/sqrt(nsSamples),col="chartreuse3",lty="dashed",lwd=2)
+			lines(runningMean,col="firebrick3",lwd=2)
+			if (!is.null(model.fit)) {
+				lines(nsSamples,model.fit$cv.model(nsSamples),col="blue",lwd=2)
+				with(model.fit,mtext(sprintf(
+					"stat.=%.02f; add.=%.02f; mult.=%.02f",
+					static,additive,log10(multiplicative)
+				)))
+			}
+
+			plot(nonselect.sd.poisson, nonselect.sd,log="xy")
+			runningMean <- runningFunction(
+				nonselect.sd.poisson, nonselect.sd,nbins=20,logScale=TRUE
+			)
+			lines(runningMean,col="firebrick3",lwd=2)
+			abline(0,1,col="chartreuse3",lty="dashed",lwd=2)
+			depth <- mean(nonselect.count/nonselect.mean,na.rm=TRUE)
+			if (!is.null(model.fit)) {
+				lines(
+					sqrt(nsSamples)/depth,
+					model.fit$cv.model(nsSamples)*(nsSamples/depth),
+					col="blue",lwd=2
+				)
+			}
+		})
+	}
+	par(opar)
+	invisible(dev.off())
 }
 
 
+#' Create a model of the error in for a subset of marginal frequencies
+#' 
+#' @param  subcores a subset of the count table (for a given tile)
+#' @return a list containing the model function (mapping counts to expected CV), and the model parameters
+fit.cv.model <- function(subscores) {
 
-##########################
-# SCRAPS BELOW!!!!!!!!!!
-##########################
+	# subscores <- scores[which(tiles==tile),]
 
-# op <- par(mfrow=c(2,2))
-# with(msc,plot(nonselect.count,phi.sd,log="xy",pch=".",main="Unfiltered"))
-# with(msc[is.na(msc$filter),],plot(nonselect.count,phi.sd,log="xy",pch=".",main="Filtered"))
-# with(msc,plot(logPhi,logPhi.sd,log="y",pch=".",main="Unfiltered"))
-# with(msc[is.na(msc$filter),],plot(logPhi,logPhi.sd,log="y",pch=".",main="Filtered"))
-# par(op)
+	#poisson model of CV
+	cv.poisson <- 1/sqrt(subscores$nonselect.count)
+	#filter out NAs and infinites
+	filter <- which(is.na(cv.poisson) | is.infinite(cv.poisson) | 
+		is.na(subscores$nonselect.cv) | is.infinite(subscores$nonselect.cv))
 
+	#model function
+	log.cv.model <- function(log.cv.poisson,static,additive,multiplicative) {
+		sapply(log.cv.poisson, function(x) max(static, multiplicative*x + additive))
+	}
+	#objective function
+	objective <- function(theta) {
+		static <- theta[[1]]
+		additive <- theta[[2]]
+		multiplicative <- theta[[3]]
+		reference <- log10(subscores$nonselect.cv[-filter])
+		prediction <- log.cv.model(log10(cv.poisson[-filter]),static,additive,multiplicative)
+		rmsd <- sum((prediction-reference)^2,na.rm=TRUE)
+		return(rmsd)
+	}
+	#run optimization
+	theta.start <- c(static=-2,additive=0,multiplicative=1)
+	z <- optim_nm(objective,start=theta.start)
+	theta.optim <- setNames(z$par,names(theta.start))
 
+	cv.model <- function(count) {
+		cv.poisson <- 1/sqrt(count)
+		10^log.cv.model(
+			log10(cv.poisson),
+			theta.optim[["static"]],
+			theta.optim[["additive"]],
+			theta.optim[["multiplicative"]]
+		)
+	}
 
-# layout(cbind(1,2,3))
-# plot(sd.poisson,sd.empiric,log="xy",xlim=c(1e-8,1e-3),ylim=c(1e-8,1e-3),pch=".")
-# abline(0,1,col="gray",lty="dotted")
-# plot(sd.poisson,sd.bayes,log="xy",xlim=c(1e-8,1e-3),ylim=c(1e-8,1e-3),pch=".")
-# abline(0,1,col="gray",lty="dotted")
-# plot(sd.empiric,sd.bayes,log="xy",xlim=c(1e-8,1e-3),ylim=c(1e-8,1e-3),pch=".")
-# abline(0,1,col="gray",lty="dotted")
+	# plot(cv.poisson,subscores$nonselect.cv,log="xy")
+	# lines(runningFunction(cv.poisson,subscores$nonselect.cv,nbins=20,logScale=TRUE),col=2)
+	# abline(0,1)
+	# lines(seq(0,1,0.01), 10^log.cv.model(log10(seq(0,1,0.01)),z$par[[1]],z$par[[2]],z$par[[3]]),col="blue")
 
+	return(c(list(cv.model=cv.model),theta.optim))
+}
 
+#' Draw score distribution plots
+#' 
+#' @param scores the score table
+#' @param sCond the condition for which to draw the plot
+#' @param tp the time point
+#' @param outDir the output directory
+#' @return NULL
+scoreDistributions <- function(scores,sCond,tp,outDir) {
+	outfile <- paste0(outDir,sCond,"_t",tp,"_logPhiDistribution.pdf")
+	pdf(outfile,11,8.5)
+	layout(rbind(1,2,3,4),heights=c(1.2,1,1.2,1))
+	drawDistributions(scores,Inf)
+	drawDistributions(scores,0.3)
+	invisible(dev.off())
+}
 
+#' Delegation function to draw score distribution plots with a given filter setting
+#' 
+#' @param scores the score table
+#' @param sdCutoff the stdev cutoff to apply
+#' @return NULL
+drawDistributions <- function(scores,sdCutoff) {
+	#extract filtered scores
+	synScores <- with(scores,logPhi[grepl("=$",hgvsp) & is.na(filter) & logPhi.sd < sdCutoff ])
+	stopScores <- with(scores,logPhi[grepl("Ter$",hgvsp) & is.na(filter)& logPhi.sd < sdCutoff])
+	misScores <- with(scores,logPhi[!grepl("Ter$|=$",hgvsp) & is.na(filter) & logPhi.sd < sdCutoff])
+	allScores <- c(synScores,stopScores,misScores)
 
+	#calculate plot ranges to nearest integers
+	left <- floor(quantile(allScores,0.01,na.rm=TRUE))
+	right <- ceiling(quantile(allScores,0.99,na.rm=TRUE))
+	farleft <- floor(min(c(0,allScores),na.rm=TRUE))
+	farright <- ceiling(max(c(1,allScores),na.rm=TRUE))
+	#set histogram bins based on range (with extra space on the right)
+	breaks <- seq(farleft,farright+0.1,0.1)
+	#fill bins
+	synHist <- hist(synScores,breaks=breaks,plot=FALSE)
+	stopHist <- hist(stopScores,breaks=breaks,plot=FALSE)
+	misHist <- hist(misScores,breaks=breaks,plot=FALSE)
 
+	#draw top plot for syn/stop
+	op <- par(mar=c(2,4,2,1)+.1)
+	xs <- barplot(
+		rbind(synHist$density,stopHist$density),
+		beside=TRUE,col=c("darkolivegreen3","firebrick3"),
+		border=NA,ylab="density",space=c(0,0),
+		main=if (is.infinite(sdCutoff)) "Unfiltered" else bquote(sigma < .(sdCutoff))
+	)
+	grid(NA,NULL)
+	#add x-axis
+	pips <- left:right
+	pipx <- colMeans(xs[,which(breaks %in% pips)])
+	axis(1,at=pipx,labels=pips)
+	#draw legend
+	legend("left",
+		c("nonsense","synonymous","missense"),
+		fill=c("firebrick3","darkolivegreen3","gray"),
+		border=NA,bty="n"
+	)
+	#draw bottom plot (for missense)
+	par(mar=c(1,4,0,1)+.1)
+	xs <- barplot(
+		-misHist$density,
+		border=NA,ylab="density",space=0,
+	)
+	grid(NA,NULL)
+	#establish user coordinate function on barplot
+	x0 <- xs[which(breaks==0),1]
+	x1 <- xs[which(breaks==1),1]
+	uCoord <- function(x)  x0 + x*(x1-x0)
+	#draw medians
+	abline(v=uCoord(median(synScores)),col="darkolivegreen4",lwd=2,lty="dotted")
+	abline(v=uCoord(median(stopScores)),col="firebrick3",lwd=2,lty="dotted")
+	text(
+		uCoord(median(synScores)),
+		-max(misHist$density)/3,
+		sprintf("Synonymous median\n%.03f",median(synScores)),
+		col="darkolivegreen4"
+	)
+	text(
+		uCoord(median(stopScores)),
+		-2*max(misHist$density)/3,
+		sprintf("Nonsense median\n%.03f",median(stopScores)),
+		col="firebrick3"
+	)
+	par(op)
 
-# logcv <- log10(mscFiltered[,paste0(cond,".cv")])
-# # logmean <- log10(mscFiltered[,paste0(cond,".mean")])
-# logexpect <- log10(1/sqrt(mscFiltered[,paste0(cond,".count")]))
-# inverse <- 1/logexpect
-# z <- coefficients(lm(logcv~logexpect+inverse))
-# priorCV <- function(count) 10^(z[[1]] + z[["logexpect"]]*log10(1/sqrt(count)) + z[["inverse"]]/log10(1/sqrt(count)))
-# oneoversqr <- function(x)1/sqrt(x)
-# with(mscFiltered,plot(nonselect.count,nonselect.cv,log="xy"))
-# # curve(priorCV,from=.1,to=5000,col="red",add=TRUE)
-# curve(oneoversqr,from=.1,to=5000,col="gray",add=TRUE)
-# # runningMean <- with(mscFiltered,runningFunction(nonselect.count,nonselect.cv,10,100,fun=median,logScale=TRUE))
-# # lines(runningMean,col="red",lwd=2)
+}
 
-# # m2cv <- function(m,n=600000) 1/sqrt(m*n)
-# # with(mscFiltered,plot(nonselect.mean,nonselect.cv,pch=".",log="xy"))
-# # curve(priorCV,add=TRUE,from=1e-6,to=1e-2)
-# # curve(m2cv,add=TRUE,from=1e-6,to=1e-2,col="red")
-# # x11()
-# # curve(priorCV,from=1e-6,to=1e-2)
-# # curve(m2cv,add=TRUE,from=1e-6,to=1e-2,col="red")
-# # x11()
-# with(mscFiltered,plot(1/sqrt(nonselect.count),nonselect.cv,log="xy",xlim=c(1e-4,1),ylim=c(1e-4,1)))
-# runningMean <- with(mscFiltered,runningFunction(1/sqrt(nonselect.count),nonselect.cv,0.02,100))
-# lines(runningMean,col="red",lwd=2)
-# abline(0,1,col="gray",lty="dotted")
+#' Draw error profile for the dataset
+#' 
+#' @param scores the score table
+#' @param sCond the condition for which to draw the plot
+#' @param tp the time point
+#' @param outDir the output directory
+#' @return NULL
+errorProfile <- function(scores,sCond,tp,outDir) {
 
-# abline(v=1/sqrt(600))
+	outfile <- paste0(outDir,sCond,"_t",tp,"_errorProfile.pdf")
+	pdf(outfile,5,5)
 
+	sdRange <- range(log10(scores[is.na(scores$filter),"score.sd"]))
+	scoreRange <- range(scores[is.na(scores$filter),"score"])
+
+	layout(rbind(c(2,4),c(1,3)),widths=c(0.8,0.2),heights=c(0.2,0.8))
+	op <- par(mar=c(5,4,0,0)+.1) 
+	with(scores[is.na(scores$filter),],plot(score,score.sd,log="y",pch=".",ylab=expression(sigma)))
+	par(mar=c(0,4,1,0)+.1) 
+	breaks <- seq(scoreRange[[1]],scoreRange[[2]],length.out=50)
+	scoreHist <- with(scores[is.na(scores$filter),], hist(score,breaks=breaks,plot=FALSE))
+	barplot(scoreHist$density,border=NA,ylab="density",space=0)
+	par(mar=c(5,0,0,0)+.1) 
+	breaks <- seq(sdRange[[1]],sdRange[[2]],length.out=50)
+	sdHist <- with(scores[is.na(scores$filter),], hist(log10(score.sd),breaks=breaks,plot=FALSE))
+	barplot(sdHist$density,border=NA,horiz=TRUE,space=0,xlab="density")
+	par(op)
+
+	invisible(dev.off())
+	
+}
