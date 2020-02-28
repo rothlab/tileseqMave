@@ -4,7 +4,7 @@
 \alias{regularizationQC}
 \title{Draw error regulariztion model QC plots}
 \usage{
-regularizationQC(scores, params, sCond, tp, outDir)
+regularizationQC(scores, modelParams, params, sCond, tp, outDir)
 }
 \arguments{
 \item{scores}{the score table}
