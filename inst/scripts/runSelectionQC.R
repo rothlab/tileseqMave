@@ -18,11 +18,8 @@
 # along with tileseqMave.  If not, see <https://www.gnu.org/licenses/>.
 
 #####################################################
-# This is a command line wrapper for scoring
+# This is a command line wrapper for selectionQC
 #####################################################
-
-# scoring(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=NULL,mc.cores=6, 
-#	countThreshold=10,pseudo.n=8,sdThreshold=0.3)
 
 
 options(
@@ -37,16 +34,13 @@ library(yogilog)
 
 #process command line arguments
 p <- arg_parser(
-	"Runs the main scoring function on the output of joinCounts.R",
-	name="runScoring.R"
+	"Performs a selection QC analysis on the output of runScoring.R, yielding informative plots.",
+	name="runSelectionQC.R"
 )
 p <- add_argument(p, "dataDir", help="workspace data directory")
 p <- add_argument(p, "--parameters", help="parameter file. Defaults to parameters.json in the data directory.")
-p <- add_argument(p, "--countThreshold", default=10L, help="Filter threshold for minimal required read counts. Default 10")
-p <- add_argument(p, "--pseudoReplicates", default=8L, help="Number of pseudo-replicates for Baldi&Long regularization. Default 8")
 p <- add_argument(p, "--sdThreshold", default=0.3, help="Stdev threshold for determination of syn/stop medians. Default 0.3")
-p <- add_argument(p, "--logfile", help="log file. Defaults to scoring.log in the same directory")
-p <- add_argument(p, "--cores", default=6L, help="number of CPU cores to use in parallel for multi-threading")
+p <- add_argument(p, "--logfile", help="log file. Defaults to selectionQC.log in the same directory")
 args <- parse_args(p)
 
 #ensure datadir ends in "/" and exists
@@ -59,7 +53,7 @@ if (!dir.exists(dataDir)) {
 	stop("Data folder does not exist!")
 }
 paramfile <- if (is.na(args$parameters)) paste0(dataDir,"parameters.json") else args$parameters
-logfile <- if (is.na(args$logfile)) paste0(dataDir,"scoring.log") else args$logfile
+logfile <- if (is.na(args$logfile)) paste0(dataDir,"selectionQC.log") else args$logfile
 
 #set up logger and shunt it into the error handler
 logger <- new.logger(logfile)
@@ -67,9 +61,9 @@ registerLogErrorHandler(logger)
 
 #run the actual function
 invisible(
-	scoring(
-		dataDir,paramfile,logger,args$cores,
-		args$countThreshold,args$pseudoReplicates,args$sdThreshold
+	selectionQC(
+		dataDir,paramfile,logger,args$sdThreshold
 	)
 )
+
 

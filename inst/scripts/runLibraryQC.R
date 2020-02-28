@@ -53,8 +53,8 @@ if (!dir.exists(dataDir)) {
 	#logger cannot initialize without dataDirectory, so just a simple exception here.
 	stop("Data folder does not exist!")
 }
-paramfile <- if (is.na(args$parameters)) paste0(args$dataDir,"parameters.json") else args$parameters
-logfile <- if (is.na(args$logfile)) paste0(args$dataDir,"libraryQC.log") else args$logfile
+paramfile <- if (is.na(args$parameters)) paste0(dataDir,"parameters.json") else args$parameters
+logfile <- if (is.na(args$logfile)) paste0(dataDir,"libraryQC.log") else args$logfile
 mc.cores <- if (is.na(args$cores)) 6 else args$cores
 
 #set up logger and shunt it into the error handler

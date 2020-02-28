@@ -21,7 +21,7 @@
 #' @param paramFile input parameter file. defaults to <dataDir>/parameters.json
 #' @return NULL. Results are written to file.
 #' @export
-selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=NULL,mc.cores=6) {
+selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=NULL, sdCutoff=0.3) {
 
 
 	op <- options(stringsAsFactors=FALSE)
@@ -119,7 +119,7 @@ selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logg
 			regularizationQC(scores,params,sCond,tp,outDir)
 			
 			#Score distributions & syn/non medians
-			scoreDistributions(scores,sCond,tp,outDir)
+			scoreDistributions(scores,sCond,tp,outDir,sdCutoff)
 
 			#Error profile
 			errorProfile(scores,sCond,tp,outDir)
@@ -365,12 +365,12 @@ fit.cv.model <- function(subscores) {
 #' @param tp the time point
 #' @param outDir the output directory
 #' @return NULL
-scoreDistributions <- function(scores,sCond,tp,outDir) {
+scoreDistributions <- function(scores,sCond,tp,outDir,sdCutoff) {
 	outfile <- paste0(outDir,sCond,"_t",tp,"_logPhiDistribution.pdf")
 	pdf(outfile,11,8.5)
 	layout(rbind(1,2,3,4),heights=c(1.2,1,1.2,1))
 	drawDistributions(scores,Inf)
-	drawDistributions(scores,0.3)
+	drawDistributions(scores,sdCutoff)
 	invisible(dev.off())
 }
 
