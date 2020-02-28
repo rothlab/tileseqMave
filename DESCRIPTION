@@ -9,6 +9,6 @@ Encoding: UTF-8
 LazyData: true
 Suggests: 
     testthat, mavevis
-Imports: rapimave, hgvsParseR, yogitools, yogilog, argparser, pbmcapply, hash
+Imports: rapimave, hgvsParseR, yogitools, yogilog, argparser, pbmcapply, hash, optimization
 Remotes: github::VariantEffect/rapimave, github::VariantEffect/hgvsParseR, github::jweile/yogitools, github::jweile/yogilog, github::VariantEffect/mavevis
 RoxygenNote: 7.0.2
