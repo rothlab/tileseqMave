@@ -29,6 +29,7 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=N
 	library(yogitools)
 	library(hgvsParseR)
 	library(pbmcapply)
+	library(optimization)
 
 	if (!is.null(logger)) {
 		stopifnot(inherits(logger,"yogilogger"))
@@ -97,10 +98,13 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=N
 	indelIdx <- which(toAA=="-" | nchar(toAA) > 1)
 	marginalCounts <- marginalCounts[-indelIdx,]
 
-	#extract variant positions and assign to regions
+	#extract variant positions and assign to regions and tiles
 	marginalCounts$position <- as.integer(extract.groups(marginalCounts$codonChange,"(\\d+)"))
 	marginalCounts$region <- sapply(marginalCounts$position, function(pos) {
 		which(params$regions[,"Start AA"] <= pos & params$regions[,"End AA"] >= pos)
+	})
+	marginalCounts$tile <- sapply(marginalCounts$position, function(pos) {
+		which(params$tiles[,"Start AA"] <= pos & params$tiles[,"End AA"] >= pos)
 	})
 
 	#iterate over (possibly multiple different) selection conditons
@@ -128,6 +132,9 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=N
 
 			logInfo("Processing selection",sCond,"; time point",tp)
 
+			#variable for collecting error model parameters as they become available
+			allModelParams <- NULL
+
 			#iterate over mutagenesis regions and process separately.
 			regions <- 1:nrow(params$regions)
 			scoreTable <- do.call(rbind,lapply(regions, function(region) {
@@ -145,16 +152,38 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=N
 
 				#Calculate means, stdevs and average count for each condition
 				msc <- do.call(cbind,lapply(condQuad, mean.sd.count, regionalCounts, tp, params))
-				
+
+				#fit tile-specific error models
+				logInfo("Fitting error models for each tile")
+				models <- runModelFits(msc,condNames,regionalCounts$tile, mc.cores=mc.cores)
+
+				#tabulate model parameters
+				modelParams <- lapply(models,function(ms) do.call(rbind,lapply(ms,function(ls)do.call(c,ls[-1]))) )
+				for (cond in condNames) {
+					colnames(modelParams[[cond]]) <- paste0(cond,".",colnames(modelParams[[cond]]))
+				}
+				modelParams <- do.call(cbind,modelParams)
+				allModelParams <<- rbind(allModelParams,modelParams)
+
+				#extract model functions
+				modelFunctions <- lapply(models,function(ms) lapply(ms,`[[`,1))
+
 				#Regularize stdev of raw frequencies
+				logInfo("Performing error regularization")
 				msc <- cbind(msc,
-					regularizeRaw(msc,condNames=names(condQuad),n=params$numReplicates,pseudo.n=pseudo.n)
+					regularizeRaw(msc,
+						condNames=names(condQuad), tiles=regionalCounts$tile,
+						n=params$numReplicates, pseudo.n=pseudo.n, 
+						modelFunctions=modelFunctions
+					)
 				)
 
 				#Apply raw filter (count and frequency thresholds met)
+				logInfo("Filtering...")
 				msc$filter <- rawFilter(msc,countThreshold)
 
 				#Calculate enrichment ratios (phi) and propagate error
+				logInfo("Scoring...")
 				msc <- cbind(msc,calcPhi(msc))
 
 				#if this is a negative assay, invert the scores
@@ -163,6 +192,7 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=N
 				}
 
 				#Normalize to synonymous and nonsense medians
+				logInfo("Normalizing...")
 				msc <- cbind(msc,normalizeScores(msc,regionalCounts$aaChange,sdThreshold))
 
 				#Flooring and SD adjustment
@@ -174,6 +204,10 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=N
 				#attach labels and return
 				return(cbind(regionalCounts[,1:4],msc))
 			}))
+
+			#export model parameters
+			outFile <- paste0(outDir,sCond,"_t",tp,"_errorModel.csv")
+			write.csv(as.data.frame(allModelParams),outFile)
 
 			logInfo("Apply formatting...")
 
@@ -306,6 +340,67 @@ rawFilter <- function(msc,countThreshold) {
 	},nsFilter,sFilter)
 }
 
+#' Run model fitting on all tiles in all given conditions
+#' 
+#' @param msc dataframe containing the output of the 'mean.sd.count()' function.
+#' @param condNames the condition names
+#' @param tiles vector of tile assignments for each row in msc
+#' @param mc.cores the number of CPU cores to use in parallel
+runModelFits <- function(msc,condNames, tiles, mc.cores) {
+	modelSets <- pbmclapply(condNames, function(cond) {
+		tapply(1:nrow(msc),tiles,function(i) {
+			tryCatch(fit.cv.model(msc[i,],cond),error=function(e) rep(NA,4))
+		})
+	},mc.cores=mc.cores)
+	names(modelSets) <- condNames
+	return(modelSets)
+}
+
+#' Create a model of the error in for a subset of marginal frequencies
+#' 
+#' @param  subcores a subset of the count table (for a given tile)
+#' @return a list containing the model function (mapping counts to expected CV), and the model parameters
+fit.cv.model <- function(subscores,cond) {
+	#poisson model of CV
+	cv.poisson <- 1/sqrt(subscores[,paste0(cond,".count")])
+	#filter out NAs and infinites
+	filter <- which(is.na(cv.poisson) | is.infinite(cv.poisson) | 
+		is.na(subscores[,paste0(cond,".cv")]) | is.infinite(subscores[,paste0(cond,".cv")]))
+	#model function
+	log.cv.model <- function(log.cv.poisson,static,additive,multiplicative) {
+		sapply(log.cv.poisson, function(x) max(static, multiplicative*x + additive))
+	}
+	#objective function
+	objective <- function(theta) {
+		reference <- log10(subscores[-filter,paste0(cond,".cv")])
+		prediction <- log.cv.model(log10(cv.poisson[-filter]),theta[[1]],theta[[2]],theta[[3]])
+		sum((prediction-reference)^2,na.rm=TRUE)
+	}
+	#run optimization
+	theta.start <- c(static=-2,additive=0,multiplicative=1)
+	z <- optim_nm(objective,start=theta.start)
+	theta.optim <- setNames(z$par,names(theta.start))
+	#wrap cv model using optimal parameters
+	cv.model <- function(count) {
+		10^log.cv.model(
+			log10(1/sqrt(count)),
+			theta.optim[["static"]],
+			theta.optim[["additive"]],
+			theta.optim[["multiplicative"]]
+		)
+	}
+
+	# plot(cv.poisson,subscores$nonselect.cv,log="xy")
+	# lines(runningFunction(cv.poisson,subscores$nonselect.cv,nbins=20,logScale=TRUE),col=2)
+	# abline(0,1,col="green",lty="dashed")
+	# lines(seq(0,1,0.01), 10^log.cv.model(
+	# 	log10(seq(0,1,0.01)),theta.optim[[1]],theta.optim[[2]],theta.optim[[3]]
+	# ),col="blue")
+
+	#and return output
+	return(c(list(cv.model=cv.model),theta.optim))
+}
+
 #' Function to perform Baldi & Long's error regularization
 #'
 #' @param msc dataframe containing the output of the 'mean.sd.count()' function
@@ -315,16 +410,27 @@ rawFilter <- function(msc,countThreshold) {
 #'    in the regularization
 #' @return a data.frame containing for each condition the possion prior, bayesian regularized, and
 #'    pessimistic (maximum) standard deviation.
-regularizeRaw <- function(msc,condNames,n,pseudo.n) {
+regularizeRaw <- function(msc,condNames,tiles,n,pseudo.n, modelFunctions) {
+	#iterate over conditions and join as columns
 	regul <- do.call(cbind,lapply(condNames, function(cond) {
+		sd.prior <- sapply(1:nrow(msc), function(i) {
+			count <- msc[i,paste0(cond,".count")]
+			tile <- tiles[[i]]
+			modelfun <- modelFunctions[[cond]][[tile]]
+			if (is.function(modelfun)) {
+				cv.prior <- modelfun(count)
+			} else {
+				#if model fitting failed, use simple poisson model
+				cv.prior <- 1/sqrt(count)
+			}
+			return(cv.prior * msc[i,paste0(cond,".mean")])
+		})
+		sd.prior[which(msc[,paste0(cond,".mean")] == 0)] <- 0
+
 		sd.empiric <- msc[,paste0(cond,".sd")]
-		cv.poisson <- 1/sqrt(msc[,paste0(cond,".count")])
-		cv.poisson[which(msc[,paste0(cond,".mean")] == 0)] <- 0
-		sd.poisson <- cv.poisson*msc[,paste0(cond,".mean")]
-		sd.bayes <- bnl(pseudo.n,n,sd.poisson,sd.empiric)
-		sd.pessim <- mapply(max,sd.empiric,sd.poisson)
-		out <- cbind(sd.poisson=sd.poisson,sd.bayes=sd.bayes,sd.pessim=sd.pessim)
-		colnames(out) <- paste0(cond,c(".sd.poisson",".sd.bayes",".sd.pessim"))
+		sd.bayes <- bnl(pseudo.n,n,sd.prior,sd.empiric)
+		out <- cbind(sd.prior=sd.prior,sd.bayes=sd.bayes)
+		colnames(out) <- paste0(cond,c(".sd.prior",".sd.bayes"))
 		out
 	}))
 	return(regul)

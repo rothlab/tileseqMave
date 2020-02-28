@@ -29,6 +29,7 @@ selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logg
 	library(yogitools)
 	library(hgvsParseR)
 	library(pbmcapply)
+	library(optimization)
 
 	if (!is.null(logger)) {
 		stopifnot(inherits(logger,"yogilogger"))
@@ -115,8 +116,12 @@ selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logg
 				replicateCorrelation(scores, marginalCounts, params, sCond, tp, outDir)
 			}
 
+			#load error model file
+			modelFile <- paste0(latestScoreDir,"/",sCond,"_t",tp,"_errorModel.csv")
+			modelParams <- read.csv(modelFile)
+
 			#Regularization analysis
-			regularizationQC(scores,params,sCond,tp,outDir)
+			regularizationQC(scores,modelParams,params,sCond,tp,outDir)
 			
 			#Score distributions & syn/non medians
 			scoreDistributions(scores,sCond,tp,outDir,sdCutoff)
@@ -253,7 +258,7 @@ replicateCorrelation <- function(scores, marginalCounts, params, sCond, tp, outD
 #' @param tp the time point
 #' @param outDir the output directory
 #' @return NULL
-regularizationQC <- function(scores,params,sCond,tp,outDir) {
+regularizationQC <- function(scores,modelParams,params,sCond,tp,outDir) {
 
 	#calculate tile assignments
 	tileStarts <- params$tiles[,"Start AA"]
@@ -264,11 +269,16 @@ regularizationQC <- function(scores,params,sCond,tp,outDir) {
 	pdf(outfile,8.5,11)
 	opar <- par(mfrow=c(3,2))
 	for (tile in params$tiles[,"Tile Number"]) {
-		model.fit <- tryCatch({
-			fit.cv.model(scores[which(tiles==tile),])
-		},error=function(e) {
-			NULL
-		})
+		# model.fit <- tryCatch({
+		# 	fit.cv.model(scores[which(tiles==tile),])
+		# },error=function(e) {
+		# 	NULL
+		# })
+		theta <- modelParams[tile,paste0("nonselect.",c("static","additive","multiplicative"))]
+		cv.model <- function(count) {
+			10^sapply(log10(1/sqrt(count)),function(x) max(theta[[1]], theta[[2]] + theta[[3]]*x))
+		}
+
 		with(scores[which(tiles==tile),],{
 
 			plot(nonselect.count,nonselect.cv,log="xy",main=paste("Tile",tile))
@@ -278,14 +288,15 @@ regularizationQC <- function(scores,params,sCond,tp,outDir) {
 			nsSamples <- seq(1,max(nonselect.count,na.rm=TRUE),length.out=100)
 			lines(nsSamples,1/sqrt(nsSamples),col="chartreuse3",lty="dashed",lwd=2)
 			lines(runningMean,col="firebrick3",lwd=2)
-			if (!is.null(model.fit)) {
-				lines(nsSamples,model.fit$cv.model(nsSamples),col="blue",lwd=2)
-				with(model.fit,mtext(sprintf(
-					"stat.=%.02f; add.=%.02f; mult.=%.02f",
-					static,additive,log10(multiplicative)
-				)))
-			}
+			
+			lines(nsSamples,cv.model(nsSamples),col="blue",lwd=2)
+			mtext(sprintf(
+				"stat.=%.02f; add.=%.02f; mult.=%.02f",
+				theta[[1]],theta[[2]],theta[[3]]
+			))
 
+			nonselect.sd.poisson <- 1/sqrt(nonselect.count)*nonselect.mean
+			nonselect.sd.poisson[which(nonselect.mean==0)] <- 0
 			plot(nonselect.sd.poisson, nonselect.sd,log="xy")
 			runningMean <- runningFunction(
 				nonselect.sd.poisson, nonselect.sd,nbins=20,logScale=TRUE
@@ -293,13 +304,11 @@ regularizationQC <- function(scores,params,sCond,tp,outDir) {
 			lines(runningMean,col="firebrick3",lwd=2)
 			abline(0,1,col="chartreuse3",lty="dashed",lwd=2)
 			depth <- mean(nonselect.count/nonselect.mean,na.rm=TRUE)
-			if (!is.null(model.fit)) {
-				lines(
-					sqrt(nsSamples)/depth,
-					model.fit$cv.model(nsSamples)*(nsSamples/depth),
-					col="blue",lwd=2
-				)
-			}
+			lines(
+				sqrt(nsSamples)/depth,
+				cv.model(nsSamples)*(nsSamples/depth),
+				col="blue",lwd=2
+			)
 		})
 	}
 	par(opar)
@@ -307,56 +316,56 @@ regularizationQC <- function(scores,params,sCond,tp,outDir) {
 }
 
 
-#' Create a model of the error in for a subset of marginal frequencies
-#' 
-#' @param  subcores a subset of the count table (for a given tile)
-#' @return a list containing the model function (mapping counts to expected CV), and the model parameters
-fit.cv.model <- function(subscores) {
+# #' Create a model of the error in for a subset of marginal frequencies
+# #' 
+# #' @param  subcores a subset of the count table (for a given tile)
+# #' @return a list containing the model function (mapping counts to expected CV), and the model parameters
+# fit.cv.model <- function(subscores) {
 
-	# subscores <- scores[which(tiles==tile),]
+# 	# subscores <- scores[which(tiles==tile),]
 
-	#poisson model of CV
-	cv.poisson <- 1/sqrt(subscores$nonselect.count)
-	#filter out NAs and infinites
-	filter <- which(is.na(cv.poisson) | is.infinite(cv.poisson) | 
-		is.na(subscores$nonselect.cv) | is.infinite(subscores$nonselect.cv))
+# 	#poisson model of CV
+# 	cv.poisson <- 1/sqrt(subscores$nonselect.count)
+# 	#filter out NAs and infinites
+# 	filter <- which(is.na(cv.poisson) | is.infinite(cv.poisson) | 
+# 		is.na(subscores$nonselect.cv) | is.infinite(subscores$nonselect.cv))
 
-	#model function
-	log.cv.model <- function(log.cv.poisson,static,additive,multiplicative) {
-		sapply(log.cv.poisson, function(x) max(static, multiplicative*x + additive))
-	}
-	#objective function
-	objective <- function(theta) {
-		static <- theta[[1]]
-		additive <- theta[[2]]
-		multiplicative <- theta[[3]]
-		reference <- log10(subscores$nonselect.cv[-filter])
-		prediction <- log.cv.model(log10(cv.poisson[-filter]),static,additive,multiplicative)
-		rmsd <- sum((prediction-reference)^2,na.rm=TRUE)
-		return(rmsd)
-	}
-	#run optimization
-	theta.start <- c(static=-2,additive=0,multiplicative=1)
-	z <- optim_nm(objective,start=theta.start)
-	theta.optim <- setNames(z$par,names(theta.start))
+# 	#model function
+# 	log.cv.model <- function(log.cv.poisson,static,additive,multiplicative) {
+# 		sapply(log.cv.poisson, function(x) max(static, multiplicative*x + additive))
+# 	}
+# 	#objective function
+# 	objective <- function(theta) {
+# 		static <- theta[[1]]
+# 		additive <- theta[[2]]
+# 		multiplicative <- theta[[3]]
+# 		reference <- log10(subscores$nonselect.cv[-filter])
+# 		prediction <- log.cv.model(log10(cv.poisson[-filter]),static,additive,multiplicative)
+# 		rmsd <- sum((prediction-reference)^2,na.rm=TRUE)
+# 		return(rmsd)
+# 	}
+# 	#run optimization
+# 	theta.start <- c(static=-2,additive=0,multiplicative=1)
+# 	z <- optim_nm(objective,start=theta.start)
+# 	theta.optim <- setNames(z$par,names(theta.start))
 
-	cv.model <- function(count) {
-		cv.poisson <- 1/sqrt(count)
-		10^log.cv.model(
-			log10(cv.poisson),
-			theta.optim[["static"]],
-			theta.optim[["additive"]],
-			theta.optim[["multiplicative"]]
-		)
-	}
+# 	cv.model <- function(count) {
+# 		cv.poisson <- 1/sqrt(count)
+# 		10^log.cv.model(
+# 			log10(cv.poisson),
+# 			theta.optim[["static"]],
+# 			theta.optim[["additive"]],
+# 			theta.optim[["multiplicative"]]
+# 		)
+# 	}
 
-	# plot(cv.poisson,subscores$nonselect.cv,log="xy")
-	# lines(runningFunction(cv.poisson,subscores$nonselect.cv,nbins=20,logScale=TRUE),col=2)
-	# abline(0,1)
-	# lines(seq(0,1,0.01), 10^log.cv.model(log10(seq(0,1,0.01)),z$par[[1]],z$par[[2]],z$par[[3]]),col="blue")
+# 	# plot(cv.poisson,subscores$nonselect.cv,log="xy")
+# 	# lines(runningFunction(cv.poisson,subscores$nonselect.cv,nbins=20,logScale=TRUE),col=2)
+# 	# abline(0,1)
+# 	# lines(seq(0,1,0.01), 10^log.cv.model(log10(seq(0,1,0.01)),z$par[[1]],z$par[[2]],z$par[[3]]),col="blue")
 
-	return(c(list(cv.model=cv.model),theta.optim))
-}
+# 	return(c(list(cv.model=cv.model),theta.optim))
+# }
 
 #' Draw score distribution plots
 #' 
