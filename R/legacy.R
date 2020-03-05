@@ -1462,3 +1462,31 @@ libraryQCLegacy <- function(dataDir,outdir,
 	logInfo("libraryQC function completed successfully.")
 
 }
+
+
+#legacy converter for mut2func_info
+convertLegacyMut2Func <- function(infile,outfile) {
+
+	library(yogitools)
+
+	op <- options(stringsAsFactors=FALSE); on.exit(options(op))
+
+	m2f <- read.csv(infile,header=FALSE)
+
+	tiles <- cbind(1:(ncol(m2f)-1),do.call(rbind,strsplit(unlist(m2f[1,-1]),"-")))
+	colnames(tiles) <- c("id","start","end")
+
+	condRep <- extract.groups(m2f[-1,1],"^(\\w+)(\\d+)$")
+
+	samples <- do.call(rbind,lapply(2:nrow(m2f), function(i) {
+		cbind(id=unlist(m2f[i,-1]),tile=1:(ncol(m2f)-1),cond=condRep[i-1,1],tp=1,rep=condRep[i-1,2])
+	}))
+
+	con <- file(outfile,open="w")
+	write.table(tiles,con,row.names=FALSE,quote=FALSE,sep="\t")
+	writeLines("",con)
+	write.table(samples,con,row.names=FALSE,quote=FALSE,sep="\t")
+	close(con)
+
+}
+
