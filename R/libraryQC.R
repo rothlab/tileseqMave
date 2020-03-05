@@ -157,7 +157,7 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger
 		# CALCULATE NONSELECT MEANS AND NORMALIZE
 		#########################################
 		#pull out nonselect condition and average over replicates
-		nsReps <- sprintf("%s.t%s.rep%s.frequency",nsCond,params$timepoints[1,1],1:params$numReplicates)
+		nsReps <- sprintf("%s.t%s.rep%s.frequency",nsCond,params$timepoints[1,1],1:params$numReplicates[[nsCond]])
 		nsMarginalMeans <- rowMeans(marginalCounts[,nsReps],na.rm=TRUE)
 		nsAllMeans <- rowMeans(allCounts[,nsReps],na.rm=TRUE)
 
@@ -165,7 +165,7 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger
 		wtCond <- getWTControlFor(nsCond,params)
 		# wtCond <- findWTCtrl(params,nsCond)
 		if (length(wtCond) > 0) {
-			wtReps <- sprintf("%s.t%s.rep%s.frequency",wtCond,params$timepoints[1,1],1:params$numReplicates)
+			wtReps <- sprintf("%s.t%s.rep%s.frequency",wtCond,params$timepoints[1,1],1:params$numReplicates[[wtCond]])
 
 			wtMarginalMeans <- rowMeans(marginalCounts[,wtReps],na.rm=TRUE)
 			nsMarginalMeans <- mapply(function(nsf,wtf) {

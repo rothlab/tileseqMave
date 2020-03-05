@@ -98,12 +98,25 @@ validateParameters <- function(params) {
 	}
 	
 
-	if (is.na(params$numReplicates)) {
-		stop("Number of replicates must be an integer number!")
+	if (any(is.na(params$numReplicates))) {
+		stop("Number of replicates must be integer numbers for each condition!")
 	}
-	if (params$numReplicates < 2) {
-		stop("Number of replicates must be at least 2!")
+	minRep <- if (length(getSelects(params)) > 0) 2 else 1
+	if (any(params$numReplicates < minRep)) {
+		stop("Number of replicates must be at least ",minRep,"!")
 	}
+
+	if (any(is.na(params$numTimepoints))) {
+		stop("Number of time points must be integer numbers for each condition!")
+	}
+	if (any(params$numTimepoints < 1)) {
+		stop("Each condition must have at least 1 timepoint!")
+	}
+	if (!all(params$numTimepoints == params$numTimepoints[[1]])) {
+		stop("Differing numbers of timepoints per condition are not yet supported!")
+	}
+
+
 
 	#validate the sample sheet
 	if (!all(params$samples[,"Tile ID"] %in% params$tiles[,"Tile Number"])) {
@@ -118,9 +131,18 @@ validateParameters <- function(params) {
 	if (!all(params$samples[,"Time point"] %in% params$timepoints[,"Time point name"])) {
 		stop("Undeclared time points found in sample sheet!")
 	}
-	if (!all(params$samples[,"Replicate"] <= params$numReplicates)) {
-		stop("Undeclared time points found in sample sheet!")
-	}
+	repsPerCon <- tapply(params$samples[,"Replicate"],params$samples[,"Condition"],table)
+	invisible(lapply(params$conditions$names, function(cond) {
+		if (!(length(repsPerCon[[cond]]) == params$numReplicates[[cond]])) {
+			stop("Not all replicates present for condition ",cond,"!")
+		}
+		if (!all(repsPerCon[[cond]] == repsPerCon[[cond]][[1]])) {
+			stop("Missing replicates or tiles for condition ",cond,"!")
+		}
+	}))
+	# if (!all(params$samples[,"Replicate"] <= params$numReplicates)) {
+	# 	stop("Undeclared replicates found in sample sheet!")
+	# }
 
 	#TODO: Validate that the entire CDS in covered with tiles and regions
 
@@ -237,8 +259,18 @@ csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",infile),
 	conditions <- conditions[!(conditions=="" | is.na(conditions))]
 	output$conditions <- list()
 	output$conditions$names <- as.vector(conditions)
-	output$numReplicates <-  as.integer(csv[[getRow("Number of Replicates:")]][[2]])
-	output$numTimepoints <-  as.integer(csv[[getRow("Number of time points:")]][[2]])
+	reps <- as.integer(csv[[getRow("Number of Replicates:")]][-1])
+	if (length(reps) < length(conditions)) {
+		stop("Replicate numbers missing for some conditions!")
+	}
+	reps <- setNames(reps[1:length(conditions)],conditions)
+	output$numReplicates <- reps
+	tps <- as.integer(csv[[getRow("Number of time points:")]][-1])
+	if (length(tps) < length(conditions)) {
+		stop("Replicate numbers missing for some conditions!")
+	}
+	tps <- setNames(tps[1:length(conditions)],conditions)
+	output$numTimepoints <- tps
 
 	#extract regions table
 	regionTable <- extractTable(firstField="Region Number",nextSection="Sequencing Tiles")

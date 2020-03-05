@@ -170,9 +170,10 @@ buildJointTable <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 	logInfo("Merging tables...")
 
 	#make lists of unique conditions, timepoints and replicates
-	conditions <- unique(sampleTable$Condition)
-	timepoints <- unique(sampleTable$`Time point`)
-	replicates <- unique(sampleTable$Replicate)
+	conditions <- params$conditions$names
+	# conditions <- unique(sampleTable$Condition)
+	# timepoints <- unique(sampleTable$`Time point`)
+	# replicates <- unique(sampleTable$Replicate)
 
 	#helper function to combine a set of count/frequency tables, ordered by allVars
 	joinTables <- function(tables, allVars) {
@@ -185,8 +186,12 @@ buildJointTable <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 
 	#join all samples together into one comprehensive table
 	condTables <- lapply(conditions, function(cond) {
+		#get the timepoints that are valid for the current condition
+		timepoints <- params$timepoints$`Time point name`[1:params$numTimepoints[[cond]]]
 		tpTables <- lapply(timepoints, function(tp) {
 			logInfo("Processing condition",cond,"timepoint",tp)
+			#get the replicates for this condition
+			replicates <- 1:params$numReplicates[[cond]]
 			replTables <- lapply(replicates, function(repl) {
 				#find the set of samples that represent the tiles for this specific
 				# combination of condition / timepoint / replicate

@@ -112,7 +112,7 @@ selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logg
 			scores <- read.csv(scoreFile)
 
 			#run replicate correlation analysis
-			if (params$numReplicates > 1) {
+			if (params$numReplicates[[sCond]] > 1) {
 				replicateCorrelation(scores, marginalCounts, params, sCond, tp, outDir)
 			}
 
@@ -146,10 +146,12 @@ selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logg
 #' @return NULL
 replicateCorrelation <- function(scores, marginalCounts, params, sCond, tp, outDir) {
 
-	nrep <- params$numReplicates
+	# nrep <- params$numReplicates[[sCond]]
 
 	#pull up matching nonselect and WT controls
 	nCond <- getNonselectFor(sCond,params)
+	sRep <- params$numReplicates[[sCond]]
+	nsRep <- params$numReplicates[[msCond]]
 	condQuad <- c(
 		select=sCond,
 		nonselect=nCond,
@@ -170,13 +172,13 @@ replicateCorrelation <- function(scores, marginalCounts, params, sCond, tp, outD
 	}
 
 	#replicate column name matrix
-	repMatrix <- do.call(cbind,lapply(1:nrep,
+	repMatrix <- do.call(cbind,lapply(1:sRep,
 		function(repi) sprintf("%s.t%s.rep%d.frequency",condQuad,tp,repi)
 	))
 	rownames(repMatrix) <- names(condQuad)
 
 	#extract replicate values for this condition
-	repValues <- lapply(1:nrep, function(repi) {
+	repValues <- lapply(1:sRep, function(repi) {
 		selFreq <-  floor0(
 			marginalCounts[,repMatrix["select",repi]] - 
 			marginalCounts[,repMatrix["selWT",repi]]
@@ -188,13 +190,13 @@ replicateCorrelation <- function(scores, marginalCounts, params, sCond, tp, outD
 		logphi <- log10(selFreq / nonFreq)
 		data.frame(select=selFreq,nonselect=nonFreq,logphi=logphi)
 	})
-	names(repValues) <- as.character(1:nrep)
+	names(repValues) <- as.character(1:sRep)
 	repValues <- do.call(cbind,repValues)
 	#apply filter from scoring function
 	repValues <- repValues[is.na(scores$filter),]
 
 
-	if (nrep == 2) {
+	if (sRep == 2) {
 		outfile <- paste0(outDir,sCond,"_t",tp,"_replicates.pdf")
 		pdf(outfile,10,5)
 		layout(cbind(1,2))
@@ -225,13 +227,13 @@ replicateCorrelation <- function(scores, marginalCounts, params, sCond, tp, outD
 			# cex.cor <- 0.8/strwidth(txt)
 			text(0.5, 0.5, txt)
 		}
-		labels <- paste0("rep.",1:nrep)	
-		imgSize <- max(4,nrep)
+		labels <- paste0("rep.",1:sRep)	
+		imgSize <- max(4,sRep)
 
 		outfile <- paste0(outDir,sCond,"_t",tp,"_ns_replicates.pdf")
 		pdf(outfile,imgSize,imgSize)
 		pairs(
-			repValues[,sprintf("%d.nonselect",1:nrep)],
+			repValues[,sprintf("%d.nonselect",1:sRep)],
 			lower.panel=panel.cor,pch=".",labels=labels,
 			main="non-select frequencies"
 		)
@@ -240,7 +242,7 @@ replicateCorrelation <- function(scores, marginalCounts, params, sCond, tp, outD
 		outfile <- paste0(outDir,sCond,"_t",tp,"_phi_replicates.pdf")
 		pdf(outfile,imgSize,imgSize)
 		pairs(
-			repValues[,sprintf("%d.nonselect",1:nrep)],
+			repValues[,sprintf("%d.nonselect",1:sRep)],
 			lower.panel=panel.cor,pch=".",labels=labels,
 			main="select / nonselect log-ratios"
 		)

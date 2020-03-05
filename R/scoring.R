@@ -173,7 +173,7 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=N
 				msc <- cbind(msc,
 					regularizeRaw(msc,
 						condNames=names(condQuad), tiles=regionalCounts$tile,
-						n=params$numReplicates, pseudo.n=pseudo.n, 
+						n=params$numReplicates[condQuad], pseudo.n=pseudo.n, 
 						modelFunctions=modelFunctions
 					)
 				)
@@ -199,7 +199,7 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=N
 				msc <- cbind(msc,flooring(msc,params))
 
 				#add stderr
-				msc$se.floored <- msc$sd.floored/sqrt(params$numReplicates)
+				msc$se.floored <- msc$sd.floored/sqrt(params$numReplicates[[sCond]])
 				
 				#attach labels and return
 				return(cbind(regionalCounts[,1:4],msc))
@@ -240,7 +240,7 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=N
 				joint <- join.datapoints(
 					score[is],
 					sd[is],
-					rep(params$numReplicates,length(is))
+					rep(params$numReplicates[[sCond]],length(is))
 				)
 				list(
 					hgvs_pro=unique(hgvs_pro[is]),
@@ -308,8 +308,8 @@ bnl <- function(pseudo.n,n,model.sd,empiric.sd) {
 #' @param tp the time point ID
 #' @param params the global parameters object
 mean.sd.count <- function(cond,regionalCounts,tp,params) {
-	freqs <- regionalCounts[,sprintf("%s.t%s.rep%d.frequency",cond,tp,1:params$numReplicates)]
-	counts <- regionalCounts[,sprintf("%s.t%s.rep%d.count",cond,tp,1:params$numReplicates)]
+	freqs <- regionalCounts[,sprintf("%s.t%s.rep%d.frequency",cond,tp,1:params$numReplicates[[cond]])]
+	counts <- regionalCounts[,sprintf("%s.t%s.rep%d.count",cond,tp,1:params$numReplicates[[cond]])]
 	means <- rowMeans(freqs,na.rm=TRUE)
 	sds <- apply(freqs,1,sd,na.rm=TRUE)
 	out <- data.frame(
@@ -405,12 +405,14 @@ fit.cv.model <- function(subscores,cond) {
 #'
 #' @param msc dataframe containing the output of the 'mean.sd.count()' function
 #' @param condNames the names of the different count conditions (select, nonselect etc)
-#' @param n the number of replicates present for each datapoint
+#' @param n the number of replicates present for each datapoint in each condition
 #' @param pseudo.n the number of pseudo-replicates that detemine the weight of the prior
 #'    in the regularization
 #' @return a data.frame containing for each condition the possion prior, bayesian regularized, and
 #'    pessimistic (maximum) standard deviation.
 regularizeRaw <- function(msc,condNames,tiles,n,pseudo.n, modelFunctions) {
+	#index replicates so we can look them up
+	names(n) <- condNames
 	#iterate over conditions and join as columns
 	regul <- do.call(cbind,lapply(condNames, function(cond) {
 		sd.prior <- sapply(1:nrow(msc), function(i) {
@@ -428,7 +430,7 @@ regularizeRaw <- function(msc,condNames,tiles,n,pseudo.n, modelFunctions) {
 		sd.prior[which(msc[,paste0(cond,".mean")] == 0)] <- 0
 
 		sd.empiric <- msc[,paste0(cond,".sd")]
-		sd.bayes <- bnl(pseudo.n,n,sd.prior,sd.empiric)
+		sd.bayes <- bnl(pseudo.n,n[[cond]],sd.prior,sd.empiric)
 		out <- cbind(sd.prior=sd.prior,sd.bayes=sd.bayes)
 		colnames(out) <- paste0(cond,c(".sd.prior",".sd.bayes"))
 		out

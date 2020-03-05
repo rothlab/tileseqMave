@@ -11,7 +11,7 @@ regularizeRaw(msc, condNames, tiles, n, pseudo.n, modelFunctions)
 
 \item{condNames}{the names of the different count conditions (select, nonselect etc)}
 
-\item{n}{the number of replicates present for each datapoint}
+\item{n}{the number of replicates present for each datapoint in each condition}
 
 \item{pseudo.n}{the number of pseudo-replicates that detemine the weight of the prior
 in the regularization}
