@@ -227,12 +227,17 @@ csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",infile),
 		#find the end of the table
 		iEnd <- iHead
 		while (iEnd < length(col1) && !(col1[[iEnd+1]] %in% c("",nextSection))) iEnd <- iEnd+1
-		#extract the table data and apply formatting
-		rawTable <- do.call(rbind,csv[(iHead+1):iEnd])
-		# formTable <- apply(rawTable[,1:length(headers)],c(1,2),as.integer)
-		formTable <- rawTable[,1:length(headers),drop=FALSE]
-		colnames(formTable) <- headers
-		return(formTable)
+		#if the table is empty...
+		if (iEnd == iHead) {
+			return(matrix(ncol=length(headers),nrow=0,dimnames=list(NULL,headers)))
+		} else {
+			#extract the table data and apply formatting
+			rawTable <- do.call(rbind,csv[(iHead+1):iEnd])
+			# formTable <- apply(rawTable[,1:length(headers)],c(1,2),as.integer)
+			formTable <- rawTable[,1:length(headers),drop=FALSE]
+			colnames(formTable) <- headers
+			return(formTable)
+		}
 	}
 
 	#prepare output data structure
