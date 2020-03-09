@@ -101,7 +101,7 @@ validateParameters <- function(params) {
 	if (any(is.na(params$numReplicates))) {
 		stop("Number of replicates must be integer numbers for each condition!")
 	}
-	minRep <- if (length(getSelects(params)) > 0) 2 else 1
+	minRep <- if (nrow(params$conditions$definitions) > 0 && length(getSelects(params)) > 0) 2 else 1
 	if (any(params$numReplicates < minRep)) {
 		stop("Number of replicates must be at least ",minRep,"!")
 	}
