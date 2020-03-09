@@ -201,7 +201,7 @@ csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",infile),
 		stop("Input file cannot be read!")
 	}
 
-	#read the file into a list of lists and extract the first column
+	#read the file into a list of lists
 	csv <- strsplit(scan(infile,what="character",sep="\n",quiet=TRUE),",")
 	#remove any potential quotes introduced by Excel
 	csv <- lapply(csv,function(row) {
@@ -229,7 +229,8 @@ csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",infile),
 		while (iEnd < length(col1) && !(col1[[iEnd+1]] %in% c("",nextSection))) iEnd <- iEnd+1
 		#if the table is empty...
 		if (iEnd == iHead) {
-			return(matrix(ncol=length(headers),nrow=0,dimnames=list(NULL,headers)))
+			return(data.frame())
+			# return(matrix(ncol=length(headers),nrow=0,dimnames=list(NULL,headers)))
 		} else {
 			#extract the table data and apply formatting
 			rawTable <- do.call(rbind,csv[(iHead+1):iEnd])
@@ -341,6 +342,9 @@ parseParameters <- function(filename) {
 
 	#rebuild tables and dataframes from lists
 	params$conditions$definitions <- do.call(rbind,params$conditions$definitions)
+	if (is.null(params$conditions$definitions)) {
+		params$conditions$definitions <- matrix(nrow=0,ncol=3,dimnames=list(NULL,c("Condition 1","Relationship","Condition 2")))
+	}
 	if (!inherits(params$regions,"list")) {
 		params$regions <- list(params$regions)
 	}
