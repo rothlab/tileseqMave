@@ -85,6 +85,16 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger
 	# 	`Condition 2`[which(Relationship == "is_selection_for")]
 	# }))
 
+	#if this is a pure QC run, there are no conditions declared as nonselect, so
+	# we treat *all* conditions as nonselect.
+	if (length(nsConditions) == 0) {
+		if (nrow(params$conditions$definitions) > 0) {
+			nsConditions <- params$conditions$definitions[,3]
+		} else {
+			nsConditions <-  params$conditions$names
+		}
+	}
+
 
 	logInfo("Reading count data")
 
@@ -158,8 +168,13 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger
 		#########################################
 		#pull out nonselect condition and average over replicates
 		nsReps <- sprintf("%s.t%s.rep%s.frequency",nsCond,params$timepoints[1,1],1:params$numReplicates[[nsCond]])
-		nsMarginalMeans <- rowMeans(marginalCounts[,nsReps],na.rm=TRUE)
-		nsAllMeans <- rowMeans(allCounts[,nsReps],na.rm=TRUE)
+		if (params$numReplicates[[nsCond]] > 1) {
+			nsMarginalMeans <- rowMeans(marginalCounts[,nsReps],na.rm=TRUE)
+			nsAllMeans <- rowMeans(allCounts[,nsReps],na.rm=TRUE)
+		} else {
+			nsMarginalMeans <- marginalCounts[,nsReps]
+			nsAllMeans <- allCounts[,nsReps]
+		}
 
 		#if WT controls are present, average over them as well and subtract from nonselect
 		wtCond <- getWTControlFor(nsCond,params)
@@ -167,12 +182,20 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger
 		if (length(wtCond) > 0) {
 			wtReps <- sprintf("%s.t%s.rep%s.frequency",wtCond,params$timepoints[1,1],1:params$numReplicates[[wtCond]])
 
-			wtMarginalMeans <- rowMeans(marginalCounts[,wtReps],na.rm=TRUE)
+			if (params$numReplicates[[wtCond]] > 1) {
+				wtMarginalMeans <- rowMeans(marginalCounts[,wtReps],na.rm=TRUE)
+			} else {
+				wtMarginalMeans <- marginalCounts[,wtReps]
+			}
 			nsMarginalMeans <- mapply(function(nsf,wtf) {
 				max(0,nsf-wtf)
 			},nsf=nsMarginalMeans,wtf=wtMarginalMeans)
 
-			wtAllMeans <- rowMeans(allCounts[,wtReps],na.rm=TRUE)
+			if (params$numReplicates[[wtCond]] > 1) {
+				wtAllMeans <- rowMeans(allCounts[,wtReps],na.rm=TRUE)
+			} else {
+				wtAllMeans <- allCounts[,wtReps]
+			}
 			nsAllMeans <- mapply(function(nsf,wtf) {
 				max(0,nsf-wtf)
 			},nsf=nsAllMeans,wtf=wtAllMeans)
@@ -384,15 +407,17 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger
 		#draw the plot for each tile
 		pdf(paste0(outDir,nsCond,"_complexity.pdf"),8.5,11)
 		opar <- par(mfrow=c(3,2))
-		tapply(1:nrow(cplxPlot),cplxPlot[,"tile"],function(is) {
+		invisible(tapply(1:nrow(cplxPlot),cplxPlot[,"tile"],function(is) {
 			if (length(is) > 1) {
 				tile <- unique(cplxPlot[is,3])
-				plot(cplxPlot[is,1:2],log="xy",
-					xlab="#unique contexts in tile",ylab="marginal frequency",
-					main=paste0("Tile #",tile)
-				)
+				if (!all(cplxPlot[is,2] == 0)) {
+					plot(cplxPlot[is,1:2],log="xy",
+						xlab="#unique contexts in tile",ylab="marginal frequency",
+						main=paste0("Tile #",tile)
+					)
+				}
 			}
-		})
+		}))
 		par(opar)
 		invisible(dev.off())
 		
