@@ -21,7 +21,7 @@
 #' @param paramFile input parameter file. defaults to <dataDir>/parameters.json
 #' @return NULL. Results are written to file.
 #' @export
-selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=NULL, sdCutoff=0.3) {
+selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=NULL, sdCutoff=0.3,srOverride=TRUE) {
 
 
 	op <- options(stringsAsFactors=FALSE)
@@ -64,7 +64,7 @@ selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logg
 
 
 	logInfo("Reading parameters")
-	params <- parseParameters(paramFile)
+	params <- parseParameters(paramFile,srOverride=srOverride)
 
 
 	#find scores folder

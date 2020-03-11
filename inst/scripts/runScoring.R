@@ -47,6 +47,7 @@ p <- add_argument(p, "--pseudoReplicates", default=8L, help="Number of pseudo-re
 p <- add_argument(p, "--sdThreshold", default=0.3, help="Stdev threshold for determination of syn/stop medians. Default 0.3")
 p <- add_argument(p, "--logfile", help="log file. Defaults to scoring.log in the same directory")
 p <- add_argument(p, "--cores", default=6L, help="number of CPU cores to use in parallel for multi-threading")
+p <- add_argument(p, "--srOverride", help="Manual override to allow singleton replicates. USE WITH EXTREME CAUTION!",flag=TRUE)
 args <- parse_args(p)
 
 #ensure datadir ends in "/" and exists
@@ -69,7 +70,8 @@ registerLogErrorHandler(logger)
 invisible(
 	scoring(
 		dataDir,paramfile,logger,args$cores,
-		args$countThreshold,args$pseudoReplicates,args$sdThreshold
+		args$countThreshold,args$pseudoReplicates,args$sdThreshold,
+		srOverride=args$srOverride
 	)
 )
 

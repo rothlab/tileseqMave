@@ -41,6 +41,7 @@ p <- add_argument(p, "dataDir", help="workspace data directory")
 p <- add_argument(p, "--parameters", help="parameter file. Defaults to parameters.json in the data directory.")
 p <- add_argument(p, "--sdThreshold", default=0.3, help="Stdev threshold for determination of syn/stop medians. Default 0.3")
 p <- add_argument(p, "--logfile", help="log file. Defaults to selectionQC.log in the same directory")
+p <- add_argument(p, "--srOverride", help="Manual override to allow singleton replicates. USE WITH EXTREME CAUTION!",flag=TRUE)
 args <- parse_args(p)
 
 #ensure datadir ends in "/" and exists
@@ -62,7 +63,7 @@ registerLogErrorHandler(logger)
 #run the actual function
 invisible(
 	selectionQC(
-		dataDir,paramfile,logger,args$sdThreshold
+		dataDir,paramfile,logger,args$sdThreshold,srOverride=args$srOverride
 	)
 )
 

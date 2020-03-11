@@ -21,7 +21,7 @@
 #' @param paramFile input parameter file. defaults to <dataDir>/parameters.json
 #' @return NULL. Results are written to file.
 #' @export
-libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=NULL,mc.cores=6) {
+libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=NULL,mc.cores=6,srOverride=FALSE) {
 
 	op <- options(stringsAsFactors=FALSE)
 
@@ -62,7 +62,7 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger
 
 
 	logInfo("Reading parameters")
-	params <- parseParameters(paramFile)
+	params <- parseParameters(paramFile,srOverride=srOverride)
 
 	#find counts folder
 	subDirs <- list.dirs(dataDir,recursive=FALSE)

@@ -22,7 +22,7 @@
 #' @return NULL. Results are written to file.
 #' @export
 scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=NULL,mc.cores=6, 
-	countThreshold=10,pseudo.n=8,sdThreshold=0.3) {
+	countThreshold=10,pseudo.n=8,sdThreshold=0.3,srOverride=FALSE) {
 
 	op <- options(stringsAsFactors=FALSE)
 
@@ -64,7 +64,7 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=N
 
 
 	logInfo("Reading parameters")
-	params <- parseParameters(paramFile)
+	params <- parseParameters(paramFile,srOverride=srOverride)
 
 	logInfo("Scoring function uses the following parameters:")
 	logInfo("countThreshold = ",countThreshold)

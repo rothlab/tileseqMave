@@ -21,7 +21,7 @@
 #' @param paramFile input parameter file. defaults to <dataDir>/parameters.json
 #' @return NULL. Results are written to file.
 #' @export
-buildJointTable <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=NULL,mc.cores=6) {
+buildJointTable <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=NULL,mc.cores=6,srOverride=FALSE) {
 
 	op <- options(stringsAsFactors=FALSE)
 
@@ -64,7 +64,7 @@ buildJointTable <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 
 	#Read parameters
 	logInfo("Reading parameters")
-	params <- parseParameters(paramFile)
+	params <- parseParameters(paramFile,srOverride=srOverride)
 
 	######################
 	# BUILD SAMPLE TABLE #

@@ -35,7 +35,8 @@ p <- arg_parser(
 )
 p <- add_argument(p, "infile", help="input file")
 p <- add_argument(p, "--outfile", help="output file. Defaults to parameters.json in the same directory.")
-p <- add_argument(p, "--logfile", help="log file. Defaults to csv2json.log in the same directory")
+p <- add_argument(p, "--logfile", help="log file. Defaults to csv2json.log in the same directory.")
+p <- add_argument(p, "--srOverride", help="Manual override to allow singleton replicates. USE WITH EXTREME CAUTION!",flag=TRUE)
 args <- parse_args(p)
 outfile <- if (is.na(args$outfile)) sub("[^/]+$","parameters.json",args$infile) else args$outfile
 logfile <- if (is.na(args$logfile)) sub("[^/]+$","csv2json.log",args$infile) else args$logfile
@@ -46,5 +47,5 @@ registerLogErrorHandler(logger)
 
 #run the actual function
 invisible(
-	csvParam2Json(args$infile,outfile,logger)
+	csvParam2Json(args$infile,outfile,logger,srOverride=args$srOverride)
 )

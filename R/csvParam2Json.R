@@ -18,9 +18,20 @@
 #' run validation checks on parameters object
 #'
 #' @param params parameter object to validate
+#' @param srOverride single replicate override - allows single replicates
 #' @return TRUE if everything checks out, otherwise it throws errors
 #' @export
-validateParameters <- function(params) {
+validateParameters <- function(params,srOverride=FALSE) {
+
+	if (srOverride) {
+		warning("SINGLE REPLICATE OVERRIDE HAS BEEN ENABLED. This means:
+ * No quality filtering can be performed!
+ * The scoring function will be unable to generate error estimates!
+ * The selectionQC function will be unable to create correlation plots!
+ * Imputation and refinement will not be possible!
+ * Downstream scripts and functions may be unable to process the data!
+")
+	}
 
 	#Validate template sequence
 	if (is.na(params$template$cds_start) || is.na(params$template$cds_end)) {
@@ -101,7 +112,7 @@ validateParameters <- function(params) {
 	if (any(is.na(params$numReplicates))) {
 		stop("Number of replicates must be integer numbers for each condition!")
 	}
-	minRep <- if (nrow(params$conditions$definitions) > 0 && length(getSelects(params)) > 0) 2 else 1
+	minRep <- if (!srOverride && nrow(params$conditions$definitions) > 0 && length(getSelects(params)) > 0) 2 else 1
 	if (any(params$numReplicates < minRep)) {
 		stop("Number of replicates must be at least ",minRep,"!")
 	}
@@ -157,7 +168,7 @@ validateParameters <- function(params) {
 #' @param logger yogilog logger. Defaults to NULL and writes to stdout.
 #' @return NULL. Results are written to file.
 #' @export
-csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",infile),logger=NULL) {
+csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",infile),logger=NULL,srOverride=FALSE) {
 
 	op <- options(stringsAsFactors=FALSE)
 
@@ -250,7 +261,7 @@ csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",infile),
 	#extract template sequence
 	output$template <- list()
 	output$template$geneName <- csv[[getRow("Gene name:")]][[2]]
-	output$template$seq <- csv[[getRow("Sequence:")]][[2]]
+	output$template$seq <- toupper(csv[[getRow("Sequence:")]][[2]])
 	output$template$cds_start <- as.integer(csv[[getRow("CDS start:")]][[2]])
 	output$template$cds_end <- as.integer(csv[[getRow("CDS end:")]][[2]])
 	output$template$uniprot <- csv[[getRow("Uniprot Accession:")]][[2]]
@@ -305,7 +316,10 @@ csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",infile),
 	output$samples <- sampleTable
 
 	#Run validation on all parameters
-	validateParameters(output)
+	tryCatch(
+		validateParameters(output,srOverride=srOverride),
+		warning=function(w)logWarn(conditionMessage(w))
+	)
 
 	#convert output to JSON and write to file
 	logInfo("Writing output to",outfile,"\n")
@@ -325,7 +339,7 @@ csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",infile),
 #' @param filename the input CSV file
 #' @return the parameter object, as a list of lists
 #' @export
-parseParameters <- function(filename) { 
+parseParameters <- function(filename,srOverride=FALSE) { 
 
 	op <- options(stringsAsFactors=FALSE)
 
@@ -363,7 +377,10 @@ parseParameters <- function(filename) {
 	colnames(params$samples) <- sampleCols
 
 	#run full validation of the parameter object
-	validateParameters(params)
+	tryCatch(
+		validateParameters(params,srOverride=srOverride),
+		warning=function(w)logWarn(conditionMessage(w))
+	)
 
 	#calculate CDS and protein sequence
 	cdsLength <- params$template$cds_end - params$template$cds_start + 1
