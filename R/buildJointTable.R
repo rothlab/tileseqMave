@@ -82,14 +82,14 @@ buildJointTable <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 	}
 	latestCountDir <- sort(countDirs,decreasing=TRUE)[[1]]
 	#extract time stamp
-	timeStamp <- extract.groups(latestCountDir,"/(\\d{4}-\\d{2}-\\d{2}-\\d{2}-\\d{2}-\\d{2})")
+	timeStamp <- extract.groups(latestCountDir,"/(\\d{4}-\\d{2}-\\d{2}-\\d{2}-\\d{2}-\\d{2})")[1,1]
 
 	#find count table files and assign each to its respective sample
 	countfiles <- list.files(latestCountDir,pattern="counts_sample\\d+\\.csv$",full.names=TRUE)
 	filesamples <- as.integer(extract.groups(countfiles,"counts_sample(\\d+)\\.csv")[,1])
 	sampleTable$countfile <- sapply(sampleTable$`Sample ID`, function(sid) {
 		i <- which(filesamples == sid)
-		if (is.null(i)) {
+		if (length(i) == 0 || is.null(i)) {
 			NA
 		} else {
 			countfiles[[i]]
@@ -99,7 +99,7 @@ buildJointTable <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 	#if any samples/files are unaccounted for, throw an error!
 	if (any(is.na(sampleTable$countfile))) {
 		missingFiles <- with(sampleTable,`Sample ID`[which(is.na(countfile))])
-		stop("Count files for samples",paste(missingFiles,collapse=", "),"are missing!")
+		stop("Missing count files for the following samples: ",paste(missingFiles,collapse=", "))
 	}
 
 
