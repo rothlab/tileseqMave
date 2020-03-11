@@ -64,8 +64,11 @@ buildJointTable <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 
 	#Read parameters
 	logInfo("Reading parameters")
-	params <- parseParameters(paramFile,srOverride=srOverride)
-
+	params <- withCallingHandlers(
+		parseParameters(paramFile,srOverride=srOverride),
+		warning=function(w)logWarn(conditionMessage(w))
+	)
+	
 	######################
 	# BUILD SAMPLE TABLE #
 	######################
@@ -85,9 +88,9 @@ buildJointTable <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 	timeStamp <- extract.groups(latestCountDir,"/(\\d{4}-\\d{2}-\\d{2}-\\d{2}-\\d{2}-\\d{2})")[1,1]
 
 	#find count table files and assign each to its respective sample
-	countfiles <- list.files(latestCountDir,pattern="counts_sample\\d+\\.csv$",full.names=TRUE)
-	filesamples <- as.integer(extract.groups(countfiles,"counts_sample(\\d+)\\.csv")[,1])
-	sampleTable$countfile <- sapply(sampleTable$`Sample ID`, function(sid) {
+	countfiles <- list.files(latestCountDir,pattern="counts_sample_.+\\.csv$",full.names=TRUE)
+	filesamples <- extract.groups(countfiles,"counts_sample_(.+)\\.csv")[,1]
+	sampleTable$countfile <- sapply(as.character(sampleTable$`Sample ID`), function(sid) {
 		i <- which(filesamples == sid)
 		if (length(i) == 0 || is.null(i)) {
 			NA

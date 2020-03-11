@@ -64,8 +64,11 @@ selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logg
 
 
 	logInfo("Reading parameters")
-	params <- parseParameters(paramFile,srOverride=srOverride)
-
+	params <- withCallingHandlers(
+		parseParameters(paramFile,srOverride=srOverride),
+		warning=function(w)logWarn(conditionMessage(w))
+	)
+	
 
 	#find scores folder
 	subDirs <- list.dirs(dataDir,recursive=FALSE)

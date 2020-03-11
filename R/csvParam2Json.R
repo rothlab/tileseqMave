@@ -71,6 +71,10 @@ validateParameters <- function(params,srOverride=FALSE) {
 		stop("Must define at least one condition!")
 	}
 
+	if (!all(grepl("^[A-Za-z][A-Za-z0-9]*$",params$conditions$names))) {
+		stop("Conditition names must be strictly alpha-numeric and start with a letter.")
+	}
+
 	#check condition table for validity
 	#for QC runs, no relationships are declared, but in any other case, the following rules must apply:
 	if (nrow(params$conditions$definitions) > 0) {
@@ -133,8 +137,8 @@ validateParameters <- function(params,srOverride=FALSE) {
 	if (!all(params$samples[,"Tile ID"] %in% params$tiles[,"Tile Number"])) {
 		stop("Undeclared tiles found in sample sheet!")
 	}
-	if (!all(grepl("^[A-Za-z0-9]+$",params$samples[,"Sample ID"]))) {
-		stop("Sample IDs must not contain special characters!")
+	if (!all(grepl("^[A-Za-z0-9-]+$",params$samples[,"Sample ID"]))) {
+		stop("Sample IDs must not contain special characters except minus signs!")
 	}
 	if (!all(params$samples[,"Condition"] %in% params$conditions$names)) {
 		stop("Undeclared conditions found in sample sheet!")
@@ -316,7 +320,7 @@ csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",infile),
 	output$samples <- sampleTable
 
 	#Run validation on all parameters
-	tryCatch(
+	withCallingHandlers(
 		validateParameters(output,srOverride=srOverride),
 		warning=function(w)logWarn(conditionMessage(w))
 	)
@@ -377,10 +381,7 @@ parseParameters <- function(filename,srOverride=FALSE) {
 	colnames(params$samples) <- sampleCols
 
 	#run full validation of the parameter object
-	tryCatch(
-		validateParameters(params,srOverride=srOverride),
-		warning=function(w)logWarn(conditionMessage(w))
-	)
+	validateParameters(params,srOverride=srOverride)
 
 	#calculate CDS and protein sequence
 	cdsLength <- params$template$cds_end - params$template$cds_start + 1

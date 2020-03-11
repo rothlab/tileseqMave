@@ -64,7 +64,11 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=N
 
 
 	logInfo("Reading parameters")
-	params <- parseParameters(paramFile,srOverride=srOverride)
+	params <- withCallingHandlers(
+		parseParameters(paramFile,srOverride=srOverride),
+		warning=function(w)logWarn(conditionMessage(w))
+	)
+	
 
 	logInfo("Scoring function uses the following parameters:")
 	logInfo("countThreshold = ",countThreshold)
