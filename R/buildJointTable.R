@@ -89,6 +89,9 @@ buildJointTable <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 
 	#find count table files and assign each to its respective sample
 	countfiles <- list.files(latestCountDir,pattern="counts_sample_.+\\.csv$",full.names=TRUE)
+	if (length(countfiles)==0) {
+		error("No count files found! (Are they named correctly?)")
+	}
 	filesamples <- extract.groups(countfiles,"counts_sample_(.+)\\.csv")[,1]
 	sampleTable$countfile <- sapply(as.character(sampleTable$`Sample ID`), function(sid) {
 		i <- which(filesamples == sid)
@@ -111,7 +114,12 @@ buildJointTable <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 	#####################################
 
 	logInfo("Reading count data")
-	allCounts <- lapply(sampleTable$countfile,parseCountFile)
+	allCounts <- lapply(sampleTable$countfile,function(cfile) {
+		tryCatch(
+			parseCountFile(cfile),
+			error=function(e) stop("Error reading file ",cfile," : ",conditionMessage(e))
+		)
+	})
 
 	#extract sequencing depths for each sample
 	sampleTable$depth <- sapply(allCounts,function(counts) as.integer(attr(counts,"depth"))) 

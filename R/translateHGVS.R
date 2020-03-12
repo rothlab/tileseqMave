@@ -42,8 +42,13 @@ parseCountFile <- function(filename) {
 	#prepare metdata object
 	metadata <- lapply(requiredFields,function(f) header[[f]])
 
-	#parse main table
-	countTable <- read.csv(textConnection(lines),comment.char="#")
+	#if there are no mutations, return an empty table
+	if (all(grepl("^#",lines))) {
+		countTable <- data.frame(HGVS=character(),count=integer())
+	} else {
+		#parse main table
+		countTable <- read.csv(textConnection(lines),comment.char="#")
+	}
 	#and attach metadata
 	attributes(countTable) <- c(attributes(countTable),metadata)
 
