@@ -24,31 +24,50 @@
 options(stringsAsFactors=FALSE)
 
 library(mavevis)
+library(tileseqMave)
 library(hgvsParseR)
+library(argparser)
+library(yogilog)
 library(yogitools)
 
+
+#process command line arguments
+p <- arg_parser(
+	"Runs mavevis locally on a MaveDB-formatted file to produce a genophenogram.",
+	name="mavevisLocal.R"
+)
+p <- add_argument(p, "infile", help="input file. Must be CSV file in MaveDB format.")
+p <- add_argument(p, "uniprot", help="Uniprot Accession for the underlying protein.")
+p <- add_argument(p, "--pdb", help="PDB structures. Semicolon-separated list of pairings between PDB IDs and chain IDS.")
+p <- add_argument(p, "--out", help="output pdf file. Defaults to the name of the input file with pdf extension.")
+args <- parse_args(p)
+
+
 #get input file argument
-infile <- getArg("infile",required=TRUE)
+# infile <- getArg("infile",required=TRUE)
 #and check that the file exists and can be read
-if (!canRead(infile)) {
+if (!canRead(args$infile)) {
 	stop("The given input file does not exist or cannot be read!")
 }
-if (!grepl("\\.csv$",infile)) {
+if (!grepl("\\.csv$",args$infile)) {
 	stop("The given input file is not a CSV file!")
 }
 
 #get the uniprot id argument and validate
-uniprot <- getArg("uniprot",required=TRUE)
+# uniprot <- getArg("uniprot",required=TRUE)
 uniprotRX <- "^[OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9]([A-Z][A-Z0-9]{2}[0-9]){1,2}$"
-if (!grepl(uniprotRX,uniprot)) {
+if (!grepl(uniprotRX,args$uniprot)) {
 	stop("The given Uniprot Accession is invalid!")
 }
 #TODO: Validate internet connection
 
 #get the PDB argument, parse and validate it.
-pdbArg <- getArg("pdb",default=NULL)
-if (!is.null(pdbArg)) {
-	pdb <- strsplit(pdbArg,";")[[1]]
+# pdbArg <- getArg("pdb",default=NULL)
+if (!is.na(args$pdb)) {
+	if (!grepl("#",args$pdb)){
+		stop("PDB argument must indicate PDB ID and chain ID separated by a hash character.")
+	}
+	pdb <- strsplit(args$pdb,";")[[1]]
 	pdbIds <- sapply(strsplit(pdb,"#"),`[[`,1)
 	pdbChains <- sapply(strsplit(pdb,"#"),`[[`,2)
 
@@ -61,14 +80,18 @@ if (!is.null(pdbArg)) {
 }
 
 
-pdffile <- getArg("pdfOut",default=NULL)
-if (is.null(pdffile)) {
-	pdffile <- sub("\\.csv",".pdf",infile)
-}
+# pdffile <- getArg("pdfOut",default=NULL)
+pdffile <- if (is.na(args$out)) sub("\\.csv$",".pdf",args$infile) else args$out
+# if (is.null(pdffile)) {
+# 	pdffile <- sub("\\.csv",".pdf",args$infile)
+# }
 
 
 cat("Reading and parsing input data...")
-indata <- read.csv(infile)
+indata <- read.csv(args$infile,comment.char="#")
+if (!all(c("hgvs_pro","score") %in% colnames(indata))) {
+	stop("Input file must be in MaveDB format!")
+}
 mutdata <- parseHGVS(indata$hgvs_pro,aacode=1)
 mutdata[which(mutdata$variant=="*"),"type"] <- "nonsense"
 data <- cbind(mutdata,indata[,-1])
@@ -83,17 +106,17 @@ wt.aa[[1]] <- "M"
 
 if (any(is.na(wt.aa))) {
 	warning("Unable to fully derive WT sequence! Defaulting to Uniprot sequence.")
-	wt.aa <- yogitools::toChars(mavevis::getUniprotSeq(uniprot))
+	wt.aa <- yogitools::toChars(mavevis::getUniprotSeq(args$uniprot))
 }
 
 td <- new.trackdrawer(length(wt.aa),nox=TRUE)
 
-if (!is.null(uniprot)) {
-	cons <- calc.conservation(uniprot)
+if (!is.null(args$uniprot)) {
+	cons <- calc.conservation(args$uniprot)
 	td$add.constrack(cons)
 }
 
-if (!is.null(pdbArg)) {
+if (!is.na(args$pdb)) {
 
 	strucfeats <- mapply(calc.strucfeats,pdbIds,pdbChains,SIMPLIFY=FALSE)
 
