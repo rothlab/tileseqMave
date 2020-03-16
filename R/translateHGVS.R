@@ -207,6 +207,8 @@ translateHGVS <- function(hgvs, params,
 	aaChanges <- as.df(lapply(Reduce(union,affectedCodons), function(codonIdx) {
 		#extract relevant codon sequence
 		codon <- codons[[codonIdx]]
+		#make a copy of the unchanged codon for reference matching purposes
+		originalCodon <- codon
 		cStart <- (codonIdx-1)*3+1
 		#pull up the relevant mutation entries that affect this codon
 		relevantMuts <- which(sapply(affectedCodons,function(l) codonIdx %in% l))
@@ -223,7 +225,7 @@ translateHGVS <- function(hgvs, params,
 				substitution={
 					if (strictMode) {
 						wtNc <- breakdown[mi,"ancestral"]
-						if (substr(codon,mStartInner,mStartInner) != wtNc) {
+						if (substr(originalCodon,mStartInner,mStartInner) != wtNc) {
 							stop("Reference mismatch!")
 						}
 					}
