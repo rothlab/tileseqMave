@@ -97,7 +97,6 @@ selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logg
 	indelIdx <- which(toAA=="-" | nchar(toAA) > 1)
 	marginalCounts <- marginalCounts[-indelIdx,]
 
-
 	#iterate over conditions
 	for (sCond in getSelects(params)) {
 
@@ -113,6 +112,10 @@ selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logg
 				next
 			}
 			scores <- read.csv(scoreFile)
+
+			#ordering should match scores
+			rownames(scores) <- scores$hgvsc
+			scores <- scores[marginalCounts$hgvsc,]
 
 			#run replicate correlation analysis
 			if (params$numReplicates[[sCond]] > 1) {
@@ -154,7 +157,7 @@ replicateCorrelation <- function(scores, marginalCounts, params, sCond, tp, outD
 	#pull up matching nonselect and WT controls
 	nCond <- getNonselectFor(sCond,params)
 	sRep <- params$numReplicates[[sCond]]
-	nsRep <- params$numReplicates[[msCond]]
+	nsRep <- params$numReplicates[[nCond]]
 	condQuad <- c(
 		select=sCond,
 		nonselect=nCond,
@@ -171,7 +174,7 @@ replicateCorrelation <- function(scores, marginalCounts, params, sCond, tp, outD
 
 	#check that labels match between tables
 	if (!all(scores$hgvsp == marginalCounts$hgvsp)) {
-		stop("Variants differ between counts and scores!")
+		stop("scores and marginal count files mismatch.")
 	}
 
 	#replicate column name matrix
