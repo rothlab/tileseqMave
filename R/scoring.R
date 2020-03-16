@@ -122,6 +122,7 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=N
 			selWT=getWTControlFor(sCond,params),
 			nonWT=getWTControlFor(nCond,params)
 		)
+		condNames <- names(condQuad)
 
 		#Workaround: Since R doesn't like variable names starting with numerals, 
 		# we need to adjust any of those cases
@@ -157,35 +158,42 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=N
 				#Calculate means, stdevs and average count for each condition
 				msc <- do.call(cbind,lapply(condQuad, mean.sd.count, regionalCounts, tp, params))
 
-				#fit tile-specific error models
-				logInfo("Fitting error models for each tile")
-				models <- runModelFits(msc,condNames,regionalCounts$tile, mc.cores=mc.cores)
+				#error modeling only if more than one replicate exists
+				if (params$numReplicates[[sCond]] > 1) {
 
-				#tabulate model parameters
-				modelParams <- lapply(models,function(ms) do.call(rbind,lapply(ms,function(ls)do.call(c,ls[-1]))) )
-				for (cond in condNames) {
-					colnames(modelParams[[cond]]) <- paste0(cond,".",colnames(modelParams[[cond]]))
-				}
-				modelParams <- do.call(cbind,modelParams)
-				allModelParams <<- rbind(allModelParams,modelParams)
+					#fit tile-specific error models
+					logInfo("Fitting error models for each tile")
+					models <- runModelFits(msc,condNames,regionalCounts$tile, mc.cores=mc.cores)
 
-				#extract model functions
-				modelFunctions <- lapply(models,function(ms) lapply(ms,`[[`,1))
+					#tabulate model parameters
+					modelParams <- lapply(models,function(ms) do.call(rbind,lapply(ms,function(ls)do.call(c,ls[-1]))) )
+					for (cond in condNames) {
+						colnames(modelParams[[cond]]) <- paste0(cond,".",colnames(modelParams[[cond]]))
+					}
+					modelParams <- do.call(cbind,modelParams)
+					allModelParams <<- rbind(allModelParams,modelParams)
 
-				#Regularize stdev of raw frequencies
-				logInfo("Performing error regularization")
-				msc <- cbind(msc,
-					regularizeRaw(msc,
-						condNames=names(condQuad), tiles=regionalCounts$tile,
-						n=params$numReplicates[condQuad], pseudo.n=pseudo.n, 
-						modelFunctions=modelFunctions
+					#extract model functions
+					modelFunctions <- lapply(models,function(ms) lapply(ms,`[[`,1))
+
+					#Regularize stdev of raw frequencies
+					logInfo("Performing error regularization")
+					msc <- cbind(msc,
+						regularizeRaw(msc, condNames, 
+							tiles=regionalCounts$tile,
+							n=params$numReplicates[condQuad], pseudo.n=pseudo.n, 
+							modelFunctions=modelFunctions
+						)
 					)
-				)
 
-				#Apply raw filter (count and frequency thresholds met)
-				logInfo("Filtering...")
-				msc$filter <- rawFilter(msc,countThreshold)
+					#Apply raw filter (count and frequency thresholds met)
+					logInfo("Filtering...")
+					msc$filter <- rawFilter(msc,countThreshold)
 
+				} else {
+					#quick-and-dirty filter for single-replicate data
+					msc$filter <- sapply(msc$nonselect.count < 10 | msc$select.count < 1, ifelse, "count", NA) 
+				}
 				#Calculate enrichment ratios (phi) and propagate error
 				logInfo("Scoring...")
 				msc <- cbind(msc,calcPhi(msc))
@@ -199,11 +207,14 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=N
 				logInfo("Normalizing...")
 				msc <- cbind(msc,normalizeScores(msc,regionalCounts$aaChange,sdThreshold))
 
-				#Flooring and SD adjustment
-				msc <- cbind(msc,flooring(msc,params))
+				#flooring and stderr calculation only where more than one replicate exists
+				if (params$numReplicates[[sCond]] > 1) {
+					#Flooring and SD adjustment
+					msc <- cbind(msc,flooring(msc,params))
 
-				#add stderr
-				msc$se.floored <- msc$sd.floored/sqrt(params$numReplicates[[sCond]])
+					#add stderr
+					msc$se.floored <- msc$sd.floored/sqrt(params$numReplicates[[sCond]])
+				}
 				
 				#attach labels and return
 				return(cbind(regionalCounts[,1:4],msc))
@@ -227,9 +238,14 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=N
 			write.csv(scoreTable,outFile,row.names=FALSE)
 
 			#simplified (MaveDB-compatible) format
+			simpleCols <- if (srOverride) {
+				c("hgvsc","hgvsp","score","score.sd","score.sd")
+			} else {
+				c("hgvsc","hgvsp","score.floored","sd.floored","se.floored")
+			}
 			simpleTable <- scoreTable[
 				is.na(scoreTable$filter),
-				c("hgvsc","hgvsp","score.floored","sd.floored","se.floored")
+				simpleCols
 			]
 			colnames(simpleTable) <- c("hgvs_nt","hgvs_pro","score","sd","se")
 
@@ -240,20 +256,31 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=N
 
 			#collapse by amino acid change
 			logInfo("Collapsing amino acid changes...")
-			aaTable <- as.df(with(simpleTable,tapply(1:length(hgvs_pro),hgvs_pro, function(is) {
-				joint <- join.datapoints(
-					score[is],
-					sd[is],
-					rep(params$numReplicates[[sCond]],length(is))
-				)
-				list(
-					hgvs_pro=unique(hgvs_pro[is]),
-					score=joint[["mj"]],
-					sd=joint[["sj"]],
-					df=joint[["dfj"]],
-					se=joint[["sj"]]/sqrt(joint[["dfj"]])
-				)
-			})))
+			if (!srOverride) {
+				aaTable <- as.df(with(simpleTable,tapply(1:length(hgvs_pro),hgvs_pro, function(is) {
+					joint <- join.datapoints(
+						score[is],
+						sd[is],
+						rep(params$numReplicates[[sCond]],length(is))
+					)
+					list(
+						hgvs_pro=unique(hgvs_pro[is]),
+						score=joint[["mj"]],
+						sd=joint[["sj"]],
+						df=joint[["dfj"]],
+						se=joint[["sj"]]/sqrt(joint[["dfj"]])
+					)
+				})))
+			} else {
+				aaTable <- as.df(with(simpleTable,tapply(1:length(hgvs_pro),hgvs_pro, function(is) {
+					list(
+						hgvs_pro=unique(hgvs_pro[is]),
+						score=mean(fin(score[is])),
+						sd=NA,
+						df=length(fin(score[is]))
+					)
+				})))
+			}
 
 			logInfo("Writing AA-centric table to file.")
 			outFile <- paste0(outDir,sCond,"_t",tp,"_simple_aa.csv")
@@ -312,15 +339,16 @@ bnl <- function(pseudo.n,n,model.sd,empiric.sd) {
 #' @param tp the time point ID
 #' @param params the global parameters object
 mean.sd.count <- function(cond,regionalCounts,tp,params) {
+	nrep <- params$numReplicates[[cond]]
 	freqs <- regionalCounts[,sprintf("%s.t%s.rep%d.frequency",cond,tp,1:params$numReplicates[[cond]])]
 	counts <- regionalCounts[,sprintf("%s.t%s.rep%d.count",cond,tp,1:params$numReplicates[[cond]])]
-	means <- rowMeans(freqs,na.rm=TRUE)
-	sds <- apply(freqs,1,sd,na.rm=TRUE)
+	means <- if (nrep > 1) rowMeans(freqs,na.rm=TRUE) else freqs
+	sds <- if (nrep > 1) apply(freqs,1,sd,na.rm=TRUE) else rep(NA,length(freqs))
 	out <- data.frame(
 		mean=means,
 		sd=sds,
 		cv=sds/means,
-		count=rowMeans(counts,na.rm=TRUE)
+		count=if(nrep>1)rowMeans(counts,na.rm=TRUE) else counts
 		# csd=apply(counts,1,sd,na.rm=TRUE)
 	)
 	return(out)
@@ -421,7 +449,7 @@ regularizeRaw <- function(msc,condNames,tiles,n,pseudo.n, modelFunctions) {
 	regul <- do.call(cbind,lapply(condNames, function(cond) {
 		sd.prior <- sapply(1:nrow(msc), function(i) {
 			count <- msc[i,paste0(cond,".count")]
-			tile <- tiles[[i]]
+			tile <- as.character(tiles[[i]])
 			modelfun <- modelFunctions[[cond]][[tile]]
 			if (is.function(modelfun)) {
 				cv.prior <- modelfun(count)
@@ -453,12 +481,14 @@ calcPhi <- function(msc) {
 		floor0(select.mean-selWT.mean)/floor0(nonselect.mean-nonWT.mean)
 	})
 	#and its stdev
-	phi.sd <- with(msc,ratio.sd(
-		m1=floor0(select.mean-selWT.mean),
-		m2=floor0(nonselect.mean-nonWT.mean),
-		sd1=sqrt(select.sd.bayes^2+selWT.sd.bayes^2),
-		sd2=sqrt(nonselect.sd.bayes^2+nonWT.sd.bayes^2)
-	))
+	phi.sd <- if ("select.sd.bayes" %in% colnames(msc)) {
+		with(msc,ratio.sd(
+			m1=floor0(select.mean-selWT.mean),
+			m2=floor0(nonselect.mean-nonWT.mean),
+			sd1=sqrt(select.sd.bayes^2+selWT.sd.bayes^2),
+			sd2=sqrt(nonselect.sd.bayes^2+nonWT.sd.bayes^2)
+		))
+	} else rep(NA,length(phi))
 	#as well as logPhi and its stdev
 	logPhi <- log10(phi)
 	logPhi.sd <- with(msc,log.sd(phi,phi.sd))
@@ -478,12 +508,21 @@ normalizeScores <- function(msc,aac,sdThreshold) {
 		if (from==to) "synonymous" else if (to=="*") "nonsense" else "missense"
 	},fromAA,toAA))
 	#calculate medians
-	nonsenseMedian <- with(msc,median(
-		logPhi[which(is.na(filter) & type == "nonsense" & logPhi.sd < sdThreshold)]
-	,na.rm=TRUE))
-	synonymousMedian <- with(msc,median(
-		logPhi[which(is.na(filter) & type == "synonymous" & logPhi.sd < sdThreshold)]
-	,na.rm=TRUE))
+	if (!all(is.na(msc$logPhi.sd))) {
+		nonsenseMedian <- with(msc,median(
+			logPhi[which(is.na(filter) & type == "nonsense" & logPhi.sd < sdThreshold)]
+		,na.rm=TRUE))
+		synonymousMedian <- with(msc,median(
+			logPhi[which(is.na(filter) & type == "synonymous" & logPhi.sd < sdThreshold)]
+		,na.rm=TRUE))
+	} else {
+		nonsenseMedian <- with(msc,median(
+			logPhi[which(is.na(filter) & type == "nonsense")]
+		,na.rm=TRUE))
+		synonymousMedian <- with(msc,median(
+			logPhi[which(is.na(filter) & type == "synonymous")]
+		,na.rm=TRUE))
+	}
 	#use medians to normalize
 	score <- (msc$logPhi - nonsenseMedian) / (synonymousMedian - nonsenseMedian)
 	score.sd <- msc$logPhi.sd / (synonymousMedian - nonsenseMedian)
