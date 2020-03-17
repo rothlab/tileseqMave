@@ -118,11 +118,11 @@ selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logg
 			scores <- scores[marginalCounts$hgvsc,]
 
 			#Score distributions & syn/non medians
-			scoreDistributions(scores,sCond,tp,outDir,sdCutoff)
+			scoreDistributions(scores,sCond,tp,outDir,sdCutoff,params)
 
 			#all of these analyses require more than one replicate
 			if (params$numReplicates[[sCond]] > 1) {
-				
+
 				#run replicate correlation analysis
 				replicateCorrelation(scores, marginalCounts, params, sCond, tp, outDir)
 
@@ -384,12 +384,24 @@ regularizationQC <- function(scores,modelParams,params,sCond,tp,outDir) {
 #' @param tp the time point
 #' @param outDir the output directory
 #' @return NULL
-scoreDistributions <- function(scores,sCond,tp,outDir,sdCutoff) {
+scoreDistributions <- function(scores,sCond,tp,outDir,sdCutoff,params) {
+	
+	#subdivide data into regions
+	mutpos <- as.integer(extract.groups(scores$aaChange,"(\\d+)")[,1])
+	mutregion <- with(as.data.frame(params$regions),sapply(mutpos,function(p) {
+		which(p >= `Start AA` & p <= `End AA`)
+	}))
+
 	outfile <- paste0(outDir,sCond,"_t",tp,"_logPhiDistribution.pdf")
 	pdf(outfile,11,8.5)
 	layout(rbind(1,2,3,4),heights=c(1.2,1,1.2,1))
-	drawDistributions(scores,Inf)
-	drawDistributions(scores,sdCutoff)
+	invisible(tapply(1:nrow(scores),mutregion, function(is) {
+		reg <- unique(mutregion[is])
+		drawDistributions(scores[is,],Inf,reg)
+		drawDistributions(scores[is,],sdCutoff,reg)
+		return(NULL)
+	}))
+
 	invisible(dev.off())
 }
 
@@ -398,7 +410,7 @@ scoreDistributions <- function(scores,sCond,tp,outDir,sdCutoff) {
 #' @param scores the score table
 #' @param sdCutoff the stdev cutoff to apply
 #' @return NULL
-drawDistributions <- function(scores,sdCutoff) {
+drawDistributions <- function(scores,sdCutoff=Inf,reg=NA) {
 	#extract filtered scores
 	synScores <- with(scores,logPhi[grepl("=$",hgvsp) & is.na(filter) & logPhi.sd < sdCutoff ])
 	stopScores <- with(scores,logPhi[grepl("Ter$",hgvsp) & is.na(filter)& logPhi.sd < sdCutoff])
@@ -423,7 +435,11 @@ drawDistributions <- function(scores,sdCutoff) {
 		rbind(synHist$density,stopHist$density),
 		beside=TRUE,col=c("darkolivegreen3","firebrick3"),
 		border=NA,ylab="density",space=c(0,0),
-		main=if (is.infinite(sdCutoff)) "Unfiltered" else bquote(sigma < .(sdCutoff))
+		main=if (is.infinite(sdCutoff)) {
+			paste("Region",reg,"; Unfiltered")
+		} else {
+			bquote("Region"~.(reg)~";"~sigma < .(sdCutoff))
+		}
 	)
 	grid(NA,NULL)
 	#add x-axis
