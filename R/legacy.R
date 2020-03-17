@@ -261,7 +261,7 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL,
 
 	#parse the input files
 	rawCounts <- read.delim(countfile)
-	regions <- read.delim(regionfile)
+	regions <- read.delim(regionfile, sep=",")
 
 	#check that all required columns exist and contain the correct data types.
 	stopifnot(
