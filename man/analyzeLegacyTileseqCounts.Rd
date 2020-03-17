@@ -17,7 +17,7 @@ analyzeLegacyTileseqCounts(
 \arguments{
 \item{countfile}{the path to the "rawData.txt" file produced by the legacy pipeline.}
 
-\item{regionfile}{the path to a csv file describing the mutagenesis regions. Must contain columns 
+\item{regionfile}{the path to a tab-delimited file describing the mutagenesis regions. Must contain columns 
 'region', start', 'end', 'syn', 'stop', i.e. the region id, the start position, end position, and
 and optional synonymous and stopm mean overrides.}
 

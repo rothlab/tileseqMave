@@ -4,10 +4,12 @@
 \alias{validateParameters}
 \title{run validation checks on parameters object}
 \usage{
-validateParameters(params)
+validateParameters(params, srOverride = FALSE)
 }
 \arguments{
 \item{params}{parameter object to validate}
+
+\item{srOverride}{single replicate override - allows single replicates}
 }
 \value{
 TRUE if everything checks out, otherwise it throws errors

@@ -11,7 +11,8 @@ scoring(
   mc.cores = 6,
   countThreshold = 10,
   pseudo.n = 8,
-  sdThreshold = 0.3
+  sdThreshold = 0.3,
+  srOverride = FALSE
 )
 }
 \arguments{

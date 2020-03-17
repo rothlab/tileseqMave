@@ -4,7 +4,7 @@
 \alias{parseParameters}
 \title{parse JSON parameter file}
 \usage{
-parseParameters(filename)
+parseParameters(filename, srOverride = FALSE)
 }
 \arguments{
 \item{filename}{the input CSV file}

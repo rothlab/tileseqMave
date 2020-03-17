@@ -7,7 +7,8 @@
 csvParam2Json(
   infile,
   outfile = sub("[^/]+$", "parameters.json", infile),
-  logger = NULL
+  logger = NULL,
+  srOverride = FALSE
 )
 }
 \arguments{

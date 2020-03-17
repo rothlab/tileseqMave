@@ -8,7 +8,8 @@ libraryQC(
   dataDir,
   paramFile = paste0(dataDir, "parameters.json"),
   logger = NULL,
-  mc.cores = 6
+  mc.cores = 6,
+  srOverride = FALSE
 )
 }
 \arguments{

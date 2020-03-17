@@ -201,7 +201,7 @@ legacyCountConverter <- function(dataDir, outdir,
 #' 9. Output in MaveDB format.
 #' 
 #' @param countfile the path to the "rawData.txt" file produced by the legacy pipeline.
-#' @param regionfile the path to a csv file describing the mutagenesis regions. Must contain columns 
+#' @param regionfile the path to a tab-delimited file describing the mutagenesis regions. Must contain columns 
 #'  'region', start', 'end', 'syn', 'stop', i.e. the region id, the start position, end position, and
 #'  and optional synonymous and stopm mean overrides.
 #' @param outdir path to desired output directory
@@ -261,7 +261,7 @@ analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL,
 
 	#parse the input files
 	rawCounts <- read.delim(countfile)
-	regions <- read.delim(regionfile, sep=",")
+	regions <- read.delim(regionfile)
 
 	#check that all required columns exist and contain the correct data types.
 	stopifnot(

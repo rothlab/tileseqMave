@@ -8,7 +8,8 @@ selectionQC(
   dataDir,
   paramFile = paste0(dataDir, "parameters.json"),
   logger = NULL,
-  sdCutoff = 0.3
+  sdCutoff = 0.3,
+  srOverride = TRUE
 )
 }
 \arguments{
