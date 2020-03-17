@@ -21,7 +21,7 @@
 #' @param paramFile input parameter file. defaults to <dataDir>/parameters.json
 #' @return NULL. Results are written to file.
 #' @export
-selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=NULL, sdCutoff=0.3,srOverride=TRUE) {
+selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=NULL, sdCutoff=0.3,srOverride=FALSE) {
 
 
 	op <- options(stringsAsFactors=FALSE)
@@ -117,23 +117,25 @@ selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logg
 			rownames(scores) <- scores$hgvsc
 			scores <- scores[marginalCounts$hgvsc,]
 
-			#run replicate correlation analysis
-			if (params$numReplicates[[sCond]] > 1) {
-				replicateCorrelation(scores, marginalCounts, params, sCond, tp, outDir)
-			}
-
-			#load error model file
-			modelFile <- paste0(latestScoreDir,"/",sCond,"_t",tp,"_errorModel.csv")
-			modelParams <- read.csv(modelFile)
-
-			#Regularization analysis
-			regularizationQC(scores,modelParams,params,sCond,tp,outDir)
-			
 			#Score distributions & syn/non medians
 			scoreDistributions(scores,sCond,tp,outDir,sdCutoff)
 
-			#Error profile
-			errorProfile(scores,sCond,tp,outDir)
+			#all of these analyses require more than one replicate
+			if (params$numReplicates[[sCond]] > 1) {
+				
+				#run replicate correlation analysis
+				replicateCorrelation(scores, marginalCounts, params, sCond, tp, outDir)
+
+				#load error model file
+				modelFile <- paste0(latestScoreDir,"/",sCond,"_t",tp,"_errorModel.csv")
+				modelParams <- read.csv(modelFile)
+
+				#Regularization analysis
+				regularizationQC(scores,modelParams,params,sCond,tp,outDir)
+			
+				#Error profile
+				errorProfile(scores,sCond,tp,outDir)
+			}
 
 		}
 	}
