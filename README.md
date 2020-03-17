@@ -22,7 +22,14 @@ The parameter sheet has the following sections:
   1. Project name: This can be any name you like
   2. Template construct: Here we define the sequencing template, its sequence and what it represents.
     * Gene name: The official HGNC gene name
-    * Sequence: The full sequence of the template including the coding sequence (CDS) and its flanking priming sequences.
+    * Sequence: The full nucleotide sequence of the template including the coding sequence (CDS) and its flanking priming sequences.
     * CDS start: The position in the above sequence at which the coding sequence (CDS) begins. This must be an ATG codon! (Numbering starts at 1, not at 0; don't @ me, nerds. :P )
-    * CDS end
+    * CDS end: The equivalent sequence position at which the CDS ends. This must be in-frame with the start position, i.e. end-start+1 must be divisible by 3.
+    * Uniprot Accession: The UniprotKB accession of the protein encoded by the template gene.
+  3. Assay: A summary of the underlying selection assay
+    * Assay Type: This can be any free-text label you like. Pick a simple name, like "Y2H", "Yeast complementation" or "LDL uptake via FACS"
+    * Selection: This field indicates whether the assay performs a positive or negative selection. So only the values "Positive" and "Negative" are allowed. Positive selection indicates that the assay causes damaging variants to be depleted in the pool, where as negative selection indicates that the assay causes neutral variants to be depleted. (Most assays will be positive).
+  4. Conditions and replicates: This is a custom table that lists the different experimental conditions and their intended number of replicates and timepoints.
+
+
 
