@@ -100,6 +100,66 @@ The parameter sheet has the following sections:
     * Replicate: The replicate to which this sample belongs. This must be an integer number and must be within the range of replicates defined for the appropriate condition.
 
 ### Converting the parameter sheet
-To convert the parameter sheet to JSON format you can use the csv2json.R script
+To convert the parameter sheet to JSON format you can use the csv2json.R script. This will also perform a validation of the parameter sheet, ensuring that all requirements have been met.
 
+```
+usage: csv2json.R [--] [--help] [--srOverride] [--opts OPTS] [--outfile
+       OUTFILE] [--logfile LOGFILE] infile
+
+Checks TileSeq parameter CSV file for validity and converts it to JSON
+format.
+
+positional arguments:
+  infile            input file
+
+flags:
+  -h, --help        show this help message and exit
+  -s, --srOverride  Manual override to allow singleton replicates. USE
+                    WITH EXTREME CAUTION!
+
+optional arguments:
+  -x, --opts        RDS file containing argument values
+  -o, --outfile     output file. Defaults to parameters.json in the
+                    same directory.
+  -l, --logfile     log file. Defaults to csv2json.log in the same
+                    directory.
+```
+The resulting JSON file is used by all subsequent components of the pipeline.
+
+## Counting variants from FASTQ data
+This step is performed by [tilseq_mutcount](https://github.com/RyogaLi/tilseq_mutcount). Check out the respective github page for full instructions. This requires a HPC environment. In the Roth Lab, this will be either the Guru or Galen system at LTRI, or the BC2 or DC system at the Donnelly Centre.
+
+You will first want to create a workspace folder in which the output will be collected. For example "MTHFR_Complementation/". Place your parameter sheet into this folder to ensure all input and output is organized together. Then, run the script using this directory as the output folder.
+
+The result of this tool will include a subdirectory with a name like: `MTHFR_Complementation/2020-02-20-11-15-49_mut_call/`, containing a timestamp of the script execution. This "mut_call" subdirectory will serve as the input for the next step. It contains individual count files for each sequencing sample.
+
+## Joining variant counts and computing marginal frequencies
+This step is performed by `joinCounts.R`. It will collate the counts from the individual sequencing samples and organize them by variant and condition/replicate. This step will also translate the called variants to protein level. As a result, two new files will be added to the `mut_call` directory: all_counts.csv and marginal_counts.csv
+
+```
+usage: joinCounts.R [--] [--help] [--srOverride] [--opts OPTS]
+       [--parameters PARAMETERS] [--logfile LOGFILE] [--cores CORES]
+       dataDir
+
+Reads the output of fastq2Count to construct allCounts.csv and
+marginalCounts.csv
+
+positional arguments:
+  dataDir           workspace data directory
+
+flags:
+  -h, --help        show this help message and exit
+  -s, --srOverride  Manual override to allow singleton replicates. USE
+                    WITH EXTREME CAUTION!
+
+optional arguments:
+  -x, --opts        RDS file containing argument values
+  -p, --parameters  parameter file. Defaults to parameters.json in the
+                    data directory.
+  -l, --logfile     log file. Defaults to joinCounts.log in the same
+                    directory
+  -c, --cores       number of CPU cores to use in parallel for
+                    multi-threading [default: 6]
+
+```
 
