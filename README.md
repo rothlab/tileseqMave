@@ -2,7 +2,50 @@
 
 Analysis functions for TileSEQ.
 
-## Overview
+## Requirements and Installation
+
+tileseqMave requires R &ge; 3.4.4 and has a number of R package dependencies, which will be installed automatically. It also uses the output of [tilseq_mutcount](https://github.com/RyogaLi/tilseq_mutcount), which should be installed separately.
+
+To install tileseqMave, use R devtools:
+
+```R
+install.packages("devtools")
+devtools::install_github("jweile/tileseqMave")
+```
+
+The tileseqMave R package comes with a set of wrapper scripts, which can be symlinked to your preferred `bin/` directory, such that they become available in your `$PATH`. Here's a quick set of R commands to automatically create these symlinks:
+
+```R
+#target bin directory
+targetDir <- "~/.local/bin/"
+
+#list of scripts to link
+scripts <- c(
+	"csv2json.R","joinCounts.R","runLibraryQC.R",
+	"runScoring.R","runSelectionQC.R","mavevisLocal.R"
+)
+
+#find scripts folder in the local library installation
+scriptsFolder <- system.file("scripts/",
+	package = "tileseqMave",
+	mustWork = TRUE
+)
+
+#function to create symlinks
+linkScript <- function(scriptName,targetDir="~/.local/bin/") {
+	scriptPath <- paste0(scriptsFolder,scriptName)
+	if (!file.exists(scriptPath)) {
+		stop(scriptName, "not found!")
+	}
+	file.symlink(from=scriptPath,to=paste0(targetDir,scriptName))
+}
+
+#run the function
+lapply(scripts,linkScript,targetDir=targetDir)
+
+```
+
+## Overview of the pipeline
 
 The TileSEQ pipeline breaks down into multiple modules:
 
@@ -41,7 +84,7 @@ The parameter sheet has the following sections:
     * Tile number: A simple numbering of the tiles to serve as identifiers thereof.
     * Start AA: The first amino acid position that counts as within the tile.
     * End AA: The last amino acid position that counts as within the tile.
-7. **Condition definitions**: This section is used to define the meanings of the different conditions as to how they relate to each other. Currently, two kinds of relationships are supported: `is_selection_for`, and `is_wt_control_for`. For example, if we have defined three conditions in section 4; sel, non and ctrl, then sel could be the selection condition for non and ctrl could be the wt control for either of them. These relationships are defined using a fixed table with three columns: 
+7. **Condition definitions**: This section is used to define the meanings of the different conditions as to how they relate to each other. Currently, two kinds of relationships are supported: `is_selection_for`, and `is_wt_control_for`. For example, if we have defined three conditions in section 4; sel, non and ctrl, then sel could be the selection condition for non and ctrl could be the wt control for either of them. These relationships are defined using a fixed table with three columns:
     * Condition 1: The ID of the first condition in the relationship. Must have been previously declared in the list of conditions.
     * Relationship: The name of the relationship, either `is_selection_for` or `is_wt_control_for`
     * Condition 2: The ID of the section condition in the relationship. Must have been previously declared in the list of conditions.
@@ -56,5 +99,7 @@ The parameter sheet has the following sections:
     * Time point: The time point to which this sample belongs. This is a cross-reference to the Time point definitions and must have a matching entry there.
     * Replicate: The replicate to which this sample belongs. This must be an integer number and must be within the range of replicates defined for the appropriate condition.
 
+### Converting the parameter sheet
+To convert the parameter sheet to JSON format you can use the csv2json.R script
 
 
