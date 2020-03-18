@@ -19,17 +19,42 @@ tileseqMave uses a central input document called the parameter sheet, which atte
 
 The parameter sheet has the following sections:
 
-1. Project name: This can be any name you like
-2. Template construct: Here we define the sequencing template, its sequence and what it represents.
+1. **Project name**: This can be any name you like
+2. **Template construct**: Here we define the sequencing template, its sequence and what it represents.
     * Gene name: The official HGNC gene name
     * Sequence: The full nucleotide sequence of the template including the coding sequence (CDS) and its flanking priming sequences.
     * CDS start: The position in the above sequence at which the coding sequence (CDS) begins. This must be an ATG codon! (Numbering starts at 1, not at 0; don't @ me, nerds. :P )
     * CDS end: The equivalent sequence position at which the CDS ends. This must be in-frame with the start position, i.e. end-start+1 must be divisible by 3.
     * Uniprot Accession: The UniprotKB accession of the protein encoded by the template gene.
-3. Assay: A summary of the underlying selection assay
+3. **Assay**: A summary of the underlying selection assay
     * Assay Type: This can be any free-text label you like. Pick a simple name, like "Y2H", "Yeast complementation" or "LDL uptake via FACS"
     * Selection: This field indicates whether the assay performs a positive or negative selection. So only the values "Positive" and "Negative" are allowed. Positive selection indicates that the assay causes damaging variants to be depleted in the pool, where as negative selection indicates that the assay causes neutral variants to be depleted. (Most assays will be positive).
-4. Conditions and replicates: This is a custom table that lists the different experimental conditions and their intended number of replicates and timepoints.
+4. **Conditions and replicates**: This is a custom table that lists the different experimental conditions and their intended number of replicates and time points.
+    * List of conditions: In this table row, provide a list of condition identifiers. These should be short and must not contain any special characters.
+    * Number of replicates: For each of the defined conditions in the previous row, provide the number of technical replicates here.
+    * Number of time points: For each of the defined conditions in the first row, provide the number of timepoints. (At the time of writing, this feature has not been implemented yet).
+5. **Mutagenesis regions**: This is a fixed table defining the regions which underwent separate PopCode mutagenesis. It has the following columns:
+    * Region number: A simple numbering of the regions to serve as identifiers thereof.
+    * Start AA: The first amino acid position that counts as within the region.
+    * End AA: The last amino acid position that counts as within the region.
+6. **Sequencing tiles**: This also a fixed table, defining the eponymous TileSeq sequencing tiles in the experiment. It has the following columns:
+    * Tile number: A simple numbering of the tiles to serve as identifiers thereof.
+    * Start AA: The first amino acid position that counts as within the tile.
+    * End AA: The last amino acid position that counts as within the tile.
+7. **Condition definitions**: This section is used to define the meanings of the different conditions as to how they relate to each other. Currently, two kinds of relationships are supported: `is_selection_for`, and `is_wt_control_for`. For example, if we have defined three conditions in section 4; sel, non and ctrl, then sel could be the selection condition for non and ctrl could be the wt control for either of them. These relationships are defined using a fixed table with three columns: 
+    * Condition 1: The ID of the first condition in the relationship. Must have been previously declared in the list of conditions.
+    * Relationship: The name of the relationship, either `is_selection_for` or `is_wt_control_for`
+    * Condition 2: The ID of the section condition in the relationship. Must have been previously declared in the list of conditions.
+8. **Time point definitions**: This fixed table is used to define time points in the experiment. At least one time point must be defined. The table has the following columns:
+    * Time point name: The name of the timepoint. This should be a short identifier without spaces or special characters
+    * Time: The numerical part of time point definition.
+    * Unit: The time unit, such as "s" for seconds, "m" for minutes, "h" for hours, "d" for days, etc.
+9. **Sequencing samples**: This final table contains the information of what the sequencing samples represent. It has the following columns:
+    * Sample ID: This is the ID of the sample used in the name of the corresponding pair of FASTQ files. This can be a number or an alphanumerical label. No special characters (except "-" signs) are allowed.
+    * Tile ID: The sequencing tile to which this sample belongs. This is a cross-reference to the "Tile Number" in the "Sequencing tiles" table and must have a matching entry there.
+    * Condition: The condition to which this sample belongs. This is a cross-reference to the list of condition names and must have a matching entry there.
+    * Time point: The time point to which this sample belongs. This is a cross-reference to the Time point definitions and must have a matching entry there.
+    * Replicate: The replicate to which this sample belongs. This must be an integer number and must be within the range of replicates defined for the appropriate condition.
 
 
 
