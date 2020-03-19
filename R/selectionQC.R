@@ -494,8 +494,8 @@ errorProfile <- function(scores,sCond,tp,outDir) {
 	outfile <- paste0(outDir,sCond,"_t",tp,"_errorProfile.pdf")
 	pdf(outfile,5,5)
 
-	sdRange <- range(log10(scores[is.na(scores$filter),"score.sd"]))
-	scoreRange <- range(scores[is.na(scores$filter),"score"])
+	sdRange <- range(log10(scores[is.na(scores$filter),"score.sd"]),finite=TRUE)
+	scoreRange <- range(scores[is.na(scores$filter),"score"],finite=TRUE)
 
 	layout(rbind(c(2,4),c(1,3)),widths=c(0.8,0.2),heights=c(0.2,0.8))
 	op <- par(mar=c(5,4,0,0)+.1) 
