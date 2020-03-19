@@ -21,7 +21,8 @@
 #' @param paramFile input parameter file. defaults to <dataDir>/parameters.json
 #' @return NULL. Results are written to file.
 #' @export
-libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=NULL,mc.cores=6,srOverride=FALSE) {
+libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
+	logger=NULL,mc.cores=6,srOverride=FALSE, wmThreshold=5e-5) {
 
 	op <- options(stringsAsFactors=FALSE)
 
@@ -367,8 +368,7 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger
 				startPos <- min(params$tiles[tiles,"Start AA"])
 				endPos <- max(params$tiles[tiles,"End AA"])
 				seps <- params$tiles[tiles,"Start AA"][-1]
-				coverageSubmap(startPos,endPos,aaMarginal,seps)
-				#TODO: Obtain number of reads in each tile and add to plot
+				coverageSubmap(startPos,endPos,aaMarginal,seps,thresholds=c(wmThreshold/10,wmThreshold))
 				#and plot the corresponding censi
 				lapply(tiles, function(tile) {
 					depths <- with(depthTable,depth[
@@ -383,6 +383,7 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger
 				})
 			})
 		}))
+		drawCoverageLegend(wmThreshold,aaMarginal)
 		invisible(dev.off())
 
 		#######################
@@ -502,9 +503,10 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger
 
 			#draw the plot
 			plotcolors <- c(
-				`codon changes`="black",`SNVs`="gray",
+				`codon changes`="black",`SNVs`="gray50",
 				`AA changes`="firebrick3",`SNV-reachable AA changes`="firebrick2"
 			)
+			linetypes <- rep(c("solid","dashed"),2)
 			plot(NA,type="n",
 				log="x",xlim=range(thresholds),ylim=c(0,1),
 				xlab="Marginal read frequency cutoff",
@@ -512,10 +514,11 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger
 				main=paste0("Region #",ri)
 			)
 			for (i in 1:4) {
-				lines(coverageCurves[,c(1,i+1)],col=plotcolors[[i]])
+				lines(coverageCurves[,c(1,i+1)],col=plotcolors[[i]],lty=linetypes[[i]],lwd=2)
 			}
 			grid()
-			legend("bottomleft",names(plotcolors),col=plotcolors,lty=1)
+			abline(v=wmThreshold,lty="dotted",col="gray50")
+			legend("bottomleft",names(plotcolors),col=plotcolors,lty=linetypes,lwd=2)
 
 			return(coverageCurves)
 
@@ -612,6 +615,21 @@ coverageSubmap <- function(startPos,endPos,aaMarginal,seps=NULL,thresholds=c(1e-
 	par(op)
 
 	invisible(return(NULL))	
+}
+
+#draws the legend for the coverage maps (see above)
+drawCoverageLegend <- function(wmThreshold,aaMarginal) {
+	cmap <- yogitools::colmap(log10(c(wmThreshold/10,wmThreshold,1)),c("white","orange","firebrick3"))
+	op <- par(mar=c(5,4,0,0)+.1)
+	plot(NA,type="n",xlim=c(1e-7,1),ylim=c(0,5),log="x",axes=FALSE,ylab="",xlab="marginal frequency")
+	axis(1)
+	stops <- 10^seq(-7,0,length.out=100)
+	histo <- hist(aaMarginal$freq,breaks=c(0,stops),plot=FALSE)
+	bars <- histo$counts/max(histo$counts)
+	rect(stops[-100],0,stops[-1],1,col=cmap(log10(stops[-100])),border=NA)
+	rect(stops[-100],1,stops[-1],1+4*bars[-100],col="gray",border=NA)
+	abline(v=wmThreshold,lty="dashed")
+	par(op)
 }
 
 #helper function to find the tiles that belong to each region
