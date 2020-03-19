@@ -192,7 +192,7 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=N
 
 				} else {
 					#quick-and-dirty filter for single-replicate data
-					msc$filter <- sapply(msc$nonselect.count < 10 | msc$select.count < 1, ifelse, "count", NA) 
+					msc$filter <- sapply(msc$nonselect.count < countThreshold | msc$select.count < 1, ifelse, "count", NA) 
 				}
 				#Calculate enrichment ratios (phi) and propagate error
 				logInfo("Scoring...")
