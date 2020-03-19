@@ -41,8 +41,9 @@ p <- arg_parser(
 p <- add_argument(p, "dataDir", help="workspace data directory")
 p <- add_argument(p, "--parameters", help="parameter file. Defaults to parameters.json in the data directory.")
 p <- add_argument(p, "--logfile", help="log file. Defaults to libraryQC.log in the same directory")
-p <- add_argument(p, "--cores", default=6, help="number of CPU cores to use in parallel for multi-threading")
+p <- add_argument(p, "--cores", default=6L, help="number of CPU cores to use in parallel for multi-threading")
 p <- add_argument(p, "--srOverride", help="Manual override to allow singleton replicates. USE WITH EXTREME CAUTION!",flag=TRUE)
+p <- add_argument(p, "--wmThreshold", default=1e-5, help="Define the marginal frequency threshold for well-measuredness.")
 args <- parse_args(p)
 
 #ensure datadir ends in "/" and exists
@@ -64,6 +65,6 @@ registerLogErrorHandler(logger)
 
 #run the actual function
 invisible(
-	libraryQC(dataDir,paramfile,logger,mc.cores,srOverride=args$srOverride)
+	libraryQC(dataDir,paramfile,logger,mc.cores,srOverride=args$srOverride,wmThreshold=args$wmThreshold)
 )
 
