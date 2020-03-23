@@ -386,35 +386,56 @@ regularizationQC <- function(scores,modelParams,params,sCond,tp,outDir) {
 #' @return NULL
 scoreDistributions <- function(scores,sCond,tp,outDir,sdCutoff,params) {
 	
+	#collapse by amino acid consequence and associate with regions
+	aaScores <- as.df(with(scores[is.na(scores$filter),],tapply(1:length(hgvsp),hgvsp, function(is) {
+		joint <- join.datapoints(
+			logPhi[is],
+			logPhi.sd[is],
+			rep(params$numReplicates[[sCond]],length(is))
+		)
+		p <- unique(as.integer(extract.groups(aaChange[is],"(\\d+)")[,1]))
+		mutregion <- with(as.data.frame(params$regions),which(p >= `Start AA` & p <= `End AA`))
+		list(
+			hgvsp=unique(hgvsp[is]),
+			logPhi=joint[["mj"]],
+			sd=joint[["sj"]],
+			df=joint[["dfj"]],
+			se=joint[["sj"]]/sqrt(joint[["dfj"]]),
+			pos=p,
+			region=mutregion
+		)
+	})))
+	
 	#subdivide data into regions
-	mutpos <- as.integer(extract.groups(scores$aaChange,"(\\d+)")[,1])
-	mutregion <- with(as.data.frame(params$regions),sapply(mutpos,function(p) {
-		which(p >= `Start AA` & p <= `End AA`)
-	}))
+	# mutpos <- as.integer(extract.groups(scores$aaChange,"(\\d+)")[,1])
+	# mutregion <- with(as.data.frame(params$regions),sapply(mutpos,function(p) {
+	# 	which(p >= `Start AA` & p <= `End AA`)
+	# }))
 
 	outfile <- paste0(outDir,sCond,"_t",tp,"_logPhiDistribution.pdf")
 	pdf(outfile,11,8.5)
 	layout(rbind(1,2,3,4),heights=c(1.2,1,1.2,1))
-	invisible(tapply(1:nrow(scores),mutregion, function(is) {
-		reg <- unique(mutregion[is])
-		drawDistributions(scores[is,],Inf,reg)
-		drawDistributions(scores[is,],sdCutoff,reg)
+	invisible(tapply(1:nrow(aaScores),aaScores$region, function(is) {
+		reg <- unique(aaScores$region[is])
+		drawDistributions(aaScores[is,],Inf,reg)
+		drawDistributions(aaScores[is,],sdCutoff,reg)
 		return(NULL)
 	}))
-
+	drawDistributions(aaScores,Inf,"all")
+	drawDistributions(aaScores,sdCutoff,"all")
 	invisible(dev.off())
 }
 
 #' Delegation function to draw score distribution plots with a given filter setting
 #' 
-#' @param scores the score table
-#' @param sdCutoff the stdev cutoff to apply
+#' @param aaScores the score table
+#' @param seCutoff the stderr cutoff to apply
 #' @return NULL
-drawDistributions <- function(scores,sdCutoff=Inf,reg=NA) {
+drawDistributions <- function(aaScores,seCutoff=Inf,reg=NA) {
 	#extract filtered scores
-	synScores <- with(scores,logPhi[grepl("=$",hgvsp) & is.na(filter) & logPhi.sd < sdCutoff ])
-	stopScores <- with(scores,logPhi[grepl("Ter$",hgvsp) & is.na(filter)& logPhi.sd < sdCutoff])
-	misScores <- with(scores,logPhi[!grepl("Ter$|=$",hgvsp) & is.na(filter) & logPhi.sd < sdCutoff])
+	synScores <- with(aaScores,logPhi[grepl("=$",hgvsp) & se < seCutoff ])
+	stopScores <- with(aaScores,logPhi[grepl("Ter$",hgvsp) & se < seCutoff])
+	misScores <- with(aaScores,logPhi[!grepl("Ter$|=$",hgvsp) & se < seCutoff])
 	allScores <- c(synScores,stopScores,misScores)
 
 	#calculate plot ranges to nearest integers
@@ -435,10 +456,10 @@ drawDistributions <- function(scores,sdCutoff=Inf,reg=NA) {
 		rbind(synHist$density,stopHist$density),
 		beside=TRUE,col=c("darkolivegreen3","firebrick3"),
 		border=NA,ylab="density",space=c(0,0),
-		main=if (is.infinite(sdCutoff)) {
+		main=if (is.infinite(seCutoff)) {
 			paste("Region",reg,"; Unfiltered")
 		} else {
-			bquote("Region"~.(reg)~";"~sigma < .(sdCutoff))
+			bquote("Region"~.(reg)~";"~sigma < .(seCutoff))
 		}
 	)
 	grid(NA,NULL)

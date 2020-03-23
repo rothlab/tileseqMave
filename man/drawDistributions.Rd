@@ -4,12 +4,12 @@
 \alias{drawDistributions}
 \title{Delegation function to draw score distribution plots with a given filter setting}
 \usage{
-drawDistributions(scores, sdCutoff = Inf, reg = NA)
+drawDistributions(aaScores, seCutoff = Inf, reg = NA)
 }
 \arguments{
-\item{scores}{the score table}
+\item{aaScores}{the score table}
 
-\item{sdCutoff}{the stdev cutoff to apply}
+\item{seCutoff}{the stderr cutoff to apply}
 }
 \description{
 Delegation function to draw score distribution plots with a given filter setting
