@@ -42,9 +42,9 @@ p <- arg_parser(
 )
 p <- add_argument(p, "dataDir", help="workspace data directory")
 p <- add_argument(p, "--parameters", help="parameter file. Defaults to parameters.json in the data directory.")
-p <- add_argument(p, "--countThreshold", default=10L, help="Filter threshold for minimal required read counts.")
-p <- add_argument(p, "--pseudoReplicates", default=8L, short="-r", help="Number of pseudo-replicates for Baldi&Long regularization.")
-p <- add_argument(p, "--sdThreshold", default=0.3, help="Stdev threshold for determination of syn/stop medians.")
+# p <- add_argument(p, "--countThreshold", default=10L, help="Filter threshold for minimal required read counts.")
+# p <- add_argument(p, "--pseudoReplicates", default=8L, short="-r", help="Number of pseudo-replicates for Baldi&Long regularization.")
+# p <- add_argument(p, "--sdThreshold", default=0.3, help="Stdev threshold for determination of syn/stop medians.")
 p <- add_argument(p, "--logfile", help="log file. Defaults to 'scoring.log' in the same directory")
 p <- add_argument(p, "--cores", default=6L, help="number of CPU cores to use in parallel for multi-threading")
 p <- add_argument(p, "--srOverride", help="Manual override to allow singleton replicates. USE WITH EXTREME CAUTION!",flag=TRUE)
@@ -70,7 +70,7 @@ registerLogErrorHandler(logger)
 invisible(
 	scoring(
 		dataDir,paramfile,logger,args$cores,
-		args$countThreshold,args$pseudoReplicates,args$sdThreshold,
+		# args$countThreshold,args$pseudoReplicates,args$sdThreshold,
 		srOverride=args$srOverride
 	)
 )

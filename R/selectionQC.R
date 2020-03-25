@@ -21,7 +21,7 @@
 #' @param paramFile input parameter file. defaults to <dataDir>/parameters.json
 #' @return NULL. Results are written to file.
 #' @export
-selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=NULL, sdCutoff=0.3,srOverride=FALSE) {
+selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=NULL,srOverride=FALSE) {
 
 
 	op <- options(stringsAsFactors=FALSE)
@@ -69,6 +69,7 @@ selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logg
 		warning=function(w)logWarn(conditionMessage(w))
 	)
 	
+	# , sdCutoff=0.3
 
 	#find scores folder
 	subDirs <- list.dirs(dataDir,recursive=FALSE)
@@ -118,7 +119,7 @@ selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logg
 			scores <- scores[marginalCounts$hgvsc,]
 
 			#Score distributions & syn/non medians
-			scoreDistributions(scores,sCond,tp,outDir,sdCutoff,params)
+			scoreDistributions(scores,sCond,tp,outDir,params)
 
 			#all of these analyses require more than one replicate
 			if (params$numReplicates[[sCond]] > 1) {
@@ -384,7 +385,7 @@ regularizationQC <- function(scores,modelParams,params,sCond,tp,outDir) {
 #' @param tp the time point
 #' @param outDir the output directory
 #' @return NULL
-scoreDistributions <- function(scores,sCond,tp,outDir,sdCutoff,params) {
+scoreDistributions <- function(scores,sCond,tp,outDir,params) {
 	
 	#collapse by amino acid consequence and associate with regions
 	aaScores <- as.df(with(scores[is.na(scores$filter),],tapply(1:length(hgvsp),hgvsp, function(is) {
@@ -406,6 +407,8 @@ scoreDistributions <- function(scores,sCond,tp,outDir,sdCutoff,params) {
 		)
 	})))
 	
+	sdCutoff <- params$scoring$sdThreshold
+
 	#subdivide data into regions
 	# mutpos <- as.integer(extract.groups(scores$aaChange,"(\\d+)")[,1])
 	# mutregion <- with(as.data.frame(params$regions),sapply(mutpos,function(p) {

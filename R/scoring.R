@@ -21,8 +21,7 @@
 #' @param paramFile input parameter file. defaults to <dataDir>/parameters.json
 #' @return NULL. Results are written to file.
 #' @export
-scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=NULL,mc.cores=6, 
-	countThreshold=10,pseudo.n=8,sdThreshold=0.3,srOverride=FALSE) {
+scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=NULL,mc.cores=6,srOverride=FALSE) {
 
 	op <- options(stringsAsFactors=FALSE)
 
@@ -71,9 +70,9 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=N
 	
 
 	logInfo("Scoring function uses the following parameters:")
-	logInfo("countThreshold = ",countThreshold)
-	logInfo("pseudoReplicates (pseudo.n) = ",pseudo.n)
-	logInfo("sdThreshold = ",sdThreshold)
+	logInfo("countThreshold =",params$scoring$countThreshold)
+	logInfo("pseudoReplicates (pseudo.n) =",params$scoring$pseudo.n)
+	logInfo("sdThreshold =",params$scoring$sdThreshold)
 
 	#find counts folder
 	subDirs <- list.dirs(dataDir,recursive=FALSE)
@@ -181,18 +180,18 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=N
 					msc <- cbind(msc,
 						regularizeRaw(msc, condNames, 
 							tiles=regionalCounts$tile,
-							n=params$numReplicates[condQuad], pseudo.n=pseudo.n, 
+							n=params$numReplicates[condQuad], pseudo.n=params$scoring$pseudo.n, 
 							modelFunctions=modelFunctions
 						)
 					)
 
 					#Apply raw filter (count and frequency thresholds met)
 					logInfo("Filtering...")
-					msc$filter <- rawFilter(msc,countThreshold)
+					msc$filter <- rawFilter(msc,params$scoring$countThreshold)
 
 				} else {
 					#quick-and-dirty filter for single-replicate data
-					msc$filter <- sapply(msc$nonselect.count < countThreshold | msc$select.count < 1, ifelse, "count", NA) 
+					msc$filter <- sapply(msc$nonselect.count < params$scoring$countThreshold | msc$select.count < 1, ifelse, "count", NA) 
 				}
 				#Calculate enrichment ratios (phi) and propagate error
 				logInfo("Scoring...")
@@ -205,7 +204,7 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=N
 
 				#Normalize to synonymous and nonsense medians
 				logInfo("Normalizing...")
-				msc <- cbind(msc,normalizeScores(msc,regionalCounts$aaChange,sdThreshold))
+				msc <- cbind(msc,normalizeScores(msc,regionalCounts$aaChange,params$scoring$sdThreshold))
 
 				#flooring and stderr calculation only where more than one replicate exists
 				if (params$numReplicates[[sCond]] > 1) {
