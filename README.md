@@ -61,16 +61,17 @@ tileseqMave uses a central input document called the parameter sheet, which atte
 
 The parameter sheet has the following sections:
 
-1. **Project name**: This can be any name you like
+1. **Project name**: This can be any name you like.
 2. **Template construct**: Here we define the sequencing template, its sequence and what it represents.
     * Gene name: The official HGNC gene name
     * Sequence: The full nucleotide sequence of the template including the coding sequence (CDS) and its flanking priming sequences.
-    * CDS start: The position in the above sequence at which the coding sequence (CDS) begins. This must be an ATG codon! (Numbering starts at 1, not at 0; don't @ me, nerds. :P )
+    * CDS start: The position in the above sequence at which the coding sequence (CDS) begins. This must be an ATG codon! Numbering starts at 1, not at 0. (don't @me, nerds. :stuck_out_tongue: )
     * CDS end: The equivalent sequence position at which the CDS ends. This must be in-frame with the start position, i.e. end-start+1 must be divisible by 3.
     * Uniprot Accession: The UniprotKB accession of the protein encoded by the template gene.
 3. **Assay**: A summary of the underlying selection assay
-    * Assay Type: This can be any free-text label you like. Pick a simple name, like "Y2H", "Yeast complementation" or "LDL uptake via FACS"
-    * Selection: This field indicates whether the assay performs a positive or negative selection. So only the values "Positive" and "Negative" are allowed. Positive selection indicates that the assay causes damaging variants to be depleted in the pool, where as negative selection indicates that the assay causes neutral variants to be depleted. (Most assays will be positive).
+    * Assay Type: This can be any free-text label you like. But we would encourage you to pick a simple, recognizable name such as "Y2H", "Yeast complementation" or "LDL uptake via FACS"
+    * Description: This can be any free-text description you like.
+    * Negative selection: This field indicates whether the assay performs a positive or negative selection. So only the values "Yes" and "No" are allowed. Positive selection indicates that the assay causes damaging variants to be depleted in the pool, where as negative selection indicates that the assay causes neutral variants to be depleted. (Most assays will be positive, so for most cases the value would be "No").
 4. **Conditions and replicates**: This is a custom table that lists the different experimental conditions and their intended number of replicates and time points.
     * List of conditions: In this table row, provide a list of condition identifiers. These should be short and must not contain any special characters.
     * Number of replicates: For each of the defined conditions in the previous row, provide the number of technical replicates here.
@@ -97,6 +98,20 @@ The parameter sheet has the following sections:
     * Condition: The condition to which this sample belongs. This is a cross-reference to the list of condition names and must have a matching entry there.
     * Time point: The time point to which this sample belongs. This is a cross-reference to the Time point definitions and must have a matching entry there.
     * Replicate: The replicate to which this sample belongs. This must be an integer number and must be within the range of replicates defined for the appropriate condition.
+10. **Variant calling parameters**: This section contains meta-parameters for the variant caller.
+    * Posterior threshold: The posterior probability of a variant call that must be surpassed for the call to be accepted (as opposed to the WT base). Must be between 0.5 and 1.
+    * Minimum coverage: The fraction of a read's length that must fall within the correct tile for it to be counted. Must be between 0 and 1.
+    * Per-base mutation rate: The assumed per-base mutation rate in the library as a result of PopCode mutagenesis. This is used to inform the prior for variant calls.
+11. **Scoring function parameters**: This section contains meta-parameters for the scoring function.
+    * Minimum read count: The minimum marginal read count a variant must have in the non-selective condition to pass filter. Must be at least 1.
+    * Pseudo-replicates: The number of pseudo-replicates assigned to the prior estimate of error during Baldi & Long error regularization. Must be at least 1.
+    * SD threshold: The standard deviation threshold to determine the quality of variants that are included in calculating synonymous and nonsense log-ratio medians, as part of score scaling.
+12. **Score normalization overrides**: This table is optional and can be used to provide manual overrides for the synonymous and nonsense log ratio modes used during score scaling. This table has the following columns:
+    * Condition: The ID of the selective condition to which this override applies.
+    * Time point: The ID of the time point to which this override applies.
+    * Region: The mutagenesis region number to which this override applies.
+    * Type: Whether this is an override for the "synonymous" or "nonsense" mode.
+    * Value: The numerical value of the log ratio mode to use.
 
 ## Running tileseqMave
 
