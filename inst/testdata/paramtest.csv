@@ -8,11 +8,13 @@ CDS end:,1837,,,
 Uniprot Accession:,P35520,,,
 ,,,,
 Assay,,,,
-Assay Type:,Yeast complementation,,,
-Selection:,Positive,,,
+Assay Name:,Yeast complementation,,,
+Assay Description:,Functional complementation in yeast based on glutathione auxotrophy,,,
+Negative selection?,No,,,
 ,,,,
 Conditions and replicates,,,,
-List of conditions:,nonselect,select,wtSelect,wtNonselect
+Condition IDs:,nonselect,select,wtSelect,wtNonselect
+Descriptions:,pre-selection library,"post-selection library, glutathione-deficient media",wildtype control for post-selection condition,wildtype control for pre-selection condition
 Number of Replicates:,2,2,2,2
 Number of time points:,1,1,1,1
 ,,,,
@@ -170,3 +172,18 @@ Sample ID,Tile ID,Condition,Time point,Replicate
 16,13,wtSelect,1,2
 17,14,wtSelect,1,2
 18,15,wtSelect,1,2
+,,,,
+Variant calling parameters,,,,
+Posterior threshold:,0.5,,,
+Minimum coverage:,0.4,,,
+Per-base mutation rate:,0.0025,,,
+,,,,
+Scoring function parameters,,,,
+Minimum read count:,10,,,
+Pseudo-replicates:,8,,,
+SD threshold:,0.3,,,
+,,,,
+Score normalization overrides,,,,
+Condition,Time point,Region,Type,Value
+select,1,1,synonymous,-0.01
+select,1,1,nonsense,-1.02

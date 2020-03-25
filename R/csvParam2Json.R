@@ -149,15 +149,72 @@ validateParameters <- function(params,srOverride=FALSE) {
 	repsPerCon <- tapply(params$samples[,"Replicate"],params$samples[,"Condition"],table)
 	invisible(lapply(params$conditions$names, function(cond) {
 		if (!(length(repsPerCon[[cond]]) == params$numReplicates[[cond]])) {
-			stop("Not all replicates present for condition ",cond,"!")
+			stop("Number of replicates for condition ",cond," doesn't match declaration!")
 		}
 		if (!all(repsPerCon[[cond]] == repsPerCon[[cond]][[1]])) {
-			stop("Missing replicates or tiles for condition ",cond,"!")
+			stop("Inconsistent number of samples for condition ",cond,"!")
 		}
 	}))
-	# if (!all(params$samples[,"Replicate"] <= params$numReplicates)) {
-	# 	stop("Undeclared replicates found in sample sheet!")
-	# }
+
+	#validate metaparameters
+	if (is.na(params$varcaller$posteriorThreshold)) {
+		stop("Posterior threshold must be numeric!")
+	}
+	if (params$varcaller$posteriorThreshold < 0.5 || params$varcaller$posteriorThreshold >= 1) {
+		stop("Posterior threshold must be within greater or equal to 0.5 and less than 1!")
+	}
+	if (is.na(params$varcaller$minCover)) {
+		stop("Minimum cover parameter must be numeric!")
+	}
+	if (params$varcaller$minCover < 0 || params$varcaller$minCover > 1) {
+		stop("Minimum cover must be between 0 and 1!")
+	}
+	if (is.na(params$varcaller$mutRate)) {
+		stop("Mutation rate must be numeric!")
+	}
+	if (params$varcaller$mutRate < 0 || params$varcaller$mutRate > 1) {
+		stop("Mutation rate must be between 0 and 1!")
+	}
+	if (params$varcaller$mutRate > 0.1) {
+		warning("Mutation rate parameter is set unusually high! Are you sure about this?")
+	}
+	if (is.na(params$scoring$countThreshold)) {
+		stop("Minimum read count must be an integer!")
+	}
+	if (params$scoring$countThreshold < 1) {
+		stop("Minimum read count must be at least 1!")
+	}
+	if (is.na(params$scoring$pseudo.n)) {
+		stop("Pseudo-replicates must be an integer!")
+	}
+	if (params$scoring$pseudo.n < 1) {
+		stop("Pseudo-replicates must be at least 1!")
+	}
+	if (is.na(params$scoring$sdThreshold)) {
+		stop("SD threshold must be numeric!")
+	}
+	if (params$scoring$sdThreshold <= 0) {
+		stop("SD threshold must be greater than 0!")
+	}
+
+	#validate normalization table
+	if (length(params$normalization) > 0 && nrow(params$normalization) > 0) {
+		if (!all(params$normalization$Condition %in% getSelects(params))) {
+			stop("Normalization overrides can only be defined for selection conditions.")
+		}
+		if (!all(params$normalization$`Time point` %in% params$timepoints$`Time point name`)) {
+			stop("Invalid time-point in normalization override table!")
+		}
+		if (!all(params$normalization$Region %in% params$regions$`Region Number`)) {
+			stop("Invalid region(s) in normalization override table!")
+		}
+		if (!all(params$normalization$Type %in% c("synonymous","nonsense"))) {
+			stop("Invalid entries in normalization override table: Type must be 'synonymous' or 'nonsense'!")
+		}
+		if (any(is.na(params$normalization$Value))) {
+			stop("Invalid entries in normalization override table: Value must be numeric!")
+		}
+	}
 
 	#TODO: Validate that the entire CDS in covered with tiles and regions
 
@@ -234,6 +291,10 @@ csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",infile),
 		return(i)
 	}
 
+	hasRow <- function(rowname) {
+		any(col1==rowname)
+	}
+
 	extractTable <- function(firstField,nextSection) {
 		iHead <- getRow(firstField)
 		#table header
@@ -273,10 +334,13 @@ csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",infile),
 	#extract assay parameters
 	output$assay <- list()
 	output$assay$type <- csv[[getRow("Assay Type:")]][[2]]
-	output$assay$selection <- csv[[getRow("Selection:")]][[2]]
+	output$assay$selection <- switch(csv[[getRow("Negative selection?")]][[2]],
+		Yes="Negative", No="Positive", stop("Negative selection must be 'Yes' or 'No'!")
+	)
+	
 
 	#extract conditions, replicates and timepoints
-	conditions <- csv[[getRow("List of conditions:")]][-1]
+	conditions <- csv[[getRow("Condition IDs:")]][-1]
 	conditions <- conditions[!(conditions=="" | is.na(conditions))]
 	output$conditions <- list()
 	output$conditions$names <- as.vector(conditions)
@@ -294,8 +358,11 @@ csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",infile),
 	output$numTimepoints <- tps
 
 	#extract regions table
-	regionTable <- extractTable(firstField="Region Number",nextSection="Sequencing Tiles")
-	regionTable <- apply(regionTable,2,as.integer)
+	regionTable <- as.data.frame(extractTable(firstField="Region Number",nextSection="Sequencing Tiles"))
+	# regionTable <- apply(regionTable,2,as.integer)
+	regionTable$`Region Number` <- as.integer(regionTable$`Region Number`)
+	regionTable$`Start AA` <- as.integer(regionTable$`Start AA`)
+	regionTable$`End AA` <- as.integer(regionTable$`End AA`)
 	output$regions <- regionTable
 
 	#extract tile table
@@ -318,6 +385,56 @@ csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",infile),
 	sampleTable$`Tile ID` <- as.integer(sampleTable$`Tile ID`)
 	sampleTable$Replicate <- as.integer(sampleTable$Replicate)
 	output$samples <- sampleTable
+
+	#Extract meta-parameters
+	output$varcaller <- list()
+	if (hasRow("Posterior threshold:")) {
+		output$varcaller$posteriorThreshold <- as.numeric(csv[[getRow("Posterior threshold:")]][[2]])
+	} else {
+		logWarn("No posterior threshold specified. Defaulting to 0.5")
+		output$varcaller$posteriorThreshold <- 0.5
+	}
+	if (hasRow("Minimum coverage:")) {
+		output$varcaller$minCover <- as.numeric(csv[[getRow("Minimum coverage:")]][[2]])
+	} else {
+		logWarn("No minimum coverage specified. Defaulting to 0.6")
+		output$varcaller$minCover <- 0.6
+	}
+	if (hasRow("Per-base mutation rate:")) {
+		output$varcaller$mutRate <- as.numeric(csv[[getRow("Per-base mutation rate:")]][[2]])
+	} else {
+		logWarn("No mutation rate specified. Defaulting to 0.0025")
+		output$varcaller$mutRate <- 0.0025
+	}
+	output$scoring <- list()
+	if (hasRow("Minimum read count:")) {
+		output$scoring$countThreshold <- as.integer(csv[[getRow("Minimum read count:")]][[2]])
+	} else {
+		logWarn("No minimum read count specified. Defaulting to 1")
+		output$scoring$countThreshold <- 1L
+	}
+	if (hasRow("Pseudo-replicates:")) {
+		output$scoring$pseudo.n <- as.integer(csv[[getRow("Pseudo-replicates:")]][[2]])
+	} else {
+		logWarn("No pseudo-replicates specified. Defaulting to 8")
+		output$scoring$pseudo.n <- 8L
+	}
+	if (hasRow("SD threshold:")) {
+		output$scoring$sdThreshold <- as.numeric(csv[[getRow("SD threshold:")]][[2]])
+	} else {
+		logWarn("No SD threshold specified. Defaulting to 0.3")
+		output$scoring$sdThreshold <- 0.3
+	}
+	
+	#Extract normalization overrides
+	output$normalization <- list()
+	if (hasRow("Score normalization overrides") && hasRow("Condition")) {
+		overrideTable <- as.data.frame(extractTable(firstField="Condition",nextSection=""))
+		overrideTable$`Region` <- as.numeric(overrideTable$`Region`)
+		overrideTable$`Value` <- as.numeric(overrideTable$`Value`)
+		output$normalization <- overrideTable
+	}
+
 
 	#Run validation on all parameters
 	withCallingHandlers(
@@ -363,13 +480,17 @@ parseParameters <- function(filename,srOverride=FALSE) {
 	if (is.null(params$conditions$definitions)) {
 		params$conditions$definitions <- matrix(nrow=0,ncol=3,dimnames=list(NULL,c("Condition 1","Relationship","Condition 2")))
 	}
-	if (!inherits(params$regions,"list")) {
-		params$regions <- list(params$regions)
-	}
-	params$regions <- do.call(rbind,params$regions)
-	if (!inherits(params$tiles,"list")) {
-		params$tiles <- list(params$tiles)
-	}
+	# if (!inherits(params$regions,"list")) {
+	# 	params$regions <- list(params$regions)
+	# }
+	# params$regions <- do.call(rbind,params$regions)
+	# if (!inherits(params$tiles,"list")) {
+	# 	params$tiles <- list(params$tiles)
+	# }
+	regCols <- names(params$regions)
+	params$regions <- as.data.frame(params$regions)
+	colnames(params$regions) <- regCols
+	
 	params$tiles <- do.call(rbind,params$tiles)
 
 	timeCols <- names(params$timepoints)
@@ -379,6 +500,16 @@ parseParameters <- function(filename,srOverride=FALSE) {
 	sampleCols <- names(params$samples)
 	params$samples <- as.data.frame(params$samples)
 	colnames(params$samples) <- sampleCols
+
+	if (length(params$normalization) > 0) {
+		normCols <- names(params$normalization)
+		params$normalization <- as.data.frame(params$normalization)
+		colnames(params$normalization) <- normCols
+	}
+
+	#make sure lists remain lists
+	params$varcaller <- as.list(params$varcaller)
+	params$scoring <- as.list(params$scoring)
 
 	#run full validation of the parameter object
 	validateParameters(params,srOverride=srOverride)
