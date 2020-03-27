@@ -284,15 +284,19 @@ csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",infile),
 	#Extract the first column
 	col1 <- sapply(csv,`[[`,1)
 
+	#Helper function to check if row exists
+	hasRow <- function(rowname) {
+		any(col1==rowname)
+	}
+
 	#helper function to locate a named row
 	getRow <- function(rowname) {
+		if (!hasRow(rowname)) {
+			stop("Missing section: ",rowname)
+		}
 		i <- which (col1==rowname)
 		if (is.null(i))  stop("Missing field: ",rowname)
 		return(i)
-	}
-
-	hasRow <- function(rowname) {
-		any(col1==rowname)
 	}
 
 	extractTable <- function(firstField,nextSection) {
@@ -490,7 +494,7 @@ parseParameters <- function(filename,srOverride=FALSE) {
 	regCols <- names(params$regions)
 	params$regions <- as.data.frame(params$regions)
 	colnames(params$regions) <- regCols
-	
+
 	params$tiles <- do.call(rbind,params$tiles)
 
 	timeCols <- names(params$timepoints)
@@ -691,5 +695,27 @@ getWTControlFor <- function(cond,params) {
 	}))
 }
 
-
-
+#' Convenience function to find a subdirectory matching the given pattern.
+#' 
+#' The subfolders should follow the scheme [<label>_]<timestamp>_<outputType>/
+#' 
+#' @param parentDir the parent folder in which to look for matching subfolders
+#' @param pattern a regex pattern used to identify the correct subfolder
+#' @return a vector containing the path to the subfolder, its timestamp and any possible label. 
+#' @export
+latestSubDir <- function(parentDir,pattern="_mut_call$|mut_count$") {
+	subDirs <- list.dirs(parentDir,recursive=FALSE)
+	subDirs <- subDirs[grepl(pattern,subDirs)]
+	if (length(subDirs) == 0) {
+		stop("No applicable input folder found!")
+	}
+	#extract time stamp
+	labelsAndTimes <- extract.groups(subDirs,"([^/]+_)?(\\d{4}-\\d{2}-\\d{2}-\\d{2}-\\d{2}-\\d{2})")
+	#select the newest dataset
+	latestIdx <- which.max(order(labelsAndTimes[,2]))
+	return(c(
+		dir=subDirs[[latestIdx]],
+		timeStamp=labelsAndTimes[latestIdx,2],
+		label=labelsAndTimes[latestIdx,1]
+	))
+}

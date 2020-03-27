@@ -75,25 +75,28 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=N
 	logInfo("sdThreshold =",params$scoring$sdThreshold)
 
 	#find counts folder
-	subDirs <- list.dirs(dataDir,recursive=FALSE)
-	countDirs <- subDirs[grepl("_mut_call$",subDirs)]
-	if (length(countDirs) == 0) {
-		stop("No mutation call output found!")
-	}
-	latestCountDir <- sort(countDirs,decreasing=TRUE)[[1]]
-	logInfo("Selecting latest data directory: ",latestCountDir)
-	#extract time stamp
-	timeStamp <- extract.groups(latestCountDir,"/(\\d{4}-\\d{2}-\\d{2}-\\d{2}-\\d{2}-\\d{2})")
+	# subDirs <- list.dirs(dataDir,recursive=FALSE)
+	# countDirs <- subDirs[grepl("_mut_call$",subDirs)]
+	# if (length(countDirs) == 0) {
+	# 	stop("No mutation call output found!")
+	# }
+	# latestCountDir <- sort(countDirs,decreasing=TRUE)[[1]]
+	# logInfo("Selecting latest data directory: ",latestCountDir)
+	# #extract time stamp
+	# timeStamp <- extract.groups(latestCountDir,"/(\\d{4}-\\d{2}-\\d{2}-\\d{2}-\\d{2}-\\d{2})")
+
+	#find counts folder
+	latest <- latestSubDir(parentDir=dataDir,pattern="_mut_call$|mut_count$")
 
 	#create a matching output directory
-	outDir <- paste0(dataDir,timeStamp,"_scores/")
+	outDir <- paste0(dataDir,latest[["label"]],latest[["timeStamp"]],"_scores/")
 	dir.create(outDir,recursive=TRUE,showWarnings=FALSE)
 
 	#identify selection conditions
 	selectConds <- getSelects(params)
 
 	#load the marginal counts	
-	marginalCountFile <- paste0(latestCountDir,"/marginalCounts.csv")
+	marginalCountFile <- paste0(latest[["dir"]],"/marginalCounts.csv")
 	marginalCounts <- read.csv(marginalCountFile)
 
 	#filter out frameshifts and indels
@@ -204,7 +207,13 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=N
 
 				#Normalize to synonymous and nonsense medians
 				logInfo("Normalizing...")
-				msc <- cbind(msc,normalizeScores(msc,regionalCounts$aaChange,params$scoring$sdThreshold))
+				#check if overrides were provided for the distribution modes
+				normOvr <- getNormOverrides(params,sCond,tp,region)
+				if (any(!is.na(normOvr))) {
+					logWarn("Applying normalization override!")
+				}
+				#and apply
+				msc <- cbind(msc,normalizeScores(msc,regionalCounts$aaChange,params$scoring$sdThreshold,normOvr))
 
 				#flooring and stderr calculation only where more than one replicate exists
 				if (params$numReplicates[[sCond]] > 1) {
@@ -494,39 +503,69 @@ calcPhi <- function(msc) {
 	return(data.frame(phi=phi,phi.sd=phi.sd,logPhi=logPhi,logPhi.sd=logPhi.sd))
 }
 
+#' Helper function to extract normalization override values from the parameter sheet
+#' if they exist
+#' @param params the parameter sheet
+#' @param sCond the current selective condition ID
+#' @param tp the time point ID
+#' @param region the region ID
+#' @return a vector with syn and stop overrides, or \code{NA} if they weren't defined.
+getNormOverrides <- function(params,sCond,tp,region) {
+	pullValue <- function(type) {
+		with(params$normalization,{
+			row <- which(Condition == sCond & `Time point` == tp & Region == region & Type == type)
+			if (length(row)==0) NA else Value[row]
+		})
+	}
+	if (length(params$normalization) == 0 || nrow(params$normalization) == 0) {
+		return(c(syn=NA,non=NA))
+	} else {
+		return(c(syn=pullValue("synonymous"),non=pullValue("nonsense")))
+	}
+}
+
 #' Calculate scores by normalizing logPhi values to syn/nonsense medians
 #' @param msc data.frame containing the enrichment ratios (phi) and log(phi)
 #' @param aac the vector of corresponding amino acid changes
-#' @param sdThreshold the maximum stdev of logPhi to filter for before calculating medians
+#' @param sdThreshold stdev threshold for finding the syn/stop means
 #' @return data.frame with variant type, score and stdev
-normalizeScores <- function(msc,aac,sdThreshold) {
+normalizeScores <- function(msc,aac,sdThreshold,overrides=c(syn=NA,non=NA)) {
+
 	#determine mutation types
 	fromAA <- substr(aac,1,1)
 	toAA <- substr(aac,nchar(aac),nchar(aac))
-	type <- as.vector(mapply(function(from,to) {
+	msc$type <- as.vector(mapply(function(from,to) {
 		if (from==to) "synonymous" else if (to=="*") "nonsense" else "missense"
 	},fromAA,toAA))
-	#calculate medians
-	if (!all(is.na(msc$logPhi.sd))) {
-		nonsenseMedian <- with(msc,median(
-			logPhi[which(is.na(filter) & type == "nonsense" & logPhi.sd < sdThreshold)]
-		,na.rm=TRUE))
-		synonymousMedian <- with(msc,median(
-			logPhi[which(is.na(filter) & type == "synonymous" & logPhi.sd < sdThreshold)]
-		,na.rm=TRUE))
+
+	#apply filter
+	mscFiltered <- if (!all(is.na(msc$logPhi.sd))) {
+		with(msc,msc[which(is.na(filter) & logPhi.sd < sdThreshold),])
 	} else {
-		nonsenseMedian <- with(msc,median(
-			logPhi[which(is.na(filter) & type == "nonsense")]
-		,na.rm=TRUE))
-		synonymousMedian <- with(msc,median(
-			logPhi[which(is.na(filter) & type == "synonymous")]
-		,na.rm=TRUE))
+		with(msc,msc[which(is.na(filter)),])
 	}
+
+	#calculate medians
+	synonymousMedian <- with(mscFiltered,median(
+		logPhi[which(type == "synonymous")]
+	,na.rm=TRUE))
+	nonsenseMedian <- with(mscFiltered,median(
+		logPhi[which(type == "nonsense")]
+	,na.rm=TRUE))
+
+	#apply any potential overrides
+	if (!is.na(overrides[["syn"]])) {
+		synonymousMedian <- overrides[["syn"]]
+	}
+	if (!is.na(overrides[["non"]])) {
+		nonsenseMedian <- overrides[["non"]]
+	}
+
 	#use medians to normalize
 	score <- (msc$logPhi - nonsenseMedian) / (synonymousMedian - nonsenseMedian)
 	score.sd <- msc$logPhi.sd / (synonymousMedian - nonsenseMedian)
 
-	return(data.frame(type=type,score=score,score.sd=score.sd))
+	return(data.frame(type=msc$type,score=score,score.sd=score.sd))
 }
 
 #' Apply flooring and SD adjustment to negative scores

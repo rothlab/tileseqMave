@@ -78,21 +78,14 @@ buildJointTable <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 	sampleTable <- params$samples
 
 	#find counts folder
-	subDirs <- list.dirs(dataDir,recursive=FALSE)
-	countDirs <- subDirs[grepl("_mut_call$",subDirs)]
-	if (length(countDirs) == 0) {
-		stop("No mutation call output found!")
-	}
-	latestCountDir <- sort(countDirs,decreasing=TRUE)[[1]]
-	#extract time stamp
-	timeStamp <- extract.groups(latestCountDir,"/(\\d{4}-\\d{2}-\\d{2}-\\d{2}-\\d{2}-\\d{2})")[1,1]
+	latest <- latestSubDir(parentDir=dataDir,pattern="_mut_call$|mut_count$")
 
 	#find count table files and assign each to its respective sample
-	countfiles <- list.files(latestCountDir,pattern="counts_sample_.+\\.csv$",full.names=TRUE)
+	countfiles <- list.files(latest[["dir"]],pattern="counts_sample_.+\\.csv$",full.names=TRUE)
 	if (length(countfiles)==0) {
 		error("No count files found! (Are they named correctly?)")
 	}
-	filesamples <- extract.groups(countfiles,"counts_sample_(.+)\\.csv")[,1]
+	filesamples <- extract.groups(countfiles,"counts_sample_(.+)\\.csv$")[,1]
 	sampleTable$countfile <- sapply(as.character(sampleTable$`Sample ID`), function(sid) {
 		i <- which(filesamples == sid)
 		if (length(i) == 0 || is.null(i)) {
@@ -125,7 +118,7 @@ buildJointTable <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 	sampleTable$depth <- sapply(allCounts,function(counts) as.integer(attr(counts,"depth"))) 
 	#and save the sample table for future reference
 	logInfo("Exporting sequencing depth information.")
-	outfile <- paste0(latestCountDir,"/sampleDepths.csv")
+	outfile <- paste0(latest[["dir"]],"/sampleDepths.csv")
 	write.csv(sampleTable,outfile,row.names=FALSE)
 	
 
@@ -164,15 +157,6 @@ buildJointTable <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 		stop("Translations for ",sum(is.na(transTable[,2]))," variants failed! See log for details.")
 	}
 
-
-	#TODO: detect failed translations
-
-
-	#and build index of the translations
-	# trIdx <- hash(allVars,1:nrow(transTable))
-	# for (i in 1:length(allCounts)) {
-	# 	values(trIdx,keys=allCounts[[i]][,1]) <- allCounts[[i]][,2]
-	# }
 
 	################
 	# Merge tables #
@@ -234,7 +218,7 @@ buildJointTable <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 	# WRITE OUTPUT TO FILE #
 	########################
 	logInfo("Writing results to file.")
-	outfile <- paste0(latestCountDir,"/allCounts.csv")
+	outfile <- paste0(latest[["dir"]],"/allCounts.csv")
 	write.csv(jointTable,outfile,row.names=FALSE)
 	
 	##################################
@@ -281,7 +265,7 @@ buildJointTable <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 	},mc.cores=mc.cores))
 
 	logInfo("Writing results to file.")
-	outfile <- paste0(latestCountDir,"/marginalCounts.csv")
+	outfile <- paste0(latest[["dir"]],"/marginalCounts.csv")
 	write.csv(marginalCounts,outfile,row.names=FALSE)
 
 

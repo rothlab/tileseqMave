@@ -69,28 +69,33 @@ selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logg
 		warning=function(w)logWarn(conditionMessage(w))
 	)
 	
-	# , sdCutoff=0.3
-
 	#find scores folder
-	subDirs <- list.dirs(dataDir,recursive=FALSE)
-	scoreDirs <- subDirs[grepl("_scores$",subDirs)]
-	if (length(scoreDirs) == 0) {
-		stop("No mutation call output found!")
+	# subDirs <- list.dirs(dataDir,recursive=FALSE)
+	# scoreDirs <- subDirs[grepl("_scores$",subDirs)]
+	# if (length(scoreDirs) == 0) {
+	# 	stop("No mutation call output found!")
+	# }
+	# latestScoreDir <- sort(scoreDirs,decreasing=TRUE)[[1]]
+	# #find corresponding count directory
+	# latestCountDir <- sub("_scores$","_mut_call",latestScoreDir)
+	# #extract time stamp
+	# timeStamp <- extract.groups(latestScoreDir,"/(\\d{4}-\\d{2}-\\d{2}-\\d{2}-\\d{2}-\\d{2})")
+
+	#find counts and scores folder
+	latestCount <- latestSubDir(parentDir=dataDir,pattern="_mut_call$|mut_count$")
+	latestScore <- latestSubDir(parentDir=dataDir,pattern="_scores$")
+	if (latestCount[["timeStamp"]] != latestScore[["timeStamp"]]) {
+		stop("latest score folder does not match latest counts folder time stamp!")
 	}
-	latestScoreDir <- sort(scoreDirs,decreasing=TRUE)[[1]]
-	#find corresponding count directory
-	latestCountDir <- sub("_scores$","_mut_call",latestScoreDir)
-	#extract time stamp
-	timeStamp <- extract.groups(latestScoreDir,"/(\\d{4}-\\d{2}-\\d{2}-\\d{2}-\\d{2}-\\d{2})")
 
 	#create a matching output directory
-	outDir <- paste0(dataDir,timeStamp,"_QC/")
+	outDir <- paste0(dataDir,latestScore[["label"]],latestScore[["timeStamp"]],"_QC/")
 	if (!dir.exists(outDir)) {
 		dir.create(outDir,recursive=TRUE,showWarnings=FALSE)
 	}
 
 	logInfo("Reading count data")
-	marginalCountFile <- paste0(latestCountDir,"/marginalCounts.csv")
+	marginalCountFile <- paste0(latestCount[["dir"]],"/marginalCounts.csv")
 	marginalCounts <- read.csv(marginalCountFile)
 
 	#filter out frameshifts and indels
@@ -107,7 +112,7 @@ selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logg
 			logInfo("Processing condition",sCond, "; time",tp)
 
 			#load score table for this condition
-			scoreFile <- paste0(latestScoreDir,"/",sCond,"_t",tp,"_complete.csv")
+			scoreFile <- paste0(latestScore[["dir"]],"/",sCond,"_t",tp,"_complete.csv")
 			if (!file.exists(scoreFile)) {
 				logWarn("No score file found! Skipping...")
 				next
@@ -128,11 +133,14 @@ selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logg
 				replicateCorrelation(scores, marginalCounts, params, sCond, tp, outDir)
 
 				#load error model file
-				modelFile <- paste0(latestScoreDir,"/",sCond,"_t",tp,"_errorModel.csv")
-				modelParams <- read.csv(modelFile)
-
-				#Regularization analysis
-				regularizationQC(scores,modelParams,params,sCond,tp,outDir)
+				modelFile <- paste0(latestScore[["dir"]],"/",sCond,"_t",tp,"_errorModel.csv")
+				if (!file.exists(modelFile)) {
+					logWarn("No error model file found. Skipping regularization QC.")
+				} else {
+					#Regularization analysis
+					modelParams <- read.csv(modelFile)
+					regularizationQC(scores,modelParams,params,sCond,tp,outDir)
+				}
 			
 				#Error profile
 				errorProfile(scores,sCond,tp,outDir)

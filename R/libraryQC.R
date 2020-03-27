@@ -68,18 +68,21 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 		warning=function(w)logWarn(conditionMessage(w))
 	)
 	
+	# #find counts folder
+	# subDirs <- list.dirs(dataDir,recursive=FALSE)
+	# countDirs <- subDirs[grepl("_mut_call$",subDirs)]
+	# if (length(countDirs) == 0) {
+	# 	stop("No mutation call output found!")
+	# }
+	# latestCountDir <- sort(countDirs,decreasing=TRUE)[[1]]
+	# #extract time stamp
+	# timeStamp <- extract.groups(latestCountDir,"/(\\d{4}-\\d{2}-\\d{2}-\\d{2}-\\d{2}-\\d{2})")
+
 	#find counts folder
-	subDirs <- list.dirs(dataDir,recursive=FALSE)
-	countDirs <- subDirs[grepl("_mut_call$",subDirs)]
-	if (length(countDirs) == 0) {
-		stop("No mutation call output found!")
-	}
-	latestCountDir <- sort(countDirs,decreasing=TRUE)[[1]]
-	#extract time stamp
-	timeStamp <- extract.groups(latestCountDir,"/(\\d{4}-\\d{2}-\\d{2}-\\d{2}-\\d{2}-\\d{2})")
+	latest <- latestSubDir(parentDir=dataDir,pattern="_mut_call$|mut_count$")
 
 	#create a matching output directory
-	outDir <- paste0(dataDir,timeStamp,"_QC/")
+	outDir <- paste0(dataDir,latest[["label"]],latest[["timeStamp"]],"_QC/")
 	dir.create(outDir,recursive=TRUE,showWarnings=FALSE)
 
 
@@ -102,13 +105,13 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 
 	logInfo("Reading count data")
 
-	allCountFile <- paste0(latestCountDir,"/allCounts.csv")
+	allCountFile <- paste0(latest[["dir"]],"/allCounts.csv")
 	allCounts <- read.csv(allCountFile)
 
-	marginalCountFile <- paste0(latestCountDir,"/marginalCounts.csv")
+	marginalCountFile <- paste0(latest[["dir"]],"/marginalCounts.csv")
 	marginalCounts <- read.csv(marginalCountFile)
 
-	depthTableFile <-  paste0(latestCountDir,"/sampleDepths.csv")
+	depthTableFile <-  paste0(latest[["dir"]],"/sampleDepths.csv")
 	depthTable <- read.csv(depthTableFile)
 
 
