@@ -251,12 +251,6 @@ optional arguments:
   -x, --opts            RDS file containing argument values
   -p, --parameters      parameter file. Defaults to parameters.json in
                         the data directory.
-  -c, --countThreshold  Filter threshold for minimal required read
-                        counts. [default: 10]
-  --pseudoReplicates    Number of pseudo-replicates for Baldi&Long
-                        regularization. [default: 8]
-  -s, --sdThreshold     Stdev threshold for determination of syn/stop
-                        medians. [default: 0.3]
   -l, --logfile         log file. Defaults to scoring.log in the same
                         directory
   --cores               number of CPU cores to use in parallel for
@@ -292,8 +286,6 @@ optional arguments:
   -x, --opts         RDS file containing argument values
   -p, --parameters   parameter file. Defaults to parameters.json in the
                      data directory.
-  -s, --sdThreshold  Stdev threshold for determination of syn/stop
-                     medians. [default: 0.3]
   -l, --logfile      log file. Defaults to selectionQC.log in the same
                      directory
 ```
