@@ -72,7 +72,7 @@ validateParameters <- function(params,srOverride=FALSE) {
 	}
 
 	if (!all(grepl("^[A-Za-z][A-Za-z0-9]*$",params$conditions$names))) {
-		stop("Conditition names must be strictly alpha-numeric and start with a letter.")
+		stop("Condition names must be strictly alpha-numeric and start with a letter.")
 	}
 
 	#check condition table for validity
@@ -88,7 +88,7 @@ validateParameters <- function(params,srOverride=FALSE) {
 		if (!all(params$conditions$definitions[,"Relationship"] %in% relationships)) {
 			stop("Invalid relationship in condition definitions!")
 		}
-		#check that each conditon has at least one relationship
+		#check that each condition has at least one relationship
 		used <- sapply(params$conditions$names, function(cname) {
 			cname %in% params$conditions$definitions[,"Condition 1"] || 
 			cname %in% params$conditions$definitions[,"Condition 2"]
