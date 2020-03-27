@@ -9,9 +9,6 @@ scoring(
   paramFile = paste0(dataDir, "parameters.json"),
   logger = NULL,
   mc.cores = 6,
-  countThreshold = 10,
-  pseudo.n = 8,
-  sdThreshold = 0.3,
   srOverride = FALSE
 )
 }
