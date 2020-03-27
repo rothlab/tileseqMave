@@ -1,7 +1,13 @@
 #!/usr/bin/env Rscript
 
-#target bin directory
-targetDir <- "~/.local/bin/"
+#parse CLI arguments
+library(argparser)
+p <- arg_parser(
+	"Create links to Rscripts in target directory",
+	name="linkBinaries.R"
+)
+p <- add_argument(p, "targetDir", help="target directory", default="~/.local/bin/")
+args <- parse_args(p)
 
 #list of scripts to link
 scripts <- c(
@@ -24,5 +30,10 @@ linkScript <- function(scriptName,targetDir="~/.local/bin/") {
 	file.symlink(from=scriptPath,to=paste0(targetDir,scriptName))
 }
 
+#create target dir if it doesn't exist
+if (!dir.exists(args$targetDir)) {
+	dir.create(args$targetDir,recursive=TRUE)
+}
+
 #run the function
-lapply(scripts,linkScript,targetDir=targetDir)
+lapply(scripts,linkScript,targetDir=args$targetDir)
