@@ -1,4 +1,4 @@
-#!/usr/bin/Rscript
+#!/usr/bin/env Rscript
 
 #target bin directory
 targetDir <- "~/.local/bin/"

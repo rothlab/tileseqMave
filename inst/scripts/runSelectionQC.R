@@ -1,4 +1,4 @@
-#!/usr/bin/Rscript
+#!/usr/bin/env Rscript
 
 # Copyright (C) 2018  Jochen Weile, Roth Lab
 #
