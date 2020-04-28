@@ -1209,14 +1209,14 @@ libraryQCLegacy <- function(dataDir,outdir,
 
 
 		#Finally, read the deletion and inseration CPMs
-		delCounts <- read.delim(
-			paste0(dataDir,"mutationCallfile/",sample.id,"deletion.txt"),
-			header=FALSE
-		)
-		insCounts <- read.delim(
-			paste0(dataDir,"mutationCallfile/",sample.id,"insertion.txt"),
-			header=FALSE
-		)
+		delFile <- paste0(dataDir,"mutationCallfile/",sample.id,"deletion.txt")
+		if (file.size(delFile) > 0) {
+			delCounts <- read.delim(delFile,header=FALSE)
+		} else delCounts <- t(rep(0,4))
+		insFile <- paste0(dataDir,"mutationCallfile/",sample.id,"insertion.txt")
+		if (file.size(insFile) > 0) {
+			insCounts <- read.delim(insFile,header=FALSE)
+		} else insCounts <- t(rep(0,4))
 		indelCPM <- sum(delCounts[,2])+sum(insCounts[,4])
 
 

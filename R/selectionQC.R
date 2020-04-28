@@ -138,7 +138,7 @@ selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logg
 					logWarn("No error model file found. Skipping regularization QC.")
 				} else {
 					#Regularization analysis
-					modelParams <- read.csv(modelFile)
+					modelParams <- read.csv(modelFile,row.names=1)
 					regularizationQC(scores,modelParams,params,sCond,tp,outDir)
 				}
 			
@@ -293,9 +293,17 @@ regularizationQC <- function(scores,modelParams,params,sCond,tp,outDir) {
 		# },error=function(e) {
 		# 	NULL
 		# })
-		theta <- modelParams[tile,paste0("nonselect.",c("static","additive","multiplicative"))]
+		theta <- modelParams[as.character(tile),paste0("nonselect.",c("static","additive","multiplicative"))]
 		cv.model <- function(count) {
 			10^sapply(log10(1/sqrt(count)),function(x) max(theta[[1]], theta[[2]] + theta[[3]]*x))
+		}
+
+		if (!(tile %in% tiles)) {
+			plot.new()
+			rect(0,0,1,1,col="gray80",border="gray30",lty="dotted")
+			text(0.5,0.5,"no data")
+			mtext(paste0("Tile ",tile),side=3)
+			next
 		}
 
 		with(scores[which(tiles==tile),],{

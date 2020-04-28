@@ -389,7 +389,9 @@ rawFilter <- function(msc,countThreshold) {
 runModelFits <- function(msc,condNames, tiles, mc.cores) {
 	modelSets <- pbmclapply(condNames, function(cond) {
 		tapply(1:nrow(msc),tiles,function(i) {
-			tryCatch(fit.cv.model(msc[i,],cond),error=function(e) rep(NA,4))
+			tryCatch(fit.cv.model(msc[i,],cond),error=function(e) {
+				list(cv.model=NA,static=NA,additive=NA,multiplicative=NA)
+			})
 		})
 	},mc.cores=mc.cores)
 	names(modelSets) <- condNames
