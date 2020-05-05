@@ -322,6 +322,13 @@ translateHGVS <- function(hgvs, params,
 	#sort aa changes by position
 	aaChanges <- aaChanges[order(aaChanges$pos),]
 
+	#Some in-frame indels can result in codons being re-constituted into equivalents of themselves.
+	# e.g deleting 'CCA' from TCCACC results in TCC--- . While these are technically correct calls, 
+	# They are not useful in terms of protein consequences, so we filter them out in strict mode
+	if (strictMode && any(aaChanges$wtcodon == aaChanges$mutcodon)) {
+		aaChanges <- aaChanges[-which(aaChanges$wtcodon == aaChanges$mutcodon),]
+	}
+
 	#######################################################
 	# Build codon-centric change strings for later output #
 	#######################################################

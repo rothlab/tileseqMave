@@ -150,6 +150,7 @@ buildJointTable <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 		})
 	},mc.cores=mc.cores))
 
+	#Check for errors
 	if (any(is.na(transTable[,2]))) {
 		for (i in which(is.na(transTable[,2]))) {
 			logWarn("Translation for variant ",allVars[[i]],"failed: ",transTable[i,1])
@@ -227,10 +228,14 @@ buildJointTable <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 
 	logInfo("Calculating marginal frequencies")
 
+	#split codon change HGVSs by codon
 	codonChangeHGVSs <- strsplit(gsub("c\\.|c\\.\\[|\\]","",transTable$codonHGVS),";")
+	#and attach the proper prefix
 	codonChangeHGVSs <- lapply(codonChangeHGVSs, function(x) paste0("c.",x))
+	#do the same for AA change HGVSs
 	aaChangeHGVSs <- strsplit(gsub("p\\.|p\\.\\[|\\]","",transTable$aaChangeHGVS),";")
 	aaChangeHGVSs <- lapply(aaChangeHGVSs, function(x) paste0("p.",x))
+	#now split the native codon changes and AA changes
 	codonChangeStrs <- strsplit(transTable$codonChanges,"\\|")
 	aaChangeStrs <- strsplit(transTable$aaChanges,"\\|")
 	
@@ -240,9 +245,22 @@ buildJointTable <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 	aaIdx <- hash()
 	aaStrIdx <- hash()
 	for (i in 1:length(codonChangeHGVSs)) {
-		js <- min(length(codonChangeHGVSs[[i]]), length(aaChangeHGVSs[[i]]))
+		# js <- min(length(codonChangeHGVSs[[i]]), length(aaChangeHGVSs[[i]]))
+		js <- length(aaChangeHGVSs[[i]])
+		#in case of frameshifts, all other mutations get ignored, so we need to figure out 
+		#which one triggered the frameshift(s). In that case, we have fewer aa changes than codon changes listed
+		if (length(codonChangeHGVSs[[i]]) != js) {
+			#extract positions from aaChanges and  codon changes and find the match
+			aapos <- as.integer(extract.groups(aaChangeStrs[[i]],"(\\d+)")[,1])
+			ccpos <- floor((as.integer(extract.groups(codonChangeHGVSs[[i]],"(\\d+)")[,1])-1)/3+1)
+			#ks are the codon change HGVSs that match the positions for each j
+			ks <- sapply(aapos,function(ap) which.min(abs(ccpos-ap)))
+		} else {
+			ks <- 1:js
+		}
+		#now iterate over aa changes and index them
 		for (j in 1:js) {
-			cc <- codonChangeHGVSs[[i]][[j]]
+			cc <- codonChangeHGVSs[[i]][[ks[[j]]]]
 			if (has.key(cc,ccIdx)) {
 				ccIdx[[cc]] <- c(ccIdx[[cc]],i)
 			} else {
