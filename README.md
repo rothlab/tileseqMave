@@ -4,16 +4,16 @@ Analysis functions for TileSEQ.
 
 ## Requirements and Installation
 
-tileseqMave requires R &ge; 3.4.4 and has a number of R package dependencies, which will be installed automatically. It also uses the output of [tilseq_mutcount](https://github.com/RyogaLi/tilseq_mutcount), which should be installed separately.
+`tileseqMave` is compatible with Unix-based operating systems, requires R &ge; 3.4.4 and has a number of R package dependencies, which will be installed automatically. It also uses the output of [`tilseq_mutcount`](https://github.com/RyogaLi/tilseq_mutcount), which should be installed separately on an HPC platform.
 
-To install tileseqMave, use R devtools:
+To install the `tileseqMave` package, use R devtools:
 
 ```R
 install.packages("devtools")
 devtools::install_github("jweile/tileseqMave")
 ```
 
-The tileseqMave R package comes with a set of wrapper scripts, which can be symlinked to your preferred `bin/` directory, such that they become available in your `$PATH`. This makes the pipeline components much easier to execute and is thus highly recommended. Otherwise you will have to manually locate these scripts in your R library directory and always call them with their full path. Here's a quick set of R commands to automatically create these symlinks:
+**Important**: To ensure that the scripts included in this software suite can be executed easily on the command line, they need to be available via your `$PATH` variable. The easiest way to achieve this is to symlink them to your preferred `bin/` directory after having installed the package as shown above. Here's a quick set of R commands to automatically create these symlinks:
 
 ```R
 #target bin directory
@@ -49,7 +49,7 @@ lapply(scripts,linkScript,targetDir=targetDir)
 The TileSEQ pipeline breaks down into multiple modules:
 
 1. csv2json: This component reads and validates the parameter sheet which contains all relevant options and parameters of the experiment to be analyzed.
-2. fastq2count: This component processes the FASTQ files from a sequencing run and produces variant count files. It is implemented in the [tilseq_mutcount](https://github.com/RyogaLi/tilseq_mutcount) python module.
+2. fastq2count: This component processes the FASTQ files from a sequencing run and produces variant count files. It is implemented in the [`tilseq_mutcount`](https://github.com/RyogaLi/tilseq_mutcount) python module.
 3. joinCounts: Combines the individual count files from each sequencing sample into a single table, tabulating the read counts and relative frequencies for each unique variant in each condition and replicate. It also calculates the protein-level consequences of each variant and produces marginal counts and frequencies.
 4. libraryQC: Produces a number of diagnostic graphs for quality control purposes at the variant library level.
 5. scoring: Calculates enrichment ratios and fitness scores for each variant in each selection condition. Also performs error regularization and filtering.
