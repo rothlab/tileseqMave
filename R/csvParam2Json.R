@@ -492,7 +492,7 @@ parseParameters <- function(filename,srOverride=FALSE) {
 	# 	params$tiles <- list(params$tiles)
 	# }
 	regCols <- names(params$regions)
-	params$regions <- as.data.frame(params$regions)
+	params$regions <- as.data.frame(as.list(params$regions))
 	colnames(params$regions) <- regCols
 
 	params$tiles <- do.call(rbind,params$tiles)
@@ -505,10 +505,12 @@ parseParameters <- function(filename,srOverride=FALSE) {
 	params$samples <- as.data.frame(params$samples)
 	colnames(params$samples) <- sampleCols
 
-	if (length(params$normalization) > 0) {
+	if (length(params$normalization) > 0 && length(params$normalization[[1]]) > 0) {
 		normCols <- names(params$normalization)
 		params$normalization <- as.data.frame(params$normalization)
 		colnames(params$normalization) <- normCols
+	} else {
+		params$normalization <- NULL
 	}
 
 	#make sure lists remain lists
