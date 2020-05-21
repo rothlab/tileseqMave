@@ -126,6 +126,9 @@ selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logg
 			#Score distributions & syn/non medians
 			scoreDistributions(scores,sCond,tp,outDir,params)
 
+			#filter progression graph
+			filterProgression(scores,params)
+
 			#all of these analyses require more than one replicate
 			if (params$numReplicates[[sCond]] > 1) {
 
@@ -148,6 +151,73 @@ selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logg
 
 		}
 	}
+
+}
+
+#' Draw replicate correlation plots
+#' 
+#' @param scores the score table
+#' @param params the global parameter object
+#' @return NULL
+filterProgression <- function(scores,params) {
+
+	#filter levels: bottleneck ; frequency
+
+	#get reachable AA changes
+	#(includes stop, but not synonymous)
+	reachable <- reachableChanges(params)
+	#and reachable codon changes
+	reachableCCs <- do.call(c,with(reachable,mapply(function(w,p,ms){
+		paste0(w,p,ms)
+	},wtcodon,pos,strsplit(mutcodons,"\\|"))))
+
+	#make filteres subsets
+	filteredScores <- scores[is.na(scores$filter),]
+	hqScores <- filteredScores[filteredScores$se.floored < params$scoring$sdThreshold,]
+
+	#calculate census
+	census <- rbind(
+		possible = c(
+			AllCCs = params$template$proteinLength * (4^3-1),
+			ReachCCs = length(reachableCCs),
+			AllAACs = params$template$proteinLength * (19+1),
+			ReachAACs = nrow(reachable)
+		),
+		found = c(
+			AllCCs = nrow(scores),
+			ReachCCs = length(intersect(scores$codonChange, reachableCCs)),
+			AllAACs = length(unique(scores$hgvsp[scores$type != "synonymous"])),
+			ReachAACs = length(intersect(unique(scores$hgvsp),reachable$hgvsp))
+		),
+		filtered = c(
+			AllCCs = nrow(filteredScores),
+			ReachCCs = length(intersect(filteredScores$codonChange, reachableCCs)),
+			AllAACs = length(unique(filteredScores$hgvsp[filteredScores$type != "synonymous"])),
+			ReachAACs = length(intersect(unique(filteredScores$hgvsp),reachable$hgvsp))
+		),
+		hiQual = c(
+			AllCCs = nrow(hqScores),
+			ReachCCs = length(intersect(hqScores$codonChange, reachableCCs)),
+			AllAACs = length(unique(hqScores$hgvsp[hqScores$type != "synonymous"])),
+			ReachAACs = length(intersect(unique(hqScores$hgvsp),reachable$hgvsp))
+		)
+	)
+
+	#draw plot
+	widths <- census/max(census)
+	plotCols <- c("steelblue3","steelblue4","gold3","gold4")
+	op <- par(mar=c(1,1,1,1)+.1)
+	plot(NA,type="n",xlim=c(-.5,4.5),ylim=c(1,5),xlab="",ylab="",axes=FALSE)
+	abline(h=1:4,col="gray",lty="dotted")
+	text(-0.5,4:1,c("All possible","Detected","Passed filter","High Quality"),pos=4)
+	lapply(1:4, function(cati) {
+		polygon(
+			c(cati-widths[,cati]/2,rev(cati+widths[,cati]/2)),
+			c(4:1,1:4),col=plotCols[[cati]], border=NA
+		)
+		text(cati,4:1,census[,cati])
+	})
+
 
 }
 
