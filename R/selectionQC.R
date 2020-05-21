@@ -127,7 +127,7 @@ selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logg
 			scoreDistributions(scores,sCond,tp,outDir,params)
 
 			#filter progression graph
-			filterProgression(scores,params)
+			filterProgression(scores,sCond,tp,params,outDir)
 
 			#all of these analyses require more than one replicate
 			if (params$numReplicates[[sCond]] > 1) {
@@ -159,23 +159,21 @@ selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logg
 #' @param scores the score table
 #' @param params the global parameter object
 #' @return NULL
-filterProgression <- function(scores,params) {
-
-	#filter levels: bottleneck ; frequency
+filterProgression <- function(scores,sCond,tp,params,outDir) {
 
 	#get reachable AA changes
-	#(includes stop, but not synonymous)
+	#(this includes stop, but not synonymous)
 	reachable <- reachableChanges(params)
-	#and reachable codon changes
+	#and extract reachable codon changes
 	reachableCCs <- do.call(c,with(reachable,mapply(function(w,p,ms){
 		paste0(w,p,ms)
 	},wtcodon,pos,strsplit(mutcodons,"\\|"))))
 
-	#make filteres subsets
+	#make filtered subsets of the score table
 	filteredScores <- scores[is.na(scores$filter),]
 	hqScores <- filteredScores[filteredScores$se.floored < params$scoring$sdThreshold,]
 
-	#calculate census
+	#calculate filter census
 	census <- rbind(
 		possible = c(
 			AllCCs = params$template$proteinLength * (4^3-1),
@@ -204,20 +202,28 @@ filterProgression <- function(scores,params) {
 	)
 
 	#draw plot
+	outfile <- paste0(outDir,sCond,"_t",tp,"_filtering.pdf")
+	pdf(outfile,10,5)
 	widths <- census/max(census)
-	plotCols <- c("steelblue3","steelblue4","gold3","gold4")
+	percentages <- apply(census,2,function(xs)xs/xs[[1]])*100
+	plotCols <- c("steelblue2","steelblue3","gold2","gold3")
+	ylabels <- c("All possible","Detected","Passed filter","High Quality")
+	xlabels <- c("All","SNV-reachable","All","SNV-reachable")
+	toplabels <- c("Codon changes","AA changes")
 	op <- par(mar=c(1,1,1,1)+.1)
 	plot(NA,type="n",xlim=c(-.5,4.5),ylim=c(1,5),xlab="",ylab="",axes=FALSE)
 	abline(h=1:4,col="gray",lty="dotted")
-	text(-0.5,4:1,c("All possible","Detected","Passed filter","High Quality"),pos=4)
-	lapply(1:4, function(cati) {
+	text(-0.5,4:1,ylabels,pos=4)
+	text(1:4,4.4,xlabels)
+	text(c(1.5,3.5),4.8,toplabels)
+	invisible(lapply(1:4, function(cati) {
 		polygon(
 			c(cati-widths[,cati]/2,rev(cati+widths[,cati]/2)),
 			c(4:1,1:4),col=plotCols[[cati]], border=NA
 		)
-		text(cati,4:1,census[,cati])
-	})
-
+		text(cati,4:1,sprintf("%d (%.02f%%)",census[,cati],percentages[,cati]))
+	}))
+	invisible(dev.off())
 
 }
 
