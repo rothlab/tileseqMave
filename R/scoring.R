@@ -512,6 +512,7 @@ calcPhi <- function(msc) {
 #' @param tp the time point ID
 #' @param region the region ID
 #' @return a vector with syn and stop overrides, or \code{NA} if they weren't defined.
+#' @export
 getNormOverrides <- function(params,sCond,tp,region) {
 	pullValue <- function(type) {
 		with(params$normalization,{
@@ -531,6 +532,7 @@ getNormOverrides <- function(params,sCond,tp,region) {
 #' @param aac the vector of corresponding amino acid changes
 #' @param sdThreshold stdev threshold for finding the syn/stop means
 #' @return data.frame with variant type, score and stdev
+#' @export
 normalizeScores <- function(msc,aac,sdThreshold,overrides=c(syn=NA,non=NA)) {
 
 	#determine mutation types

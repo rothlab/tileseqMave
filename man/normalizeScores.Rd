@@ -4,14 +4,14 @@
 \alias{normalizeScores}
 \title{Calculate scores by normalizing logPhi values to syn/nonsense medians}
 \usage{
-normalizeScores(msc, aac, sdThreshold)
+normalizeScores(msc, aac, sdThreshold, overrides = c(syn = NA, non = NA))
 }
 \arguments{
 \item{msc}{data.frame containing the enrichment ratios (phi) and log(phi)}
 
 \item{aac}{the vector of corresponding amino acid changes}
 
-\item{sdThreshold}{the maximum stdev of logPhi to filter for before calculating medians}
+\item{sdThreshold}{stdev threshold for finding the syn/stop means}
 }
 \value{
 data.frame with variant type, score and stdev
