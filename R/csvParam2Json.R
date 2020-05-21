@@ -337,7 +337,8 @@ csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",infile),
 
 	#extract assay parameters
 	output$assay <- list()
-	output$assay$type <- csv[[getRow("Assay Type:")]][[2]]
+	output$assay$name <- csv[[getRow("Assay Name:")]][[2]]
+	# output$assay$description <- csv[[getRow("Assay Description:")]][[2]]
 	output$assay$selection <- switch(csv[[getRow("Negative selection?")]][[2]],
 		Yes="Negative", No="Positive", stop("Negative selection must be 'Yes' or 'No'!")
 	)
