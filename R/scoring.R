@@ -143,6 +143,7 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=N
 			allModelParams <- NULL
 
 			#iterate over mutagenesis regions and process separately.
+			#FIXME: Use region IDs instead of integer index!!
 			regions <- 1:nrow(params$regions)
 			scoreTable <- do.call(rbind,lapply(regions, function(region) {
 
@@ -161,7 +162,8 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=N
 				msc <- do.call(cbind,lapply(condQuad, mean.sd.count, regionalCounts, tp, params))
 
 				#error modeling only if more than one replicate exists
-				if (params$numReplicates[[sCond]] > 1) {
+				# if (params$numReplicates[[sCond]] > 1) {
+				if (!srOverride) {
 
 					#fit tile-specific error models
 					logInfo("Fitting error models for each tile")
