@@ -130,7 +130,8 @@ selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logg
 			filterProgression(scores,sCond,tp,params,outDir)
 
 			#all of these analyses require more than one replicate
-			if (params$numReplicates[[sCond]] > 1) {
+			# if (params$numReplicates[[sCond]] > 1) {
+			if (!srOverride) {
 
 				#run replicate correlation analysis
 				replicateCorrelation(scores, marginalCounts, params, sCond, tp, outDir)
@@ -145,8 +146,12 @@ selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logg
 					regularizationQC(scores,modelParams,params,sCond,tp,outDir)
 				}
 			
-				#Error profile
-				errorProfile(scores,sCond,tp,outDir)
+				#If scores could not be assigned due to synonymous-nonsense median failure
+				#then we can't run an error profile analysis
+				if (!all(is.na(scores$score)) && !any(scores$score.sd < 0,na.rm=TRUE)) {
+					#Error profile
+					errorProfile(scores,sCond,tp,outDir)
+				}
 			}
 
 		}

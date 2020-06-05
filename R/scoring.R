@@ -161,6 +161,11 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=N
 				#Calculate means, stdevs and average count for each condition
 				msc <- do.call(cbind,lapply(condQuad, mean.sd.count, regionalCounts, tp, params))
 
+				#for multi-condition maps, filter out rows that don't occur at all in this condition
+				unrelated <- which(msc$nonselect.count == 0)
+				regionalCounts <- regionalCounts[-unrelated,]
+				msc <- msc[-unrelated,]
+
 				#error modeling only if more than one replicate exists
 				# if (params$numReplicates[[sCond]] > 1) {
 				if (!srOverride) {
@@ -358,6 +363,7 @@ mean.sd.count <- function(cond,regionalCounts,tp,params) {
 		mean=means,
 		sd=sds,
 		cv=sds/means,
+		# cv=mapply(function(s,m) if(s==0) 0 else s/m,sds,means),
 		count=if(nrep>1)rowMeans(counts,na.rm=TRUE) else counts
 		# csd=apply(counts,1,sd,na.rm=TRUE)
 	)
@@ -567,9 +573,16 @@ normalizeScores <- function(msc,aac,sdThreshold,overrides=c(syn=NA,non=NA)) {
 		nonsenseMedian <- overrides[["non"]]
 	}
 
-	#use medians to normalize
-	score <- (msc$logPhi - nonsenseMedian) / (synonymousMedian - nonsenseMedian)
-	score.sd <- msc$logPhi.sd / (synonymousMedian - nonsenseMedian)
+	#safety check, that the medians are in the right orientation
+	if (synonymousMedian > nonsenseMedian) {
+		#use medians to normalize
+		score <- (msc$logPhi - nonsenseMedian) / (synonymousMedian - nonsenseMedian)
+		score.sd <- msc$logPhi.sd / (synonymousMedian - nonsenseMedian)
+	} else {
+		#otherwise, we CANNOT assign a correct score!
+		warning("Synonymous median must not be below nonsense median!")
+		score <- score.sd <- rep(NA,nrow(msc))
+	}
 
 	return(data.frame(type=msc$type,score=score,score.sd=score.sd))
 }
