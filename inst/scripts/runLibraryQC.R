@@ -43,8 +43,21 @@ p <- add_argument(p, "--parameters", help="parameter file. Defaults to parameter
 p <- add_argument(p, "--logfile", help="log file. Defaults to libraryQC.log in the same directory")
 p <- add_argument(p, "--cores", default=6L, help="number of CPU cores to use in parallel for multi-threading")
 p <- add_argument(p, "--srOverride", help="Manual override to allow singleton replicates. USE WITH EXTREME CAUTION!",flag=TRUE)
-p <- add_argument(p, "--wmThreshold", default=5e-5, help="Define the marginal frequency threshold for well-measuredness.")
+#Workaround: Setting the default value to String type, to avoid bug. Validate manually later
+p <- add_argument(p, "--wmThreshold", default="5e-5", help="Define the marginal frequency threshold for well-measuredness.")
 args <- parse_args(p)
+
+#Manully validate wmThreshold as part of workaround
+args$wmThreshold <- as.numeric(args$wmThreshold)
+if (is.na(args$wmThreshold)) {
+	stop("argument --wmThreshold must be numeric!")
+}
+
+#Workaround for bug in future package, that re-uses command line arguments:
+#Override commandArgs function with dummy that returns nothing
+commandArgs <- function(trailingOnly=FALSE) {
+	character()
+}
 
 #ensure datadir ends in "/" and exists
 dataDir <- args$dataDir

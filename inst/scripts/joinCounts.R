@@ -45,6 +45,12 @@ p <- add_argument(p, "--cores", default=6, help="number of CPU cores to use in p
 p <- add_argument(p, "--srOverride", help="Manual override to allow singleton replicates. USE WITH EXTREME CAUTION!",flag=TRUE)
 args <- parse_args(p)
 
+#Workaround for bug in future package, that re-uses command line arguments:
+#Override commandArgs function with dummy that returns nothing
+commandArgs <- function(trailingOnly=FALSE) {
+	character()
+}
+
 #ensure datadir ends in "/" and exists
 dataDir <- args$dataDir
 if (!grepl("/$",dataDir)) {
