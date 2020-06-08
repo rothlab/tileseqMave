@@ -194,15 +194,17 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=N
 							modelFunctions=modelFunctions
 						)
 					)
-
-					#Apply raw filter (count and frequency thresholds met)
-					logInfo("Filtering...")
-					msc$filter <- rawFilter(msc,params$scoring$countThreshold)
-
-				} else {
-					#quick-and-dirty filter for single-replicate data
-					msc$filter <- sapply(msc$nonselect.count < params$scoring$countThreshold | msc$select.count < 1, ifelse, "count", NA) 
 				}
+				# } else {
+				# 	#quick-and-dirty filter for single-replicate data
+				# 	msc$filter <- sapply(msc$nonselect.count < params$scoring$countThreshold | msc$select.count < 1, ifelse, "count", NA) 
+				# }
+
+				#Apply raw filter (count and frequency thresholds met)
+				logInfo("Filtering...")
+				msc$filter <- rawFilter(msc,params$scoring$countThreshold)
+
+				
 				#Calculate enrichment ratios (phi) and propagate error
 				logInfo("Scoring...")
 				msc <- cbind(msc,calcPhi(msc))
@@ -376,13 +378,25 @@ mean.sd.count <- function(cond,regionalCounts,tp,params) {
 #' @param countThreshold the threshold of raw counts that must be met
 #' @return a vector listing for each row in the table which (if any) filters apply, otherwise NA.
 rawFilter <- function(msc,countThreshold) {
-	#apply nonselect filter
-	nsFilter <- with(msc, 
-		nonselect.count < countThreshold | nonselect.mean <= nonWT.mean + 3*nonWT.sd.bayes
-	)
-	sFilter <- with(msc, 
-		select.mean <= selWT.mean + 3*selWT.sd.bayes
-	)
+	if (all(c("nonWT.sd.bayes", "selWT.sd.bayes") %in% colnames(msc))) {
+		#calculate nonselect filter using WT control
+		nsFilter <- with(msc, 
+			nonselect.count < countThreshold | nonselect.mean <= nonWT.mean + 3*nonWT.sd.bayes
+		)
+		#and select filter using WT control
+		sFilter <- with(msc, 
+			select.mean <= selWT.mean + 3*selWT.sd.bayes
+		)
+	} else {
+		#calculate nonselect filter without WT
+		nsFilter <- with(msc, 
+			nonselect.count < countThreshold | nonselect.mean <= nonWT.mean
+		)
+		#and select filter without WT
+		sFilter <- with(msc, 
+			select.mean <= selWT.mean
+		)
+	}
 	mapply(function(ns,s) {
 		if (ns) "frequency" else if (s) "bottleneck" else NA
 	},nsFilter,sFilter)
@@ -580,7 +594,11 @@ normalizeScores <- function(msc,aac,sdThreshold,overrides=c(syn=NA,non=NA)) {
 		score.sd <- msc$logPhi.sd / (synonymousMedian - nonsenseMedian)
 	} else {
 		#otherwise, we CANNOT assign a correct score!
-		warning("Synonymous median must not be below nonsense median!")
+		warning(
+"Synonymous median fell below nonsense median! This means:
+ * Scores cannot be calculated!
+ * Most downstream analyses will not work!"
+ 		)
 		score <- score.sd <- rep(NA,nrow(msc))
 	}
 

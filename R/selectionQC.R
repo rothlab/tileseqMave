@@ -97,6 +97,7 @@ selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logg
 	logInfo("Reading count data")
 	marginalCountFile <- paste0(latestCount[["dir"]],"/marginalCounts.csv")
 	marginalCounts <- read.csv(marginalCountFile)
+	rownames(marginalCounts) <- marginalCounts$hgvsc
 
 	#filter out frameshifts and indels
 	toAA <- extract.groups(marginalCounts$aaChange,"\\d+(.*)$")
@@ -121,7 +122,8 @@ selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logg
 
 			#ordering should match scores
 			rownames(scores) <- scores$hgvsc
-			scores <- scores[marginalCounts$hgvsc,]
+			# scores <- scores[marginalCounts$hgvsc,]
+			marginalSubset <- marginalCounts[scores$hgvsc,]
 
 			#Score distributions & syn/non medians
 			scoreDistributions(scores,sCond,tp,outDir,params)
@@ -134,7 +136,7 @@ selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logg
 			if (!srOverride) {
 
 				#run replicate correlation analysis
-				replicateCorrelation(scores, marginalCounts, params, sCond, tp, outDir)
+				replicateCorrelation(scores, marginalSubset, params, sCond, tp, outDir)
 
 				#load error model file
 				modelFile <- paste0(latestScore[["dir"]],"/",sCond,"_t",tp,"_errorModel.csv")
@@ -486,11 +488,20 @@ scoreDistributions <- function(scores,sCond,tp,outDir,params) {
 	
 	#collapse by amino acid consequence and associate with regions
 	aaScores <- as.df(with(scores[is.na(scores$filter),],tapply(1:length(hgvsp),hgvsp, function(is) {
-		joint <- join.datapoints(
-			logPhi[is],
-			logPhi.sd[is],
-			rep(params$numReplicates[[sCond]],length(is))
-		)
+		if (!any(is.na(logPhi.sd[is]))) {
+			joint <- join.datapoints(
+				logPhi[is],
+				logPhi.sd[is],
+				rep(params$numReplicates[[sCond]],length(is))
+			)
+		} else {
+			#this is the case if srOverride is turned on and only
+			#one replicate was available
+			joint <- c(
+				mj=mean(logPhi[is],na.rm=TRUE),sj=NA,
+				dfj=params$numReplicates[[sCond]]*length(is)
+			)
+		}
 		p <- unique(as.integer(extract.groups(aaChange[is],"(\\d+)")[,1]))
 		mutregion <- with(as.data.frame(params$regions),which(p >= `Start AA` & p <= `End AA`))
 		list(
@@ -518,11 +529,15 @@ scoreDistributions <- function(scores,sCond,tp,outDir,params) {
 	invisible(tapply(1:nrow(aaScores),aaScores$region, function(is) {
 		reg <- unique(aaScores$region[is])
 		drawDistributions(aaScores[is,],Inf,reg)
-		drawDistributions(aaScores[is,],sdCutoff,reg)
+		if (!any(is.na(aaScores[is,"se"]))) {
+			drawDistributions(aaScores[is,],sdCutoff,reg)
+		}
 		return(NULL)
 	}))
 	drawDistributions(aaScores,Inf,"all")
-	drawDistributions(aaScores,sdCutoff,"all")
+	if (!any(is.na(aaScores[,"se"]))) {
+		drawDistributions(aaScores,sdCutoff,"all")
+	}
 	invisible(dev.off())
 }
 
@@ -533,9 +548,15 @@ scoreDistributions <- function(scores,sCond,tp,outDir,params) {
 #' @return NULL
 drawDistributions <- function(aaScores,seCutoff=Inf,reg=NA) {
 	#extract filtered scores
-	synScores <- with(aaScores,logPhi[grepl("=$",hgvsp) & se < seCutoff ])
-	stopScores <- with(aaScores,logPhi[grepl("Ter$",hgvsp) & se < seCutoff])
-	misScores <- with(aaScores,logPhi[!grepl("Ter$|=$",hgvsp) & se < seCutoff])
+	if (!all(is.na(aaScores$se))) {
+		synScores <- with(aaScores,logPhi[grepl("=$",hgvsp) & se < seCutoff ])
+		stopScores <- with(aaScores,logPhi[grepl("Ter$",hgvsp) & se < seCutoff])
+		misScores <- with(aaScores,logPhi[!grepl("Ter$|=$",hgvsp) & se < seCutoff])
+	} else {
+		synScores <- with(aaScores,logPhi[grepl("=$",hgvsp)])
+		stopScores <- with(aaScores,logPhi[grepl("Ter$",hgvsp)])
+		misScores <- with(aaScores,logPhi[!grepl("Ter$|=$",hgvsp)])
+	}
 	allScores <- c(synScores,stopScores,misScores)
 
 	#calculate plot ranges to nearest integers
