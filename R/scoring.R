@@ -106,14 +106,8 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=N
 
 	#extract variant positions and assign to regions and tiles
 	marginalCounts$position <- as.integer(extract.groups(marginalCounts$codonChange,"(\\d+)"))
-	marginalCounts$region <- sapply(marginalCounts$position, function(pos) {
-		rows <- which(params$regions[,"Start AA"] <= pos & params$regions[,"End AA"] >= pos)
-		params$regions[rows,"Region Number"]
-	})
-	marginalCounts$tile <- sapply(marginalCounts$position, function(pos) {
-		rows <- which(params$tiles[,"Start AA"] <= pos & params$tiles[,"End AA"] >= pos)
-		params$tiles[rows,"Tile Number"]
-	})
+	marginalCounts$region <- params$pos2reg(marginalCounts$position)
+	marginalCounts$tile <- params$pos2tile(marginalCounts$position)
 
 	#iterate over (possibly multiple different) selection conditons
 	for (sCond in selectConds) {
