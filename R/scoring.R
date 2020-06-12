@@ -107,10 +107,12 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=N
 	#extract variant positions and assign to regions and tiles
 	marginalCounts$position <- as.integer(extract.groups(marginalCounts$codonChange,"(\\d+)"))
 	marginalCounts$region <- sapply(marginalCounts$position, function(pos) {
-		which(params$regions[,"Start AA"] <= pos & params$regions[,"End AA"] >= pos)
+		rows <- which(params$regions[,"Start AA"] <= pos & params$regions[,"End AA"] >= pos)
+		params$regions[rows,"Region Number"]
 	})
 	marginalCounts$tile <- sapply(marginalCounts$position, function(pos) {
-		which(params$tiles[,"Start AA"] <= pos & params$tiles[,"End AA"] >= pos)
+		rows <- which(params$tiles[,"Start AA"] <= pos & params$tiles[,"End AA"] >= pos)
+		params$tiles[rows,"Tile Number"]
 	})
 
 	#iterate over (possibly multiple different) selection conditons
@@ -143,8 +145,8 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=N
 			allModelParams <- NULL
 
 			#iterate over mutagenesis regions and process separately.
-			#FIXME: Use region IDs instead of integer index!!
-			regions <- 1:nrow(params$regions)
+			# regions <- 1:nrow(params$regions)
+			regions <- params$regions[,"Region Number"]
 			scoreTable <- do.call(rbind,lapply(regions, function(region) {
 
 				#complain if there's no data for this region

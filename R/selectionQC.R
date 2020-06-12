@@ -363,9 +363,10 @@ replicateCorrelation <- function(scores, marginalCounts, params, sCond, tp, outD
 regularizationQC <- function(scores,modelParams,params,sCond,tp,outDir) {
 
 	#calculate tile assignments
-	tileStarts <- params$tiles[,"Start AA"]
+	# tileStarts <- params$tiles[,"Start AA"]
 	positions <- as.integer(extract.groups(scores$codonChange,"(\\d+)")[,1])
-	tiles <- sapply(positions,function(pos) max(which(tileStarts <= pos)))
+	# tiles <- sapply(positions,function(pos) max(which(tileStarts <= pos)))
+	tiles <- params$pos2tile(positions)
 	
 	outfile <- paste0(outDir,sCond,"_t",tp,"_errorModel.pdf")
 	pdf(outfile,8.5,11)
@@ -426,57 +427,6 @@ regularizationQC <- function(scores,modelParams,params,sCond,tp,outDir) {
 }
 
 
-# #' Create a model of the error in for a subset of marginal frequencies
-# #' 
-# #' @param  subcores a subset of the count table (for a given tile)
-# #' @return a list containing the model function (mapping counts to expected CV), and the model parameters
-# fit.cv.model <- function(subscores) {
-
-# 	# subscores <- scores[which(tiles==tile),]
-
-# 	#poisson model of CV
-# 	cv.poisson <- 1/sqrt(subscores$nonselect.count)
-# 	#filter out NAs and infinites
-# 	filter <- which(is.na(cv.poisson) | is.infinite(cv.poisson) | 
-# 		is.na(subscores$nonselect.cv) | is.infinite(subscores$nonselect.cv))
-
-# 	#model function
-# 	log.cv.model <- function(log.cv.poisson,static,additive,multiplicative) {
-# 		sapply(log.cv.poisson, function(x) max(static, multiplicative*x + additive))
-# 	}
-# 	#objective function
-# 	objective <- function(theta) {
-# 		static <- theta[[1]]
-# 		additive <- theta[[2]]
-# 		multiplicative <- theta[[3]]
-# 		reference <- log10(subscores$nonselect.cv[-filter])
-# 		prediction <- log.cv.model(log10(cv.poisson[-filter]),static,additive,multiplicative)
-# 		rmsd <- sum((prediction-reference)^2,na.rm=TRUE)
-# 		return(rmsd)
-# 	}
-# 	#run optimization
-# 	theta.start <- c(static=-2,additive=0,multiplicative=1)
-# 	z <- optim_nm(objective,start=theta.start)
-# 	theta.optim <- setNames(z$par,names(theta.start))
-
-# 	cv.model <- function(count) {
-# 		cv.poisson <- 1/sqrt(count)
-# 		10^log.cv.model(
-# 			log10(cv.poisson),
-# 			theta.optim[["static"]],
-# 			theta.optim[["additive"]],
-# 			theta.optim[["multiplicative"]]
-# 		)
-# 	}
-
-# 	# plot(cv.poisson,subscores$nonselect.cv,log="xy")
-# 	# lines(runningFunction(cv.poisson,subscores$nonselect.cv,nbins=20,logScale=TRUE),col=2)
-# 	# abline(0,1)
-# 	# lines(seq(0,1,0.01), 10^log.cv.model(log10(seq(0,1,0.01)),z$par[[1]],z$par[[2]],z$par[[3]]),col="blue")
-
-# 	return(c(list(cv.model=cv.model),theta.optim))
-# }
-
 #' Draw score distribution plots
 #' 
 #' @param scores the score table
@@ -503,7 +453,8 @@ scoreDistributions <- function(scores,sCond,tp,outDir,params) {
 			)
 		}
 		p <- unique(as.integer(extract.groups(aaChange[is],"(\\d+)")[,1]))
-		mutregion <- with(as.data.frame(params$regions),which(p >= `Start AA` & p <= `End AA`))
+		# mutregion <- with(as.data.frame(params$regions),which(p >= `Start AA` & p <= `End AA`))
+		mutregion <- params$pos2reg(p)
 		list(
 			hgvsp=unique(hgvsp[is]),
 			logPhi=joint[["mj"]],
