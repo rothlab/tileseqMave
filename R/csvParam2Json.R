@@ -605,9 +605,51 @@ parseParameters <- function(filename,srOverride=FALSE) {
 	}))
 	params$samples <- sampleTable
 
+	#convenience functions to retrieve tile and region information by name
+	params$regi <- function(region) {
+		params$regions[which(params$regions[,"Region Number"] %in% region),]
+	}
+	params$tili <- function(tile) {
+		params$tiles[which(params$tiles[,"Tile Number"] %in% tile),]
+	}
+	params$pos2tile <- function(pos) {
+		rows <- sapply(pos,function(pos) {
+			i <- which(params$tiles[,"Start AA"] <= pos & params$tiles[,"End AA"] >= pos)
+			if (length(i)==0) NA else i
+		}) 
+		params$tiles[rows,"Tile Number"]
+	}
+	params$pos2reg <- function(pos) {
+		rows <- sapply(pos,function(pos) {
+			i <- which(params$regions[,"Start AA"] <= pos & params$regions[,"End AA"] >= pos)
+			if (length(i)==0) NA else i
+		})
+		params$regions[rows,"Region Number"]
+	}
+
 	options(op)
 
 	return(params)
+}
+
+#' Convenience function to find the tiles that belong to each region.
+#'
+#' Given the parameter object returns a list of vectors containing the tile IDs for each region ID
+#'
+#' @param param the parameter object
+#' @return a  list of vectors containing the tile IDs for each region ID
+#' @export
+tilesInRegions <- function(params) {
+	setNames(lapply(params$regions$`Region Number`, function(ri) {
+		# rs <- params$regions[ri,"Start AA"]
+		rs <- params$regi(ri)[["Start AA"]]
+		# re <- params$regions[ri,"End AA"]
+		re <- params$regi(ri)[["End AA"]]
+		tileRows <- which(sapply(params$tiles[,"Start AA"], function(ts){
+			ts >=rs && ts < re
+		}))
+		params$tiles[tileRows,"Tile Number"]
+	}),params$regions$`Region Number`)
 }
 
 #' Convenience function to calculate the list of SNV-reachable AA changes

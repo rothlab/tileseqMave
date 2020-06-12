@@ -135,9 +135,10 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 
 	#Infer tile assignments
 	logInfo("Calculating tile assignments. This may take some time...")
-	tileStarts <- params$tiles[,"Start AA"]
+	# tileStarts <- params$tiles[,"Start AA"]
 	inferTiles <- function(cct) {
-		sapply(cct$pos,function(pos) max(which(tileStarts <= pos)))
+		# sapply(cct$pos,function(pos) max(which(tileStarts <= pos)))
+		params$pos2tile(cct$pos)
 	}
 	allTiles <- pbmclapply(allSplitChanges,inferTiles,mc.cores=mc.cores)	
 	marginalTiles <- inferTiles(marginalSplitChanges)
@@ -221,7 +222,7 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 		logInfo("Checking nucleotide distribution")
 		pdf(paste0(outDir,nsCond,"_nucleotide_bias.pdf"),8.5,11)
 		opar <- par(mfrow=c(6,1))
-		nuclRates <- lapply(params$tiles[,1], function(tile) {
+		nuclRates <- lapply(params$tiles[,"Tile Number"], function(tile) {
 			if (any(simplifiedMarginal$tile == tile)){
 				nucleotideBiasAnalysis(
 					simplifiedMarginal[which(simplifiedMarginal$tile == tile),],
@@ -275,9 +276,10 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 			)
 			return(census)
 		}))
+		rownames(tileCensi) <- params$tiles[,1]
 
 		#calculate lambda and Poisson fits for each census
-		tileLambdas <- do.call(rbind,lapply(1:nrow(tileCensi), function(tile) {
+		tileLambdas <- do.call(rbind,lapply(rownames(tileCensi), function(tile) {
 			freqs <- tileCensi[tile,-c(1,2)]
 			if (any(is.na(freqs))) {
 				return(c(lambda=NA,rmsd=NA))
@@ -287,6 +289,7 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 			rmsd <- sqrt(mean((freqs-dpois(ns,lambda))^2))
 			return(c(lambda=lambda,rmsd=rmsd))
 		}))
+		rownames(tileLambdas) <- params$tiles[,1]
 
 		####################################################
 		# Extrapolate overall census per mutagenesis region
@@ -297,9 +300,9 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 		tilesPerRegion <- tilesInRegions(params)
 		pdf(paste0(outDir,nsCond,"_census.pdf"),8.5,11)
 		opar <- par(mfrow=c(4,3))
-		regionCensi <- lapply(1:length(tilesPerRegion), function(ri) {
+		regionCensi <- lapply(names(tilesPerRegion), function(ri) {
 
-			relevantTiles <- tilesPerRegion[[ri]]
+			relevantTiles <- as.character(tilesPerRegion[[ri]])
 			#if there is no data for any of those tiles
 			if (all(is.na(tileCensi[relevantTiles,"WT"]))) {
 				plot.new()
@@ -345,16 +348,20 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 			)
 		})))
 
-		#plan page layout
+		#plan PDF page layout with 3 rows, covering 4 tiles each.
+		#each row being subdivided into a top track and bottom track
+		#the top track will contain individual histograms, while the bottom track
+		#will contain a joint heatmap for the 4 tiles.
 		tpr <- 4 #tiles per row
 		rpp <- 3 #rows per page
 		ntiles <- nrow(params$tiles)
-		#build layout plan
-		tileLayout <- lapply(seq(1,ntiles,tpr),function(i)i:min(ntiles,i+tpr-1))
+		#build layout plan, which sequencing tiles go in which row/column
+		tileLayout <- lapply(seq(1,ntiles,tpr),function(i) params$tiles[i:min(ntiles,i+tpr-1),"Tile Number"])
 		nrows <- length(tileLayout)
+		#break down the layout by PDF page
 		pageLayout <- lapply(seq(1,nrows,rpp), function(i) tileLayout[i:min(nrows,i+rpp-1)])
 
-		#build a matrix that indicate the grid positions of plot in order of drawing
+		#build a matrix that indicates the grid positions of plots in order of drawing
 		plotIndex <- do.call(rbind,lapply(1:rpp, function(ri) {
 			bottom <- (ri-1)*5+1
 			#position map on bottom of the row, and census plots for the corresponding tiles above
@@ -368,9 +375,12 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 			#For each row on the current page...
 			lapply(tileSets, function(tiles) {
 				#plot coverage map
-				startPos <- min(params$tiles[tiles,"Start AA"])
-				endPos <- max(params$tiles[tiles,"End AA"])
-				seps <- params$tiles[tiles,"Start AA"][-1]
+				# startPos <- min(params$tiles[tiles,"Start AA"])
+				startPos <- min(params$tili(tiles)[,"Start AA"])
+				# endPos <- max(params$tiles[tiles,"End AA"])
+				endPos <- max(params$tili(tiles)[,"End AA"])
+				# seps <- params$tiles[tiles,"Start AA"][-1]
+				seps <- params$tili(tiles)[,"Start AA"][-1]
 				coverageSubmap(startPos,endPos,aaMarginal,seps,thresholds=c(wmThreshold/10,wmThreshold))
 				#and plot the corresponding censi
 				lapply(tiles, function(tile) {
@@ -378,8 +388,8 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 						Condition==nsCond & Time.point==params$timepoints[1,1] & Tile.ID==tile
 					])
 					plotCensus(
-						tileCensi[tile,],
-						lambda=tileLambdas[tile,"lambda"],
+						tileCensi[as.character(tile),],
+						lambda=tileLambdas[as.character(tile),"lambda"],
 						d=if(length(depths)>0) min(depths,na.rm=TRUE) else NULL,
 						main=paste0("Tile #",tile)
 					)
@@ -434,7 +444,7 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 		logInfo("Running Well-measuredness analysis")
 		reachable <- reachableChanges(params)
 
-		data(trtable)
+		# data(trtable)
 		#add translations to marginal table
 		simplifiedMarginal$toaa <- sapply(simplifiedMarginal$to, function(codon){
 			if (codon=="indel") {
@@ -467,11 +477,13 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 		#iterate over regions and analyze separately
 		pdf(paste0(outDir,nsCond,"_wellmeasured.pdf"),8.5,11)
 		opar <- par(mfrow=c(3,2))
-		coverageCurves <- lapply(1:length(tilesPerRegion), function(ri) {
+		coverageCurves <- lapply(names(tilesPerRegion), function(ri) {
 
 			tiles <- tilesPerRegion[[ri]]
-			rStart <- min(params$tiles[tiles,"Start AA"])
-			rEnd <- max(params$tiles[tiles,"End AA"])
+			# rStart <- min(params$tiles[tiles,"Start AA"])
+			rStart <- min(params$tili(tiles)[,"Start AA"])
+			# rEnd <- max(params$tiles[tiles,"End AA"])
+			rEnd <- max(params$tili(tiles)[,"End AA"])
 			rLength <- rEnd-rStart+1
 
 			#if there's no data, return an empty plot
@@ -503,6 +515,9 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 					)/nreachableAA
 				)
 			}))
+			#export coverage table
+			outTblFile <- paste0(outDir,nsCond,"_wm_region",ri,".csv")
+			write.csv(coverageCurves,outTblFile,row.names=FALSE)
 
 			#draw the plot
 			plotcolors <- c(
@@ -521,6 +536,7 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 			}
 			grid()
 			abline(v=wmThreshold,lty="dotted",col="gray50")
+			text(wmThreshold,1,sprintf("legacy cutoff (%.0e)",wmThreshold),col="gray50",pos=4)
 			legend("bottomleft",names(plotcolors),col=plotcolors,lty=linetypes,lwd=2)
 
 			return(coverageCurves)
@@ -538,11 +554,11 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 		simplifiedMarginal$fromaa <- sapply(simplifiedMarginal$from, 
 			function(codon) if (is.na(codon)) "" else trtable[[codon]]
 		)
-		mutbreakdown <- do.call(cbind,lapply(1:nrow(params$tiles), function(tile) {
+		mutbreakdown <- do.call(cbind,lapply(params$tiles[,1], function(tile) {
 			if (!any(simplifiedMarginal$tile == tile)) {
 				return(setNames(rep(NA,5),c("fs","indel","stop","syn","mis")))
 			}
-			marginalSubset <- simplifiedMarginal[simplifiedMarginal$tile == tile,]
+			marginalSubset <- simplifiedMarginal[which(simplifiedMarginal$tile == tile),]
 			freqsums <- with(marginalSubset,{
 				c(
 					fs=sum(freq[toaa=="fs"]),
@@ -633,17 +649,6 @@ drawCoverageLegend <- function(wmThreshold,aaMarginal) {
 	rect(stops[-100],1,stops[-1],1+4*bars[-100],col="gray",border=NA)
 	abline(v=wmThreshold,lty="dashed")
 	par(op)
-}
-
-#helper function to find the tiles that belong to each region
-tilesInRegions <- function(params) {
-	lapply(1:nrow(params$regions), function(ri) {
-		rs <- params$regions[ri,"Start AA"]
-		re <- params$regions[ri,"End AA"]
-		which(sapply(params$tiles[,"Start AA"], function(ts){
-			ts >=rs && ts < re
-		}))
-	})
 }
 
 #helper function to plot a census dataset
