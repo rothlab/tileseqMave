@@ -610,7 +610,7 @@ parseParameters <- function(filename,srOverride=FALSE) {
 		params$regions[which(params$regions[,"Region Number"] %in% region),]
 	}
 	params$tili <- function(tile) {
-		params$tiles[which(params$tiles[,"Tile Number"] %in% tile),]
+		params$tiles[which(params$tiles[,"Tile Number"] %in% tile),,drop=FALSE]
 	}
 	params$pos2tile <- function(pos) {
 		rows <- sapply(pos,function(pos) {
