@@ -40,6 +40,7 @@ p <- add_argument(p, "infile", help="input file. Must be CSV file in MaveDB form
 p <- add_argument(p, "uniprot", help="Uniprot Accession for the underlying protein.")
 p <- add_argument(p, "--pdb", help="PDB structures. Semicolon-separated list of pairings between PDB IDs and chain IDS.")
 p <- add_argument(p, "--out", help="output pdf file. Defaults to the name of the input file with pdf extension.")
+p <- add_argument(p, "--squish", help="output pdf file. Defaults to the name of the input file with pdf extension.",flag=TRUE)
 args <- parse_args(p)
 
 
@@ -153,7 +154,11 @@ cat("Drawing genophenogram...\n")
 
 #build genophenogram
 # img.width <- length(wt.aa) * 0.06 + 2.5
-img.width <- length(wt.aa) * 0.13 + 4
+if (args$squish) {
+	img.width <- 12
+} else {
+	img.width <- length(wt.aa) * 0.13 + 4
+}
 img.height <- 4.5 + 0.13 * if(is.null(td)) 0 else td$num.tracks()
 
 pdf(pdffile,width=img.width,height=img.height)
