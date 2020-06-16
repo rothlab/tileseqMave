@@ -153,6 +153,8 @@ selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logg
 				if (!all(is.na(scores$score)) && !any(scores$score.sd < 0,na.rm=TRUE)) {
 					#Error profile
 					errorProfile(scores,sCond,tp,outDir)
+				} else {
+					logWarn("Cannot plot error profiles, as not scores are available!")
 				}
 			}
 
@@ -250,14 +252,20 @@ replicateCorrelation <- function(scores, marginalCounts, params, sCond, tp, outD
 
 	#pull up matching nonselect and WT controls
 	nCond <- getNonselectFor(sCond,params)
-	sRep <- params$numReplicates[[sCond]]
-	nsRep <- params$numReplicates[[nCond]]
 	condQuad <- c(
 		select=sCond,
 		nonselect=nCond,
 		selWT=getWTControlFor(sCond,params),
 		nonWT=getWTControlFor(nCond,params)
 	)
+	sRep <- params$numReplicates[[sCond]]
+	repQuad <- sapply(condQuad,function(con)params$numReplicates[[con]])
+	if (!all(repQuad == sRep)) {
+		warning(
+"Number of replicates in conditions is not balanced! 
+Correlation plot will be distorted due to recycled replicates!!"
+		)
+	}
 	#Workaround: Since R doesn't like variable names starting with numerals, 
 	# we need to adjust any of those cases
 	if (any(grepl("^\\d",condQuad))) {
@@ -272,9 +280,11 @@ replicateCorrelation <- function(scores, marginalCounts, params, sCond, tp, outD
 	}
 
 	#replicate column name matrix
-	repMatrix <- do.call(cbind,lapply(1:sRep,
-		function(repi) sprintf("%s.t%s.rep%d.frequency",condQuad,tp,repi)
-	))
+	repMatrix <- do.call(rbind,lapply(names(condQuad),function(con) {
+		sapply(1:repQuad[[con]], 
+			function(repi) sprintf("%s.t%s.rep%d.frequency",condQuad[[con]],tp,repi)
+		)
+	}))
 	rownames(repMatrix) <- names(condQuad)
 
 	#extract replicate values for this condition
