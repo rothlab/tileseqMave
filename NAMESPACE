@@ -2,6 +2,7 @@
 
 export(analyzeLegacyTileseqCounts)
 export(buildJointTable)
+export(collapseByAA)
 export(csvParam2Json)
 export(getNonselectFor)
 export(getNonselects)

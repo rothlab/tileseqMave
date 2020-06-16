@@ -269,35 +269,15 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=N
 
 			#collapse by amino acid change
 			logInfo("Collapsing amino acid changes...")
-			if (!srOverride) {
-				aaTable <- as.df(with(simpleTable,tapply(1:length(hgvs_pro),hgvs_pro, function(is) {
-					joint <- join.datapoints(
-						score[is],
-						sd[is],
-						rep(params$numReplicates[[sCond]],length(is))
-					)
-					list(
-						hgvs_pro=unique(hgvs_pro[is]),
-						score=joint[["mj"]],
-						sd=joint[["sj"]],
-						df=joint[["dfj"]],
-						se=joint[["sj"]]/sqrt(joint[["dfj"]])
-					)
-				})))
-			} else {
-				aaTable <- as.df(with(simpleTable,tapply(1:length(hgvs_pro),hgvs_pro, function(is) {
-					list(
-						hgvs_pro=unique(hgvs_pro[is]),
-						score=mean(fin(score[is])),
-						sd=NA,
-						df=length(fin(score[is]))
-					)
-				})))
-			}
+			flooredAA <- collapseByAA(scoreTable,params,sCond,"score.floored","sd.floored",srOverride)
+			unflooredAA <- collapseByAA(scoreTable,params,sCond,"score","score.sd",srOverride)
 
 			logInfo("Writing AA-centric table to file.")
+			outFile <- paste0(outDir,sCond,"_t",tp,"_simple_aa_floored.csv")
+			write.csv(flooredAA,outFile,row.names=FALSE)
+
 			outFile <- paste0(outDir,sCond,"_t",tp,"_simple_aa.csv")
-			write.csv(aaTable,outFile,row.names=FALSE)
+			write.csv(unflooredAA,outFile,row.names=FALSE)
 
 		}
 
@@ -306,6 +286,47 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=N
 	options(op)
 	logInfo("Scoring complete.")
 	return(NULL)
+}
+
+
+#' Collapse score table by amino acid changes
+#' 
+#' @param scoreTable the full score
+#' @param params the parameter object
+#' @param sCond the current selective condition
+#' @param scoreCol the name of the column containing the scores
+#' @param sdCol the name of the column containing the stdev
+#' @param sdOverride the sdOverride flag
+#' @return a \code{data.frame} containing the collapsed score table
+#' @export
+collapseByAA <- function(scoreTable,params,sCond,scoreCol="score",sdCol="score.sd",srOverride=FALSE) {
+	filteredTable <- scoreTable[is.na(scoreTable$filter),]
+	if (!srOverride) {
+		aaTable <- as.df(tapply(1:nrow(filteredTable),filteredTable$hgvsp, function(is) {
+			joint <- join.datapoints(
+				filteredTable[is,scoreCol],
+				filteredTable[is,sdCol],
+				rep(params$numReplicates[[sCond]],length(is))
+			)
+			list(
+				hgvs_pro=unique(filteredTable[is,"hgvsp"]),
+				score=joint[["mj"]],
+				sd=joint[["sj"]],
+				df=joint[["dfj"]],
+				se=joint[["sj"]]/sqrt(joint[["dfj"]])
+			)
+		}))
+	} else {
+		aaTable <- as.df(tapply(1:nrow(filteredTable),filteredTable$hgvsp, function(is) {
+			list(
+				hgvs_pro=unique(filteredTable[is,hgvsp]),
+				score=mean(fin(filteredTable[is,scoreCol])),
+				sd=NA,
+				df=length(fin(filteredTable[is,scoreCol]))
+			)
+		}))
+	}
+	return(aaTable)
 }
 
 #' Error propagation formula for ratios of Random Variables
