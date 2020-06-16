@@ -59,5 +59,11 @@ logWarn <- function(...) {
 	}
 }
 
+#' Convenience function for recording the package version into the logfile.
+#' @export
+logVersion <- function() {
+	logInfo("Running tileseqMave version",packageVersion("tileseqMave"))
+}
+
 #There is no convenience method for error level, as errors should always be thrown
 # and propagated through the call stack.

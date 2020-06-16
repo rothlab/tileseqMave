@@ -74,6 +74,7 @@ mc.cores <- if (is.na(args$cores)) 6 else args$cores
 logger <- new.logger(logfile)
 registerLogger(logger)
 registerLogErrorHandler(logger)
+logVersion()
 
 #run the actual function
 invisible(

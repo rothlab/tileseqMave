@@ -66,6 +66,7 @@ logfile <- if (is.na(args$logfile)) paste0(dataDir,"selectionQC.log") else args$
 logger <- new.logger(logfile)
 registerLogger(logger)
 registerLogErrorHandler(logger)
+logVersion()
 
 #run the actual function
 invisible(

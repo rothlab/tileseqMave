@@ -45,6 +45,7 @@ logfile <- if (is.na(args$logfile)) sub("[^/]+$","csv2json.log",args$infile) els
 logger <- new.logger(logfile)
 registerLogger(logger)
 registerLogErrorHandler(logger)
+logVersion()
 
 #run the actual function
 invisible(

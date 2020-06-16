@@ -68,6 +68,7 @@ logfile <- if (is.na(args$logfile)) paste0(dataDir,"scoring.log") else args$logf
 logger <- new.logger(logfile)
 registerLogger(logger)
 registerLogErrorHandler(logger)
+logVersion()
 
 #run the actual function
 invisible(
