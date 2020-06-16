@@ -21,7 +21,7 @@
 #' @param paramFile input parameter file. defaults to <dataDir>/parameters.json
 #' @return NULL. Results are written to file.
 #' @export
-scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=NULL,mc.cores=6,srOverride=FALSE) {
+scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),mc.cores=6,srOverride=FALSE) {
 
 	op <- options(stringsAsFactors=FALSE)
 
@@ -29,24 +29,6 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=N
 	library(hgvsParseR)
 	library(pbmcapply)
 	library(optimization)
-
-	if (!is.null(logger)) {
-		stopifnot(inherits(logger,"yogilogger"))
-	}
-	logInfo <- function(...) {
-		if (!is.null(logger)) {
-			logger$info(...)
-		} else {
-			do.call(cat,c(list(...),"\n"))
-		}
-	}
-	logWarn <- function(...) {
-		if (!is.null(logger)) {
-			logger$warning(...)
-		} else {
-			do.call(cat,c("Warning:",list(...),"\n"))
-		}
-	}
 
 	#make sure data and out dir exist and ends with a "/"
 	if (!grepl("/$",dataDir)) {
@@ -214,9 +196,6 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=N
 				logInfo("Normalizing...")
 				#check if overrides were provided for the distribution modes
 				normOvr <- getNormOverrides(params,sCond,tp,region)
-				if (any(!is.na(normOvr))) {
-					logWarn("Applying normalization override!")
-				}
 				#and apply
 				msc <- cbind(msc,normalizeScores(msc,regionalCounts$aaChange,params$scoring$sdThreshold,normOvr))
 
@@ -598,9 +577,17 @@ normalizeScores <- function(msc,aac,sdThreshold,overrides=c(syn=NA,non=NA)) {
 
 	#apply any potential overrides
 	if (!is.na(overrides[["syn"]])) {
+		logWarn(sprintf(
+			"Applying synonymous mode override: %.03f -> %.03f",
+			synonymousMedian, overrides[["syn"]]
+		))
 		synonymousMedian <- overrides[["syn"]]
 	}
 	if (!is.na(overrides[["non"]])) {
+		logWarn(sprintf(
+			"Applying nonsense mode override: %.03f -> %.03f",
+			nonsenseMedian, overrides[["non"]]
+		))
 		nonsenseMedian <- overrides[["non"]]
 	}
 
@@ -611,11 +598,12 @@ normalizeScores <- function(msc,aac,sdThreshold,overrides=c(syn=NA,non=NA)) {
 		score.sd <- msc$logPhi.sd / (synonymousMedian - nonsenseMedian)
 	} else {
 		#otherwise, we CANNOT assign a correct score!
-		warning(
-"Synonymous median fell below nonsense median! This means:
- * Scores cannot be calculated!
- * Most downstream analyses will not work!"
- 		)
+		logWarn(paste(
+			"Synonymous median fell below nonsense median! This means:",
+			" * Scores cannot be calculated!",
+			" * Most downstream analyses will not work!",
+			sep="\n"
+ 		))
 		score <- score.sd <- rep(NA,nrow(msc))
 	}
 

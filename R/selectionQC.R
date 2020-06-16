@@ -21,7 +21,7 @@
 #' @param paramFile input parameter file. defaults to <dataDir>/parameters.json
 #' @return NULL. Results are written to file.
 #' @export
-selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=NULL,srOverride=FALSE) {
+selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),srOverride=FALSE) {
 
 
 	op <- options(stringsAsFactors=FALSE)
@@ -30,24 +30,6 @@ selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logg
 	library(hgvsParseR)
 	library(pbmcapply)
 	library(optimization)
-
-	if (!is.null(logger)) {
-		stopifnot(inherits(logger,"yogilogger"))
-	}
-	logInfo <- function(...) {
-		if (!is.null(logger)) {
-			logger$info(...)
-		} else {
-			do.call(cat,c(list(...),"\n"))
-		}
-	}
-	logWarn <- function(...) {
-		if (!is.null(logger)) {
-			logger$warning(...)
-		} else {
-			do.call(cat,c("Warning:",list(...),"\n"))
-		}
-	}
 
 	#make sure data and out dir exist and ends with a "/"
 	if (!grepl("/$",dataDir)) {
@@ -154,7 +136,7 @@ selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),logg
 					#Error profile
 					errorProfile(scores,sCond,tp,outDir)
 				} else {
-					logWarn("Cannot plot error profiles, as not scores are available!")
+					logWarn("Cannot plot error profiles: Scores are not available!")
 				}
 			}
 
@@ -261,10 +243,11 @@ replicateCorrelation <- function(scores, marginalCounts, params, sCond, tp, outD
 	sRep <- params$numReplicates[[sCond]]
 	repQuad <- sapply(condQuad,function(con)params$numReplicates[[con]])
 	if (!all(repQuad == sRep)) {
-		warning(
-"Number of replicates in conditions is not balanced! 
-Correlation plot will be distorted due to recycled replicates!!"
-		)
+		logWarn(paste(
+			"Number of replicates in conditions is not balanced!",
+			" => Correlation plot will be distorted due to recycled replicates!!",
+			sep="\n"
+		))
 	}
 	#Workaround: Since R doesn't like variable names starting with numerals, 
 	# we need to adjust any of those cases

@@ -64,12 +64,13 @@ logfile <- if (is.na(args$logfile)) paste0(dataDir,"selectionQC.log") else args$
 
 #set up logger and shunt it into the error handler
 logger <- new.logger(logfile)
+registerLogger(logger)
 registerLogErrorHandler(logger)
 
 #run the actual function
 invisible(
 	selectionQC(
-		dataDir,paramfile,logger,#args$sdThreshold,
+		dataDir,paramfile,
 		srOverride=args$srOverride
 	)
 )

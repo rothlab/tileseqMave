@@ -21,10 +21,6 @@
 # This is a command line wrapper for scoring
 #####################################################
 
-# scoring(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=NULL,mc.cores=6, 
-#	countThreshold=10,pseudo.n=8,sdThreshold=0.3)
-
-
 options(
 	stringsAsFactors=FALSE,
 	ignore.interactive=TRUE
@@ -70,13 +66,13 @@ logfile <- if (is.na(args$logfile)) paste0(dataDir,"scoring.log") else args$logf
 
 #set up logger and shunt it into the error handler
 logger <- new.logger(logfile)
+registerLogger(logger)
 registerLogErrorHandler(logger)
 
 #run the actual function
 invisible(
 	scoring(
-		dataDir,paramfile,logger,args$cores,
-		# args$countThreshold,args$pseudoReplicates,args$sdThreshold,
+		dataDir,paramfile,args$cores,
 		srOverride=args$srOverride
 	)
 )

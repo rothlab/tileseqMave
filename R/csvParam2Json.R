@@ -24,7 +24,7 @@
 validateParameters <- function(params,srOverride=FALSE) {
 
 	if (srOverride) {
-		warning("SINGLE REPLICATE OVERRIDE HAS BEEN ENABLED. This means:
+		logWarn("SINGLE REPLICATE OVERRIDE HAS BEEN ENABLED. This means:
  * No quality filtering can be performed!
  * The scoring function will be unable to generate error estimates!
  * The selectionQC function will be unable to create correlation plots!
@@ -109,7 +109,7 @@ validateParameters <- function(params,srOverride=FALSE) {
 			stop("No WT control defined for: ",paste(mainConds[!hasWT],collapse=", "))
 		}
 	} else {
-		warning("No condition definitions detected! Is this a QC run?")
+		logWarn("No condition definitions detected! Is this a QC run?")
 	}
 	
 
@@ -176,7 +176,7 @@ validateParameters <- function(params,srOverride=FALSE) {
 		stop("Mutation rate must be between 0 and 1!")
 	}
 	if (params$varcaller$mutRate > 0.1) {
-		warning("Mutation rate parameter is set unusually high! Are you sure about this?")
+		logWarn("Mutation rate parameter is set unusually high! Are you sure about this?")
 	}
 	if (is.na(params$scoring$countThreshold)) {
 		stop("Minimum read count must be an integer!")
@@ -226,10 +226,9 @@ validateParameters <- function(params,srOverride=FALSE) {
 #'
 #' @param infile the input CSV file
 #' @param outfile the output JSON file. Defaults to parameters.json in the same directory
-#' @param logger yogilog logger. Defaults to NULL and writes to stdout.
 #' @return NULL. Results are written to file.
 #' @export
-csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",infile),logger=NULL,srOverride=FALSE) {
+csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",infile),srOverride=FALSE) {
 
 	op <- options(stringsAsFactors=FALSE)
 
@@ -237,32 +236,6 @@ csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",infile),
 	library(RJSONIO)
 	#for helper functions
 	library(yogitools)
-
-	if (!is.null(logger)) {
-		stopifnot(inherits(logger,"yogilogger"))
-	}
-
-	logInfo <- function(...) {
-		if (!is.null(logger)) {
-			logger$info(...)
-		} else {
-			do.call(cat,c(list(...),"\n"))
-		}
-	}
-	logWarn <- function(...) {
-		if (!is.null(logger)) {
-			logger$warning(...)
-		} else {
-			do.call(cat,c("Warning:",list(...),"\n"))
-		}
-	}
-	logErr <- function(...) {
-		if (!is.null(logger)) {
-			logger$error(...)
-		} else {
-			do.call(cat,c("ERROR:",list(...),"\n"))
-		}
-	}
 
 
 	#check that the file is indeed a csv file and can be read

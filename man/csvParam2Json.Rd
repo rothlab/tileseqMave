@@ -7,7 +7,6 @@
 csvParam2Json(
   infile,
   outfile = sub("[^/]+$", "parameters.json", infile),
-  logger = NULL,
   srOverride = FALSE
 )
 }
@@ -15,8 +14,6 @@ csvParam2Json(
 \item{infile}{the input CSV file}
 
 \item{outfile}{the output JSON file. Defaults to parameters.json in the same directory}
-
-\item{logger}{yogilog logger. Defaults to NULL and writes to stdout.}
 }
 \value{
 NULL. Results are written to file.

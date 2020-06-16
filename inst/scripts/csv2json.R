@@ -43,9 +43,11 @@ logfile <- if (is.na(args$logfile)) sub("[^/]+$","csv2json.log",args$infile) els
 
 #set up logger and shunt it into the error handler
 logger <- new.logger(logfile)
+registerLogger(logger)
 registerLogErrorHandler(logger)
 
 #run the actual function
 invisible(
-	csvParam2Json(args$infile,outfile,logger,srOverride=args$srOverride)
+	# csvParam2Json(args$infile,outfile,logger,srOverride=args$srOverride)
+	csvParam2Json(args$infile,outfile,srOverride=args$srOverride)
 )

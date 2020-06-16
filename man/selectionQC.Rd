@@ -7,7 +7,6 @@
 selectionQC(
   dataDir,
   paramFile = paste0(dataDir, "parameters.json"),
-  logger = NULL,
   srOverride = FALSE
 )
 }

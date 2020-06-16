@@ -22,7 +22,7 @@
 #' @return NULL. Results are written to file.
 #' @export
 libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
-	logger=NULL,mc.cores=6,srOverride=FALSE, wmThreshold=5e-5) {
+	mc.cores=6,srOverride=FALSE, wmThreshold=5e-5) {
 
 	op <- options(stringsAsFactors=FALSE)
 
@@ -30,25 +30,7 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 	library(hgvsParseR)
 	library(pbmcapply)
 
-	if (!is.null(logger)) {
-		stopifnot(inherits(logger,"yogilogger"))
-	}
-	logInfo <- function(...) {
-		if (!is.null(logger)) {
-			logger$info(...)
-		} else {
-			do.call(cat,c(list(...),"\n"))
-		}
-	}
-	logWarn <- function(...) {
-		if (!is.null(logger)) {
-			logger$warning(...)
-		} else {
-			do.call(cat,c("Warning:",list(...),"\n"))
-		}
-	}
-
-	#make sure data and out dir exist and ends with a "/"
+		#make sure data and out dir exist and ends with a "/"
 	if (!grepl("/$",dataDir)) {
 		dataDir <- paste0(dataDir,"/")
 	}

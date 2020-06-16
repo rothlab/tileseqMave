@@ -21,8 +21,6 @@
 # This is a command line wrapper for libraryQC
 #####################################################
 
-# libraryQC(dataDir,paramFile=paste0(dataDir,"parameters.json"),logger=NULL,mc.cores=6) 
-
 options(
 	stringsAsFactors=FALSE,
 	ignore.interactive=TRUE
@@ -74,10 +72,11 @@ mc.cores <- if (is.na(args$cores)) 6 else args$cores
 
 #set up logger and shunt it into the error handler
 logger <- new.logger(logfile)
+registerLogger(logger)
 registerLogErrorHandler(logger)
 
 #run the actual function
 invisible(
-	libraryQC(dataDir,paramfile,logger,mc.cores,srOverride=args$srOverride,wmThreshold=args$wmThreshold)
+	libraryQC(dataDir,paramfile,mc.cores,srOverride=args$srOverride,wmThreshold=args$wmThreshold)
 )
 

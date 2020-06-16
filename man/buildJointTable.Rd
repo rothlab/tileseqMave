@@ -7,7 +7,6 @@
 buildJointTable(
   dataDir,
   paramFile = paste0(dataDir, "parameters.json"),
-  logger = NULL,
   mc.cores = 6,
   srOverride = FALSE
 )
@@ -16,6 +15,10 @@ buildJointTable(
 \item{dataDir}{working data directory}
 
 \item{paramFile}{input parameter file. defaults to <dataDir>/parameters.json}
+
+\item{mc.cores}{the number of CPU cores to use in parallel}
+
+\item{srOverride}{the single-replicate override flag}
 }
 \value{
 NULL. Results are written to file.
