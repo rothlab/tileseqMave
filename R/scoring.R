@@ -407,7 +407,9 @@ rawFilter <- function(msc,countThreshold) {
 runModelFits <- function(msc,condNames, tiles, mc.cores) {
 	modelSets <- pbmclapply(condNames, function(cond) {
 		tapply(1:nrow(msc),tiles,function(i) {
-			tryCatch(fit.cv.model(msc[i,],cond),error=function(e) {
+			tryCatch({
+				fit.cv.model(msc[i,],cond)
+			},error=function(e) {
 				list(cv.model=NA,static=NA,additive=NA,multiplicative=NA)
 			})
 		})
@@ -426,14 +428,18 @@ fit.cv.model <- function(subscores,cond) {
 	#filter out NAs and infinites
 	filter <- which(is.na(cv.poisson) | is.infinite(cv.poisson) | 
 		is.na(subscores[,paste0(cond,".cv")]) | is.infinite(subscores[,paste0(cond,".cv")]))
+	if (length(filter)> 0) {
+		subscores <- subscores[-filter,]
+		cv.poisson <- cv.poisson[-filter]
+	}
 	#model function
 	log.cv.model <- function(log.cv.poisson,static,additive,multiplicative) {
 		sapply(log.cv.poisson, function(x) max(static, multiplicative*x + additive))
 	}
 	#objective function
 	objective <- function(theta) {
-		reference <- log10(subscores[-filter,paste0(cond,".cv")])
-		prediction <- log.cv.model(log10(cv.poisson[-filter]),theta[[1]],theta[[2]],theta[[3]])
+		reference <- log10(subscores[,paste0(cond,".cv")])
+		prediction <- log.cv.model(log10(cv.poisson),theta[[1]],theta[[2]],theta[[3]])
 		sum((prediction-reference)^2,na.rm=TRUE)
 	}
 	#run optimization
