@@ -30,7 +30,7 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 	library(hgvsParseR)
 	library(pbmcapply)
 
-		#make sure data and out dir exist and ends with a "/"
+	#make sure data and out dir exist and ends with a "/"
 	if (!grepl("/$",dataDir)) {
 		dataDir <- paste0(dataDir,"/")
 	}
@@ -343,17 +343,22 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 		#break down the layout by PDF page
 		pageLayout <- lapply(seq(1,nrows,rpp), function(i) tileLayout[i:min(nrows,i+rpp-1)])
 
-		#build a matrix that indicates the grid positions of plots in order of drawing
-		plotIndex <- do.call(rbind,lapply(1:rpp, function(ri) {
-			bottom <- (ri-1)*5+1
-			#position map on bottom of the row, and census plots for the corresponding tiles above
-			rbind(bottom+1:tpr, rep(bottom,tpr))
-		}))
-
 		#now do the actual plotting.
 		pdf(paste0(outDir,nsCond,"_coverage.pdf"),8.5,11)
-		layout(plotIndex)
 		invisible(lapply(pageLayout, function(tileSets) {
+
+			#build a matrix that indicates the grid positions of plots in order of drawing
+			plotIndex <- do.call(rbind,lapply(1:rpp, function(ri) {
+				bottom <- (ri-1)*5+1
+				topRow <- bottom+1:tpr
+				bottomRow <- rep(bottom,tpr)
+				currTiles <- min(tileSets[[min(ri,length(tileSets))]])-1+1:tpr
+				bottomRow[currTiles > ntiles] <- -1
+				#position map on bottom of the row, and census plots for the corresponding tiles above
+				rbind(topRow, bottomRow)
+			}))
+			layout(plotIndex)
+
 			#For each row on the current page...
 			lapply(tileSets, function(tiles) {
 				#plot coverage map
