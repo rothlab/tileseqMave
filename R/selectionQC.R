@@ -491,6 +491,15 @@ scoreDistributions <- function(scores,sCond,tp,outDir,params) {
 #' @param seCutoff the stderr cutoff to apply
 #' @return NULL
 drawDistributions <- function(aaScores,seCutoff=Inf,reg=NA) {
+
+	numNsSurvive <- with(aaScores,sum(se < seCutoff & grepl("Ter$",hgvsp),na.rm=TRUE))
+	if (numNsSurvive < 10) {
+		nonsenseSDs <- with(aaScores,se[grepl("Ter$",hgvsp)])
+		r10Threshold <- sort(nonsenseSDs)[[min(10,length(nonsenseSDs))]]
+		logWarn(sprintf("sdThreshold %.03f is too restrictive! Using se < %.03f instead.",seCutoff,r10Threshold))
+		seCutoff <- r10Threshold
+	}
+
 	#extract filtered scores
 	if (!all(is.na(aaScores$se))) {
 		synScores <- with(aaScores,logPhi[grepl("=$",hgvsp) & se < seCutoff ])

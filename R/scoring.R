@@ -568,8 +568,18 @@ normalizeScores <- function(msc,aac,sdThreshold,overrides=c(syn=NA,non=NA)) {
 
 	#apply filter
 	mscFiltered <- if (!all(is.na(msc$logPhi.sd))) {
-		with(msc,msc[which(is.na(filter) & logPhi.sd < sdThreshold),])
+		numNsSurvive <- with(msc,sum(is.na(filter) & logPhi.sd < sdThreshold & type == "nonsense",na.rm=TRUE))
+		if (numNsSurvive >= 10) {
+			with(msc,msc[which(is.na(filter) & logPhi.sd < sdThreshold),])
+		} else {
+			nonsenseSDs <- with(msc,logPhi.sd[is.na(filter) & type=="nonsense"])
+			# q10Threshold <- quantile(with(msc,logPhi.sd[is.na(filter) & type=="nonsense"]),0.1)
+			r10Threshold <- sort(nonsenseSDs)[[min(10,length(nonsenseSDs))]]
+			logWarn(sprintf("sdThreshold %.03f is too restrictive! Using sd < %.03f instead.",sdThreshold,r10Threshold))
+			with(msc,msc[which(is.na(filter) & logPhi.sd < r10Threshold),])
+		}
 	} else {
+		logWarn("No SD-filter applied to mode finder, as no error estimates are available.")
 		with(msc,msc[which(is.na(filter)),])
 	}
 
@@ -580,6 +590,9 @@ normalizeScores <- function(msc,aac,sdThreshold,overrides=c(syn=NA,non=NA)) {
 	nonsenseMedian <- with(mscFiltered,median(
 		logPhi[which(type == "nonsense")]
 	,na.rm=TRUE))
+
+	logInfo(sprintf("Auto-detected nonsense median: %.03f",nonsenseMedian))
+	logInfo(sprintf("Auto-detected synonymous median: %.03f",synonymousMedian))
 
 	#apply any potential overrides
 	if (!is.na(overrides[["syn"]])) {
