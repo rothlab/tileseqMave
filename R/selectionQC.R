@@ -195,6 +195,7 @@ filterProgression <- function(scores,sCond,tp,params,outDir) {
 	#draw plot
 	outfile <- paste0(outDir,sCond,"_t",tp,"_filtering.pdf")
 	pdf(outfile,10,5)
+	opar <- par(oma=c(1,1,1,1))
 	widths <- census/max(census)
 	percentages <- apply(census,2,function(xs)xs/xs[[1]])*100
 	plotCols <- c("steelblue2","steelblue3","gold2","gold3")
@@ -214,6 +215,7 @@ filterProgression <- function(scores,sCond,tp,params,outDir) {
 		)
 		text(cati,4:1,sprintf("%d (%.02f%%)",census[,cati],percentages[,cati]))
 	}))
+	par(opar)
 	invisible(dev.off())
 
 }
@@ -363,7 +365,7 @@ regularizationQC <- function(scores,modelParams,params,sCond,tp,outDir) {
 	
 	outfile <- paste0(outDir,sCond,"_t",tp,"_errorModel.pdf")
 	pdf(outfile,8.5,11)
-	opar <- par(mfrow=c(3,2))
+	opar <- par(mfrow=c(3,2),oma=c(1,1,1,1))
 	for (tile in params$tiles[,"Tile Number"]) {
 		# model.fit <- tryCatch({
 		# 	fit.cv.model(scores[which(tiles==tile),])
@@ -469,6 +471,7 @@ scoreDistributions <- function(scores,sCond,tp,outDir,params) {
 
 	outfile <- paste0(outDir,sCond,"_t",tp,"_logPhiDistribution.pdf")
 	pdf(outfile,11,8.5)
+	opar <- par(oma=c(1,1,1,1))
 	layout(rbind(1,2,3,4),heights=c(1.2,1,1.2,1))
 	invisible(tapply(1:nrow(aaScores),aaScores$region, function(is) {
 		reg <- unique(aaScores$region[is])
@@ -482,6 +485,7 @@ scoreDistributions <- function(scores,sCond,tp,outDir,params) {
 	if (!any(is.na(aaScores[,"se"]))) {
 		drawDistributions(aaScores,sdCutoff,"all")
 	}
+	par(opar)
 	invisible(dev.off())
 }
 

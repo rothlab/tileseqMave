@@ -203,7 +203,7 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 		#################################
 		logInfo("Checking nucleotide distribution")
 		pdf(paste0(outDir,nsCond,"_nucleotide_bias.pdf"),8.5,11)
-		opar <- par(mfrow=c(6,1))
+		opar <- par(mfrow=c(6,1),oma=c(1,1,1,1))
 		nuclRates <- lapply(params$tiles[,"Tile Number"], function(tile) {
 			if (any(simplifiedMarginal$tile == tile)){
 				nucleotideBiasAnalysis(
@@ -281,7 +281,7 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 		#determine which tiles are in which regions
 		tilesPerRegion <- tilesInRegions(params)
 		pdf(paste0(outDir,nsCond,"_census.pdf"),8.5,11)
-		opar <- par(mfrow=c(4,3))
+		opar <- par(mfrow=c(4,3),oma=c(1,1,1,1))
 		regionCensi <- lapply(names(tilesPerRegion), function(ri) {
 
 			relevantTiles <- as.character(tilesPerRegion[[ri]])
@@ -345,6 +345,7 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 
 		#now do the actual plotting.
 		pdf(paste0(outDir,nsCond,"_coverage.pdf"),8.5,11)
+		opar <- par(oma=c(1,1,1,1))
 		invisible(lapply(pageLayout, function(tileSets) {
 
 			#build a matrix that indicates the grid positions of plots in order of drawing
@@ -384,6 +385,7 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 			})
 		}))
 		drawCoverageLegend(wmThreshold,aaMarginal)
+		par(opar)
 		invisible(dev.off())
 
 		#######################
@@ -410,7 +412,7 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 
 		#draw the plot for each tile
 		pdf(paste0(outDir,nsCond,"_complexity.pdf"),8.5,11)
-		opar <- par(mfrow=c(3,2))
+		opar <- par(mfrow=c(3,2),oma=c(1,1,1,1))
 		invisible(tapply(1:nrow(cplxPlot),cplxPlot[,"tile"],function(is) {
 			if (length(is) > 1) {
 				tile <- unique(cplxPlot[is,3])
@@ -463,7 +465,7 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 
 		#iterate over regions and analyze separately
 		pdf(paste0(outDir,nsCond,"_wellmeasured.pdf"),8.5,11)
-		opar <- par(mfrow=c(3,2))
+		opar <- par(mfrow=c(3,2),oma=c(1,1,1,1))
 		coverageCurves <- lapply(names(tilesPerRegion), function(ri) {
 
 			tiles <- tilesPerRegion[[ri]]
@@ -564,10 +566,12 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 			synonymous="steelblue3",missense="darkolivegreen3"
 		)
 		pdf(paste0(outDir,nsCond,"_mutationtypes.pdf"),8.5,11)
+		opar <- par(oma=c(1,1,1,1))
 		barplot(mutbreakdown,col=plotcols,border=NA,horiz=TRUE,
 			xlab="sum of marginal frequencies",ylab="Tile",main="Mutation types"
 		)
 		legend("right",names(plotcols),fill=plotcols)
+		par(opar)
 		invisible(dev.off())
 
 	}
