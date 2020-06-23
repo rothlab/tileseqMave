@@ -68,6 +68,9 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 	dir.create(outDir,recursive=TRUE,showWarnings=FALSE)
 
 
+	#create PDF tag
+	pdftag <- with(params,sprintf("%s (%s): %s%s",project,template$geneName,latest[["label"]],latest[["timeStamp"]]))
+
 	#identify nonselect conditions
 	nsConditions <- getNonselects(params)
 	# nsConditions <- unique(with(as.data.frame(params$conditions$definitions),{
@@ -203,7 +206,9 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 		#################################
 		logInfo("Checking nucleotide distribution")
 		pdf(paste0(outDir,nsCond,"_nucleotide_bias.pdf"),8.5,11)
-		opar <- par(mfrow=c(6,1),oma=c(1,1,1,1))
+		opar <- par(mfrow=c(6,1),oma=c(2,2,2,2))
+		#set up pdf tagger
+		tagger <- pdftagger(paste(pdftag,"; condition:",nsCond),cpp=6)
 		nuclRates <- lapply(params$tiles[,"Tile Number"], function(tile) {
 			if (any(simplifiedMarginal$tile == tile)){
 				nucleotideBiasAnalysis(
@@ -217,6 +222,8 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 				mtext(paste0("Tile #",tile),side=4)
 				return(NA)
 			}
+			#add one pdf tag per page
+			tagger$cycle()
 		})
 		par(opar)
 		invisible(dev.off())
@@ -281,7 +288,8 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 		#determine which tiles are in which regions
 		tilesPerRegion <- tilesInRegions(params)
 		pdf(paste0(outDir,nsCond,"_census.pdf"),8.5,11)
-		opar <- par(mfrow=c(4,3),oma=c(1,1,1,1))
+		opar <- par(mfrow=c(4,3),oma=c(2,2,2,2))
+		tagger <- pdftagger(paste(pdftag,"; condition:",nsCond),cpp=12)
 		regionCensi <- lapply(names(tilesPerRegion), function(ri) {
 
 			relevantTiles <- as.character(tilesPerRegion[[ri]])
@@ -291,6 +299,7 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 				rect(0,0,1,1,col="gray80",border="gray30",lty="dotted")
 				text(0.5,0.5,"no data")
 				mtext(paste0("Extrapolation for Region #",ri))
+				tagger$cycle()
 				return(c(fs=NA,indel=NA,WT=NA,setNames(rep(NA,maxChanges),1:maxChanges)))
 			}
 
@@ -305,6 +314,7 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 
 			#Plot overall census
 			plotCensus(overallCensus,overallLambda,main=paste0("Extrapolation for Region #",ri))
+			tagger$cycle()
 			return(overallCensus)
 		})
 		par(opar)
@@ -337,6 +347,7 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 		tpr <- 4 #tiles per row
 		rpp <- 3 #rows per page
 		ntiles <- nrow(params$tiles)
+		lastTile <- max(params$tiles[,"Tile Number"])
 		#build layout plan, which sequencing tiles go in which row/column
 		tileLayout <- lapply(seq(1,ntiles,tpr),function(i) params$tiles[i:min(ntiles,i+tpr-1),"Tile Number"])
 		nrows <- length(tileLayout)
@@ -345,7 +356,8 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 
 		#now do the actual plotting.
 		pdf(paste0(outDir,nsCond,"_coverage.pdf"),8.5,11)
-		opar <- par(oma=c(1,1,1,1))
+		opar <- par(oma=c(2,2,2,2))
+		tagger <- pdftagger(paste(pdftag,"; condition:",nsCond),cpp=1)
 		invisible(lapply(pageLayout, function(tileSets) {
 
 			#build a matrix that indicates the grid positions of plots in order of drawing
@@ -354,7 +366,7 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 				topRow <- bottom+1:tpr
 				bottomRow <- rep(bottom,tpr)
 				currTiles <- min(tileSets[[min(ri,length(tileSets))]])-1+1:tpr
-				bottomRow[currTiles > ntiles] <- -1
+				bottomRow[currTiles > lastTile] <- -1
 				#position map on bottom of the row, and census plots for the corresponding tiles above
 				rbind(topRow, bottomRow)
 			}))
@@ -383,6 +395,7 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 					)
 				})
 			})
+			tagger$cycle()
 		}))
 		drawCoverageLegend(wmThreshold,aaMarginal)
 		par(opar)
@@ -412,7 +425,8 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 
 		#draw the plot for each tile
 		pdf(paste0(outDir,nsCond,"_complexity.pdf"),8.5,11)
-		opar <- par(mfrow=c(3,2),oma=c(1,1,1,1))
+		opar <- par(mfrow=c(3,2),oma=c(2,2,2,2))
+		tagger <- pdftagger(paste(pdftag,"; condition:",nsCond),cpp=6)
 		invisible(tapply(1:nrow(cplxPlot),cplxPlot[,"tile"],function(is) {
 			if (length(is) > 1) {
 				tile <- unique(cplxPlot[is,3])
@@ -421,6 +435,7 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 						xlab="#unique contexts in tile",ylab="marginal frequency",
 						main=paste0("Tile #",tile)
 					)
+					tagger$cycle()
 				}
 			}
 		}))
@@ -465,7 +480,8 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 
 		#iterate over regions and analyze separately
 		pdf(paste0(outDir,nsCond,"_wellmeasured.pdf"),8.5,11)
-		opar <- par(mfrow=c(3,2),oma=c(1,1,1,1))
+		opar <- par(mfrow=c(3,2),oma=c(2,2,2,2))
+		tagger <- pdftagger(paste(pdftag,"; condition:",nsCond),cpp=6)
 		coverageCurves <- lapply(names(tilesPerRegion), function(ri) {
 
 			tiles <- tilesPerRegion[[ri]]
@@ -481,6 +497,7 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 				rect(0,0,1,1,col="gray80",border="gray30",lty="dotted")
 				text(0.5,0.5,"no data")
 				mtext(paste0("Region #",ri))
+				tagger$cycle()
 				return(NULL)
 			}
 
@@ -527,7 +544,7 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 			abline(v=wmThreshold,lty="dotted",col="gray50")
 			text(wmThreshold,1,sprintf("legacy cutoff (%.0e)",wmThreshold),col="gray50",pos=4)
 			legend("bottomleft",names(plotcolors),col=plotcolors,lty=linetypes,lwd=2)
-
+			tagger$cycle()
 			return(coverageCurves)
 
 		})
@@ -566,11 +583,13 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 			synonymous="steelblue3",missense="darkolivegreen3"
 		)
 		pdf(paste0(outDir,nsCond,"_mutationtypes.pdf"),8.5,11)
-		opar <- par(oma=c(1,1,1,1))
+		opar <- par(oma=c(2,2,2,2))
+		tagger <- pdftagger(paste(pdftag,"; condition:",nsCond),cpp=2)
 		barplot(mutbreakdown,col=plotcols,border=NA,horiz=TRUE,
 			xlab="sum of marginal frequencies",ylab="Tile",main="Mutation types"
 		)
 		legend("right",names(plotcols),fill=plotcols)
+		tagger$cycle()
 		par(opar)
 		invisible(dev.off())
 
@@ -758,3 +777,20 @@ nucleotideBiasAnalysis <- function(simplifiedMarginal,tile,draw=TRUE) {
 	return(rates)
 }
 
+# Helper class for adding tags to pdf page margins
+pdftagger <- function(tag, cpp=1) {
+	.cyclesPerPage <- cpp
+	.cycle <- 1
+	cycle <- function() {
+		#add one pdf tag per page
+		if (.cyclesPerPage==1 || (.cycle%%.cyclesPerPage==1)) {
+			mtext(tag,outer=TRUE,line=0,cex=0.5)
+		}
+		.cycle <<- .cycle+1
+	}
+	reInit <- function(cpp=1) {
+		.cyclesPerPage <<- cpp
+		.cycle <- 1
+	}
+	list(cycle=cycle,reInit=reInit)
+}

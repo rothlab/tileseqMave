@@ -70,6 +70,9 @@ selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),srOv
 		stop("latest score folder does not match latest counts folder time stamp!")
 	}
 
+	pdftag <- with(params,sprintf("%s (%s): %s%s",project,template$geneName,latestCount[["label"]],latestCount[["timeStamp"]]))
+	params$pdftagbase <- pdftag
+
 	#create a matching output directory
 	outDir <- paste0(dataDir,latestScore[["label"]],latestScore[["timeStamp"]],"_QC/")
 	if (!dir.exists(outDir)) {
@@ -134,7 +137,7 @@ selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),srOv
 				#then we can't run an error profile analysis
 				if (!all(is.na(scores$score)) && !any(scores$score.sd < 0,na.rm=TRUE)) {
 					#Error profile
-					errorProfile(scores,sCond,tp,outDir)
+					errorProfile(scores,sCond,tp,outDir,params)
 				} else {
 					logWarn("Cannot plot error profiles: Scores are not available!")
 				}
@@ -194,15 +197,15 @@ filterProgression <- function(scores,sCond,tp,params,outDir) {
 
 	#draw plot
 	outfile <- paste0(outDir,sCond,"_t",tp,"_filtering.pdf")
-	pdf(outfile,10,5)
-	opar <- par(oma=c(1,1,1,1))
+	pdf(outfile,11,8.5)
+	tagger <- pdftagger(paste(params$pdftagbase,"; selection condition:",sCond),cpp=2)
 	widths <- census/max(census)
 	percentages <- apply(census,2,function(xs)xs/xs[[1]])*100
 	plotCols <- c("steelblue2","steelblue3","gold2","gold3")
 	ylabels <- c("All possible","Detected","Passed filter","High Quality")
 	xlabels <- c("All","SNV-reachable","All","SNV-reachable")
 	toplabels <- c("Codon changes","AA changes")
-	op <- par(mar=c(1,1,1,1)+.1)
+	opar <- par(oma=c(2,2,2,2),mar=c(10,1,1,1)+.1)
 	plot(NA,type="n",xlim=c(-.5,4.5),ylim=c(1,5),xlab="",ylab="",axes=FALSE)
 	abline(h=1:4,col="gray",lty="dotted")
 	text(-0.5,4:1,ylabels,pos=4)
@@ -215,6 +218,7 @@ filterProgression <- function(scores,sCond,tp,params,outDir) {
 		)
 		text(cati,4:1,sprintf("%d (%.02f%%)",census[,cati],percentages[,cati]))
 	}))
+	tagger$cycle()
 	par(opar)
 	invisible(dev.off())
 
@@ -293,8 +297,10 @@ replicateCorrelation <- function(scores, marginalCounts, params, sCond, tp, outD
 
 	if (sRep == 2) {
 		outfile <- paste0(outDir,sCond,"_t",tp,"_replicates.pdf")
-		pdf(outfile,10,5)
+		pdf(outfile,11,8.5)
+		tagger <- pdftagger(paste(params$pdftagbase,"; selection condition:",sCond),cpp=2)
 		layout(cbind(1,2))
+		opar <- par(oma=c(2,2,2,2),mar=c(15,4,4,1)+.1)
 		plot(
 			repValues[,"1.nonselect"],repValues[,"2.nonselect"],
 			xlab="Frequency Replicate 1", ylab="Frequency Replicate 2",
@@ -305,6 +311,7 @@ replicateCorrelation <- function(scores, marginalCounts, params, sCond, tp, outD
 			pch=".",
 			log="xy"
 		)
+		tagger$cycle()
 		plot(
 			repValues[,"1.logphi"],repValues[,"2.logphi"],
 			xlab="log(phi) Replicate 1", ylab="log(phi) Replicate 2",
@@ -313,6 +320,7 @@ replicateCorrelation <- function(scores, marginalCounts, params, sCond, tp, outD
 				cor(fin(repValues[,sprintf("%d.logphi",1:2)]))[1,2]
 			),pch="."
 		)
+		par(opar)
 		invisible(dev.off())
 	} else {
 		panel.cor <- function(x, y,...){
@@ -323,24 +331,34 @@ replicateCorrelation <- function(scores, marginalCounts, params, sCond, tp, outD
 			text(0.5, 0.5, txt)
 		}
 		labels <- paste0("rep.",1:sRep)	
-		imgSize <- max(4,sRep)
+		# imgSize <- max(4,sRep)
 
+		#TODO: This needs to be tested!
 		outfile <- paste0(outDir,sCond,"_t",tp,"_ns_replicates.pdf")
-		pdf(outfile,imgSize,imgSize)
+		# pdf(outfile,imgSize,imgSize)
+		pdf(outfile,8.5,11)
+		# tagger <- pdftagger(paste(params$pdftagbase,"; selection condition:",sCond),cpp=2)
 		pairs(
 			repValues[,sprintf("%d.nonselect",1:sRep)],
 			lower.panel=panel.cor,pch=".",labels=labels,
 			main="non-select frequencies"
 		)
+		op <- par(oma=c(2,2,2,2))
+		mtext(paste(params$pdftagbase,"; selection condition:",sCond),side=1,outer=TRUE,line=0,cex=0.5)
+		par(op)
 		invisible(dev.off())
 
 		outfile <- paste0(outDir,sCond,"_t",tp,"_phi_replicates.pdf")
-		pdf(outfile,imgSize,imgSize)
+		# pdf(outfile,imgSize,imgSize)
+		pdf(outfile,8.5,11)
 		pairs(
 			repValues[,sprintf("%d.nonselect",1:sRep)],
 			lower.panel=panel.cor,pch=".",labels=labels,
 			main="select / nonselect log-ratios"
 		)
+		op <- par(oma=c(2,2,2,2))
+		mtext(paste(params$pdftagbase,"; selection condition:",sCond),side=1,outer=TRUE,line=0,cex=0.5)
+		par(op)
 		invisible(dev.off())
 	}
 
@@ -365,29 +383,31 @@ regularizationQC <- function(scores,modelParams,params,sCond,tp,outDir) {
 	
 	outfile <- paste0(outDir,sCond,"_t",tp,"_errorModel.pdf")
 	pdf(outfile,8.5,11)
-	opar <- par(mfrow=c(3,2),oma=c(1,1,1,1))
+	tagger <- pdftagger(paste(params$pdftagbase,"; selection condition:",sCond),cpp=6)
+	opar <- par(mfrow=c(3,2),oma=c(2,2,2,2))
 	for (tile in params$tiles[,"Tile Number"]) {
 		# model.fit <- tryCatch({
 		# 	fit.cv.model(scores[which(tiles==tile),])
 		# },error=function(e) {
 		# 	NULL
 		# })
-		theta <- modelParams[as.character(tile),paste0("nonselect.",c("static","additive","multiplicative"))]
-		cv.model <- function(count) {
-			10^sapply(log10(1/sqrt(count)),function(x) max(theta[[1]], theta[[2]] + theta[[3]]*x))
-		}
-
 		if (!(tile %in% tiles)) {
 			plot.new()
 			rect(0,0,1,1,col="gray80",border="gray30",lty="dotted")
 			text(0.5,0.5,"no data")
 			mtext(paste0("Tile ",tile),side=3)
+			tagger$cycle()
 			next
 		}
 
 		with(scores[which(tiles==tile),],{
 
-			plot(nonselect.count,nonselect.cv,log="xy",main=paste("Tile",tile))
+			theta <- modelParams[as.character(tile),paste0("nonselect.",c("static","additive","multiplicative"))]
+			cv.model <- function(count) {
+				10^sapply(log10(1/sqrt(count)),function(x) max(theta[[1]], theta[[2]] + theta[[3]]*x))
+			}
+
+			plot(nonselect.count,nonselect.cv,log="xy",main=paste("Tile",tile,"non-select"))
 			runningMean <- runningFunction(
 				nonselect.count,nonselect.cv,nbins=20,logScale=TRUE
 			)
@@ -400,21 +420,42 @@ regularizationQC <- function(scores,modelParams,params,sCond,tp,outDir) {
 				"stat.=%.02f; add.=%.02f; mult.=%.02f",
 				theta[[1]],theta[[2]],theta[[3]]
 			))
+			tagger$cycle()
 
-			nonselect.sd.poisson <- 1/sqrt(nonselect.count)*nonselect.mean
-			nonselect.sd.poisson[which(nonselect.mean==0)] <- 0
-			plot(nonselect.sd.poisson, nonselect.sd,log="xy")
+			theta <- modelParams[as.character(tile),paste0("select.",c("static","additive","multiplicative"))]
+			cv.model <- function(count) {
+				10^sapply(log10(1/sqrt(count)),function(x) max(theta[[1]], theta[[2]] + theta[[3]]*x))
+			}
+
+			plot(select.count,select.cv,log="xy",main=paste("Tile",tile,"select"))
 			runningMean <- runningFunction(
-				nonselect.sd.poisson, nonselect.sd,nbins=20,logScale=TRUE
+				select.count,select.cv,nbins=20,logScale=TRUE
 			)
+			sSamples <- seq(1,max(select.count,na.rm=TRUE),length.out=100)
+			lines(sSamples,1/sqrt(sSamples),col="chartreuse3",lty="dashed",lwd=2)
 			lines(runningMean,col="firebrick3",lwd=2)
-			abline(0,1,col="chartreuse3",lty="dashed",lwd=2)
-			depth <- mean(nonselect.count/nonselect.mean,na.rm=TRUE)
-			lines(
-				sqrt(nsSamples)/depth,
-				cv.model(nsSamples)*(nsSamples/depth),
-				col="blue",lwd=2
-			)
+			
+			lines(sSamples,cv.model(sSamples),col="blue",lwd=2)
+			mtext(sprintf(
+				"stat.=%.02f; add.=%.02f; mult.=%.02f",
+				theta[[1]],theta[[2]],theta[[3]]
+			))
+			tagger$cycle()
+
+			# nonselect.sd.poisson <- 1/sqrt(nonselect.count)*nonselect.mean
+			# nonselect.sd.poisson[which(nonselect.mean==0)] <- 0
+			# plot(nonselect.sd.poisson, nonselect.sd,log="xy")
+			# runningMean <- runningFunction(
+			# 	nonselect.sd.poisson, nonselect.sd,nbins=20,logScale=TRUE
+			# )
+			# lines(runningMean,col="firebrick3",lwd=2)
+			# abline(0,1,col="chartreuse3",lty="dashed",lwd=2)
+			# depth <- mean(nonselect.count/nonselect.mean,na.rm=TRUE)
+			# lines(
+			# 	sqrt(nsSamples)/depth,
+			# 	cv.model(nsSamples)*(nsSamples/depth),
+			# 	col="blue",lwd=2
+			# )
 		})
 	}
 	par(opar)
@@ -471,19 +512,24 @@ scoreDistributions <- function(scores,sCond,tp,outDir,params) {
 
 	outfile <- paste0(outDir,sCond,"_t",tp,"_logPhiDistribution.pdf")
 	pdf(outfile,11,8.5)
-	opar <- par(oma=c(1,1,1,1))
+	opar <- par(oma=c(2,2,2,2))
+	tagger <- pdftagger(paste(params$pdftagbase,"; selection condition:",sCond),cpp=2)
 	layout(rbind(1,2,3,4),heights=c(1.2,1,1.2,1))
 	invisible(tapply(1:nrow(aaScores),aaScores$region, function(is) {
 		reg <- unique(aaScores$region[is])
 		drawDistributions(aaScores[is,],Inf,reg)
+		tagger$cycle()
 		if (!any(is.na(aaScores[is,"se"]))) {
 			drawDistributions(aaScores[is,],sdCutoff,reg)
+			tagger$cycle()
 		}
 		return(NULL)
 	}))
 	drawDistributions(aaScores,Inf,"all")
+	tagger$cycle()
 	if (!any(is.na(aaScores[,"se"]))) {
 		drawDistributions(aaScores,sdCutoff,"all")
+		tagger$cycle()
 	}
 	par(opar)
 	invisible(dev.off())
@@ -595,16 +641,16 @@ drawDistributions <- function(aaScores,seCutoff=Inf,reg=NA) {
 #' @param tp the time point
 #' @param outDir the output directory
 #' @return NULL
-errorProfile <- function(scores,sCond,tp,outDir) {
+errorProfile <- function(scores,sCond,tp,outDir,params) {
 
 	outfile <- paste0(outDir,sCond,"_t",tp,"_errorProfile.pdf")
-	pdf(outfile,5,5)
-
+	pdf(outfile,8.5,11)
 	sdRange <- range(log10(scores[is.na(scores$filter),"score.sd"]),finite=TRUE)
 	scoreRange <- range(scores[is.na(scores$filter),"score"],finite=TRUE)
 
 	layout(rbind(c(2,4),c(1,3)),widths=c(0.8,0.2),heights=c(0.2,0.8))
-	op <- par(mar=c(5,4,0,0)+.1) 
+	tagger <- pdftagger(paste(params$pdftagbase,"; selection condition:",sCond),cpp=4)
+	op <- par(mar=c(5,4,0,0)+.1,oma=c(24,6,2,6)) 
 	with(scores[is.na(scores$filter),],plot(score,score.sd,log="y",pch=".",ylab=expression(sigma)))
 	par(mar=c(0,4,1,0)+.1) 
 	breaks <- seq(scoreRange[[1]],scoreRange[[2]],length.out=50)
@@ -614,6 +660,7 @@ errorProfile <- function(scores,sCond,tp,outDir) {
 	breaks <- seq(sdRange[[1]],sdRange[[2]],length.out=50)
 	sdHist <- with(scores[is.na(scores$filter),], hist(log10(score.sd),breaks=breaks,plot=FALSE))
 	barplot(sdHist$density,border=NA,horiz=TRUE,space=0,xlab="density")
+	tagger$cycle()
 	par(op)
 
 	invisible(dev.off())
