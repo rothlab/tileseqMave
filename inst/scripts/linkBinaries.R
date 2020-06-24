@@ -12,7 +12,8 @@ args <- parse_args(p)
 #list of scripts to link
 scripts <- c(
 	"csv2json.R","joinCounts.R","runLibraryQC.R",
-	"runScoring.R","runSelectionQC.R","mavevisLocal.R"
+	"runScoring.R","runSelectionQC.R","mavevisLocal.R",
+	"condenseQC.R","popcodeOligos.R"
 )
 
 #find scripts folder in the local library installation
