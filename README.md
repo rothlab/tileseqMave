@@ -1,47 +1,36 @@
-# tileseqMave
+# TileSeqMave
 
-Analysis functions for TileSEQ.
+TileSeqMave constitutes the second half of the TileSeq Pipeline. The first half is implemented in [`tilseq_mutcount`](https://github.com/RyogaLi/tilseq_mutcount) and provides alignment and variant calling of TileSeq sequencing reads. TileSeqMave allows for the calculation of fitness scores from these reads and provides additional analysis functions.
+
+## Table of contents
+
+1. [Requirements and Installation](#requirements-and-installation)
+2. [Overview of the pipeline](#overview-of-the-pipeline)
+3. [The parameter sheet](#the-parameter-sheet)
+4. [Running tileseqMave](#running-tileseqmave)  
+    4.1. [Converting the parameter sheet](#converting-the-parameter-sheet)  
+    4.2. [Counting variants from FASTQ data](#counting-variants-from-fastq-data)  
+    4.3. [Joining variant counts and computing marginal frequencies](  #joining-variant-counts-and-computing-marginal-frequencies)  
+    4.4. [Running a library QC analysis](#running-a-library-qc-analysis)  
+    4.5. [Running the scoring function](#running-the-scoring-function)  
+    4.6. [Running a Selection QC analysis](#running-a-selection-qc-analysis)
+5. [Example execution](#example-execution)
 
 ## Requirements and Installation
 
-`tileseqMave` is compatible with Unix-based operating systems, requires R &ge; 3.4.4 and has a number of R package dependencies, which will be installed automatically. It also uses the output of [`tilseq_mutcount`](https://github.com/RyogaLi/tilseq_mutcount), which should be installed separately on an HPC platform.
+`tileseqMave` is compatible with Unix-based operating systems, requires R 3.4.4 or greater and has a number of R package dependencies, which will be installed automatically. It also uses the output of [`tilseq_mutcount`](https://github.com/RyogaLi/tilseq_mutcount), which should be installed separately on an HPC platform.
 
-To install the `tileseqMave` package, use R devtools:
+To install the `tileseqMave` package, use the `R` package `devtools`:
 
 ```R
 install.packages("devtools")
 devtools::install_github("jweile/tileseqMave")
 ```
 
-**Important**: To ensure that the scripts included in this software suite can be executed easily on the command line, they need to be available via your `$PATH` variable. The easiest way to achieve this is to symlink them to your preferred `bin/` directory after having installed the package as shown above. Here's a quick set of R commands to automatically create these symlinks:
+**Important**: To ensure that the scripts included in this software suite can be executed easily on the command line, they need to be available via your `$PATH` variable. The easiest way to achieve this is to symlink them to your preferred `bin/` directory after having installed the package as shown above. For `UNIX` systems, a bootstrap script is provided for this purpose. For example, to create symlinks in `~/.local/bin/` you can use:
 
-```R
-#target bin directory
-targetDir <- "~/.local/bin/"
-
-#list of scripts to link
-scripts <- c(
-	"csv2json.R","joinCounts.R","runLibraryQC.R",
-	"runScoring.R","runSelectionQC.R","mavevisLocal.R"
-)
-
-#find scripts folder in the local library installation
-scriptsFolder <- system.file("scripts/",
-	package = "tileseqMave",
-	mustWork = TRUE
-)
-
-#function to create symlinks
-linkScript <- function(scriptName,targetDir="~/.local/bin/") {
-	scriptPath <- paste0(scriptsFolder,scriptName)
-	if (!file.exists(scriptPath)) {
-		stop(scriptName, "not found!")
-	}
-	file.symlink(from=scriptPath,to=paste0(targetDir,scriptName))
-}
-
-#run the function
-lapply(scripts,linkScript,targetDir=targetDir)
+```bash
+bash `Rscript -e 'cat(system.file("scripts/linkBinaries.R",package="tileseqMave"))'` ~/.local/bin/
 ```
 
 ## Overview of the pipeline
@@ -65,15 +54,16 @@ The parameter sheet has the following sections:
 2. **Template construct**: Here we define the sequencing template, its sequence and what it represents.
     * Gene name: The official HGNC gene name
     * Sequence: The full nucleotide sequence of the template including the coding sequence (CDS) and its flanking priming sequences.
-    * CDS start: The position in the above sequence at which the coding sequence (CDS) begins. This must be an ATG codon! Numbering starts at 1, not at 0. (don't @me, nerds. :stuck_out_tongue: )
+    * CDS start: The position in the above sequence at which the coding sequence (CDS) begins. This must be an ATG codon! (Numbering starts at 1, not at 0). 
     * CDS end: The equivalent sequence position at which the CDS ends. This must be in-frame with the start position, i.e. end-start+1 must be divisible by 3.
     * Uniprot Accession: The UniprotKB accession of the protein encoded by the template gene.
 3. **Assay**: A summary of the underlying selection assay
-    * Assay Type: This can be any free-text label you like. But we would encourage you to pick a simple, recognizable name such as "Y2H", "Yeast complementation" or "LDL uptake via FACS"
-    * Description: This can be any free-text description you like.
+    * Assay Name: This can be any free-text label you like. But we would encourage you to pick a simple, recognizable name such as "Y2H", "Yeast complementation" or "LDL uptake via FACS"
+    * Assay Description: This can be any free-text description you like.
     * Negative selection: This field indicates whether the assay performs a positive or negative selection. So only the values "Yes" and "No" are allowed. Positive selection indicates that the assay causes damaging variants to be depleted in the pool, where as negative selection indicates that the assay causes neutral variants to be depleted. (Most assays will be positive, so for most cases the value would be "No").
 4. **Conditions and replicates**: This is a custom table that lists the different experimental conditions and their intended number of replicates and time points.
-    * List of conditions: In this table row, provide a list of condition identifiers. These should be short and must not contain any special characters.
+    * Condition IDs: In this table row, provide a list of condition identifiers. These should be short and must not contain any special characters.
+    * Descriptions: These can be free-text descriptions of the conditions.
     * Number of replicates: For each of the defined conditions in the previous row, provide the number of technical replicates here.
     * Number of time points: For each of the defined conditions in the first row, provide the number of time points. (At the time of writing, this feature has not been implemented yet).
 5. **Mutagenesis regions**: This is a fixed table defining the regions which underwent separate PopCode mutagenesis. It has the following columns:
@@ -153,6 +143,8 @@ The result of this tool will include a subdirectory with a name like: `MTHFR_Com
 ### Joining variant counts and computing marginal frequencies
 This step is performed by `joinCounts.R`. It will collate the counts from the individual sequencing samples and organize them by variant and condition/replicate. This step will also translate the called variants to protein level. As a result, two new files will be added to the `mut_call` directory: all_counts.csv and marginal_counts.csv
 
+Depending on the number of unique variants identified, the translation step can take a long time. Using 6 CPU cores, a typical run containing 500,000 variants will take approximately 30 minutes to process.
+
 ```
 usage: joinCounts.R [--] [--help] [--srOverride] [--opts OPTS]
        [--parameters PARAMETERS] [--logfile LOGFILE] [--cores CORES]
@@ -195,27 +187,29 @@ The plots will be saved as PDF files in a new folder called `<timestamp>_QC` whe
 ```
 usage: runLibraryQC.R [--] [--help] [--srOverride] [--opts OPTS]
        [--parameters PARAMETERS] [--logfile LOGFILE] [--cores CORES]
-       dataDir
+       [--wmThreshold WMTHRESHOLD] dataDir
 
 Performs a library QC analysis on the output of joinCounts.R, yielding
 informative plots.
 
 positional arguments:
-  dataDir           workspace data directory
+  dataDir            workspace data directory
 
 flags:
-  -h, --help        show this help message and exit
-  -s, --srOverride  Manual override to allow singleton replicates. USE
-                    WITH EXTREME CAUTION!
+  -h, --help         show this help message and exit
+  -s, --srOverride   Manual override to allow singleton replicates. USE
+                     WITH EXTREME CAUTION!
 
 optional arguments:
-  -x, --opts        RDS file containing argument values
-  -p, --parameters  parameter file. Defaults to parameters.json in the
-                    data directory.
-  -l, --logfile     log file. Defaults to libraryQC.log in the same
-                    directory
-  -c, --cores       number of CPU cores to use in parallel for
-                    multi-threading [default: 6]
+  -x, --opts         RDS file containing argument values
+  -p, --parameters   parameter file. Defaults to parameters.json in the
+                     data directory.
+  -l, --logfile      log file. Defaults to libraryQC.log in the same
+                     directory
+  -c, --cores        number of CPU cores to use in parallel for
+                     multi-threading [default: 6]
+  -w, --wmThreshold  Define the marginal frequency threshold for
+                     well-measuredness. [default: 5e-5]
 ```
 
 ### Running the scoring function
@@ -229,7 +223,8 @@ The results of the scoring function will be produced in a new directory called `
 
     * complete.csv: A table containing all intermediate results for all variants, regardless of filter status. A column called "filter" indicates whether the variant was filtered out and if so, for what reason.
     * simple.csv: A simplified result containing only the variants that passed all filters with their final scores and their associated error.
-    * simple_aa.csv: The same results collapsed for equivalent amino acid changes via confidence-weighted averaging.
+    * simple_aa.csv: The unfloored scores collapsed for equivalent amino acid changes via confidence-weighted averaging.
+    * simple_aa_floored.csv: Same as above but with scores floored to 0 before averaging.
 
 ```
 usage: runScoring.R [--] [--help] [--srOverride] [--opts OPTS]
@@ -253,7 +248,7 @@ optional arguments:
                         the data directory.
   -l, --logfile         log file. Defaults to scoring.log in the same
                         directory
-  --cores               number of CPU cores to use in parallel for
+  -c  --cores           number of CPU cores to use in parallel for
                         multi-threading [default: 6]
 
 ```
