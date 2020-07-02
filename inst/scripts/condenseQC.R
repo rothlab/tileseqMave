@@ -39,6 +39,7 @@ p <- arg_parser(
 p <- add_argument(p, "dataDir", help="workspace data directory")
 p <- add_argument(p, "--parameters", help="parameter file. Defaults to parameters.json in the data directory.")
 p <- add_argument(p, "--srOverride", help="Manual override to allow singleton replicates. USE WITH EXTREME CAUTION!",flag=TRUE)
+p <- add_argument(p, "--retainSingles", help="Retain individual files.",flag=TRUE)
 args <- parse_args(p)
 
 dataDir <- args$dataDir
@@ -51,7 +52,7 @@ if (!dir.exists(dataDir)) {
 }
 paramfile <- if (is.na(args$parameters)) paste0(dataDir,"parameters.json") else args$parameters
 
-params <- parseParameters(paramfile)
+params <- parseParameters(paramfile,srOverride=args$srOverride)
 
 latest <- latestSubDir(parentDir=dataDir,pattern="_QC$")
 qcDir <- latest[["dir"]]
@@ -73,7 +74,10 @@ for (nsCond in getNonselects(params)) {
 			"-dBATCH",
 			reportFiles
 		)
-		system2("gs",gsArgs)
+		retVal <- system2("gs",gsArgs)
+		if (retVal == 0 && !args$retainSingles) {
+			file.remove(reportFiles)
+		}
 	}
 
 }
@@ -82,7 +86,7 @@ for (sCond in getSelects(params)) {
 	for (tp in params$timepoints[,1]) {
 		#list report files in order
 		reportFiles <- sprintf("%s/%s_t%s_%s.pdf",qcDir,sCond,tp,c(
-			"ns_replicates","phi_replicates","replicates","filtering","logPhiDistribution","errorModel"
+			"ns_replicates","phi_replicates","replicates","filtering","logPhiDistribution","errorModel","errorProfile"
 		))
 		#discard those that don't exist or are unreadable
 		reportFiles <- reportFiles[which(canRead(reportFiles))]
@@ -96,7 +100,10 @@ for (sCond in getSelects(params)) {
 				"-dBATCH",
 				reportFiles
 			)
-			system2("gs",gsArgs)
+			retVal <- system2("gs",gsArgs)
+			if (retVal == 0 && !args$retainSingles) {
+				file.remove(reportFiles)
+			}
 		}
 	}
 }
