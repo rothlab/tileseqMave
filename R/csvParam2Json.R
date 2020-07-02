@@ -94,11 +94,20 @@ validateParameters <- function(params,srOverride=FALSE) {
 			cname %in% params$conditions$definitions[,"Condition 2"]
 		})
 		if (!all(used)) {
-			stop("Conditions not in relationships: ",paste(params$conditions$names[!used],collapse=", "))
+			stop(
+				"All conditions must have at least one defined relationship! Missing: ",
+				paste(params$conditions$names[!used],collapse=", ")
+			)
 		}
 		#at least one selection condition must be declared:
 		if (!("is_selection_for" %in% params$conditions$definitions[,"Relationship"])) {
 			stop("No select-nonselect relationship was defined!")
+		}
+		#make sure that no selection condition has more than one nonselect partner
+		numNS <- sapply(getSelects(params), function(sCond) length(getNonselectFor(sCond,params)))
+		if (any(numNS > 1)) {
+			culprits <- getSelects(params)[which(numNS > 1)]
+			stop("Each selection conditon may only have one corresponding nonselect condition! Violations:",culprits)
 		}
 		#Check that each sel/nonsel condition has a WT control
 		mainConds <- c(getSelects(params),getNonselects(params))
