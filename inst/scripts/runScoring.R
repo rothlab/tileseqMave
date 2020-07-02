@@ -44,6 +44,7 @@ p <- add_argument(p, "--parameters", help="parameter file. Defaults to parameter
 p <- add_argument(p, "--logfile", help="log file. Defaults to 'scoring.log' in the same directory")
 p <- add_argument(p, "--cores", default=6L, help="number of CPU cores to use in parallel for multi-threading")
 p <- add_argument(p, "--srOverride", help="Manual override to allow singleton replicates. USE WITH EXTREME CAUTION!",flag=TRUE)
+p <- add_argument(p, "--bnOverride", help="Manual override to disable bottleneck filtering.",flag=TRUE)
 args <- parse_args(p)
 
 #Workaround for bug in future package, that re-uses command line arguments:
@@ -74,7 +75,8 @@ logVersion()
 invisible(
 	scoring(
 		dataDir,paramfile,args$cores,
-		srOverride=args$srOverride
+		srOverride=args$srOverride,
+		bnOverride=args$bnOverride
 	)
 )
 

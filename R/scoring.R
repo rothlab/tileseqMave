@@ -21,7 +21,8 @@
 #' @param paramFile input parameter file. defaults to <dataDir>/parameters.json
 #' @return NULL. Results are written to file.
 #' @export
-scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),mc.cores=6,srOverride=FALSE) {
+scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
+	mc.cores=6, srOverride=FALSE, bnOverride=FALSE) {
 
 	op <- options(stringsAsFactors=FALSE)
 
@@ -55,6 +56,13 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),mc.cores
 	logInfo("countThreshold =",params$scoring$countThreshold)
 	logInfo("pseudoReplicates (pseudo.n) =",params$scoring$pseudo.n)
 	logInfo("sdThreshold =",params$scoring$sdThreshold)
+
+	if (bnOverride) {
+		logWarn(
+			"WARNING: Bottleneck override has been enabled!\n",
+			" --> The final scores will not be filtered for bottlenecked variants!"
+		)
+	}
 
 	#find counts folder
 	# subDirs <- list.dirs(dataDir,recursive=FALSE)
@@ -229,6 +237,13 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),mc.cores
 			outFile <- paste0(outDir,sCond,"_t",tp,"_complete.csv")
 			write.csv(scoreTable,outFile,row.names=FALSE)
 
+			#configure filter level for export
+			exportFilter <- if (bnOverride) {
+				sapply(scoreTable$filter,function(f) is.na(f) || f=="bottleneck")
+			} else {
+				is.na(scoreTable$filter)
+			}
+
 			#simplified (MaveDB-compatible) format
 			simpleCols <- if (srOverride) {
 				c("hgvsc","hgvsp","score","score.sd","score.sd")
@@ -236,7 +251,7 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),mc.cores
 				c("hgvsc","hgvsp","score.floored","sd.floored","se.floored")
 			}
 			simpleTable <- scoreTable[
-				is.na(scoreTable$filter),
+				exportFilter,
 				simpleCols
 			]
 			colnames(simpleTable) <- c("hgvs_nt","hgvs_pro","score","sd","se")
@@ -248,8 +263,8 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),mc.cores
 
 			#collapse by amino acid change
 			logInfo("Collapsing amino acid changes...")
-			flooredAA <- collapseByAA(scoreTable,params,sCond,"score.floored","sd.floored",srOverride)
-			unflooredAA <- collapseByAA(scoreTable,params,sCond,"score","score.sd",srOverride)
+			flooredAA <- collapseByAA(scoreTable,params,sCond,"score.floored","sd.floored",srOverride,bnOverride)
+			unflooredAA <- collapseByAA(scoreTable,params,sCond,"score","score.sd",srOverride,bnOverride)
 
 			logInfo("Writing AA-centric table to file.")
 			outFile <- paste0(outDir,sCond,"_t",tp,"_simple_aa_floored.csv")
@@ -278,8 +293,17 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),mc.cores
 #' @param sdOverride the sdOverride flag
 #' @return a \code{data.frame} containing the collapsed score table
 #' @export
-collapseByAA <- function(scoreTable,params,sCond,scoreCol="score",sdCol="score.sd",srOverride=FALSE) {
-	filteredTable <- scoreTable[is.na(scoreTable$filter),]
+collapseByAA <- function(scoreTable,params,sCond,scoreCol="score",sdCol="score.sd",srOverride=FALSE,bnOverride=FALSE) {
+
+	#configure filter level for export
+	exportFilter <- if (bnOverride) {
+		sapply(scoreTable$filter,function(f) is.na(f) || f=="bottleneck")
+	} else {
+		is.na(scoreTable$filter)
+	}
+
+	filteredTable <- scoreTable[exportFilter,]
+
 	if (!srOverride) {
 		aaTable <- as.df(tapply(1:nrow(filteredTable),filteredTable$hgvsp, function(is) {
 			joint <- join.datapoints(
@@ -374,25 +398,21 @@ mean.sd.count <- function(cond,regionalCounts,tp,params) {
 #' @param countThreshold the threshold of raw counts that must be met
 #' @return a vector listing for each row in the table which (if any) filters apply, otherwise NA.
 rawFilter <- function(msc,countThreshold) {
+	#if no error estimates are present, pretend it's 0
 	if (all(c("nonWT.sd.bayes", "selWT.sd.bayes") %in% colnames(msc))) {
-		#calculate nonselect filter using WT control
-		nsFilter <- with(msc, 
-			nonselect.count < countThreshold | nonselect.mean <= nonWT.mean + 3*nonWT.sd.bayes
-		)
-		#and select filter using WT control
-		sFilter <- with(msc, 
-			select.mean <= selWT.mean + 3*selWT.sd.bayes
-		)
+		sd.sWT <- msc$selWT.sd.bayes
+		sd.nWT <- msc$nonWT.sd.bayes
 	} else {
-		#calculate nonselect filter without WT
-		nsFilter <- with(msc, 
-			nonselect.count < countThreshold | nonselect.mean <= nonWT.mean
-		)
-		#and select filter without WT
-		sFilter <- with(msc, 
-			select.mean <= selWT.mean
-		)
+		sd.sWT <- sd.nWT <- 0
 	}
+	#calculate nonselect filter using WT control
+	nsFilter <- with(msc, 
+		nonselect.count < countThreshold | nonselect.mean <= nonWT.mean + 3*sd.nWT
+	)
+	#and select filter using WT control
+	sFilter <- with(msc, 
+		select.mean <= selWT.mean + 3*sd.sWT
+	)
 	mapply(function(ns,s) {
 		if (ns) "frequency" else if (s) "bottleneck" else NA
 	},nsFilter,sFilter)
@@ -504,30 +524,42 @@ regularizeRaw <- function(msc,condNames,tiles,n,pseudo.n, modelFunctions) {
 	return(regul)
 }
 
-
 #' Calculate enrichment ratios (phi) and perform error propagation
 #'
 #' @param msc data.frame containing the output of the 'mean.sd.count()' function
 #' @return a data.frame containing phi, log(phi) and their respective stdevs
 calcPhi <- function(msc) {
+	select <- with(msc,floor0(select.mean-selWT.mean))
+	nonselect <- with(msc,floor0(nonselect.mean-nonWT.mean))
+	#determine pseudocounts
+	smallestSelect <- unique(sort(na.omit(msc$select.mean)))[[2]]
+	pseudoCount <- 10^floor(log10(smallestSelect))
 	#calculate phi
-	phi <- with(msc,{
-		floor0(select.mean-selWT.mean)/floor0(nonselect.mean-nonWT.mean)
-	})
+	phi <- (select+pseudoCount)/nonselect
+
 	#and its stdev
 	phi.sd <- if ("select.sd.bayes" %in% colnames(msc)) {
 		with(msc,ratio.sd(
-			m1=floor0(select.mean-selWT.mean),
-			m2=floor0(nonselect.mean-nonWT.mean),
+			m1=select+pseudoCount,
+			m2=nonselect,
 			sd1=sqrt(select.sd.bayes^2+selWT.sd.bayes^2),
 			sd2=sqrt(nonselect.sd.bayes^2+nonWT.sd.bayes^2)
 		))
 	} else rep(NA,length(phi))
+
+
 	#as well as logPhi and its stdev
 	logPhi <- log10(phi)
 	logPhi.sd <- with(msc,log.sd(phi,phi.sd))
+
+	#FIXME: for now, cap logPhi at 2*95% quantile to get around heuristic problems
+	#ultimately, this should be fixed with bootstrapping
+	lpsCap <- 2*quantile(logPhi.sd,0.95,na.rm=TRUE)
+	logPhi.sd[logPhi.sd > lpsCap] <- lpsCap
+
 	return(data.frame(phi=phi,phi.sd=phi.sd,logPhi=logPhi,logPhi.sd=logPhi.sd))
 }
+
 
 #' Helper function to extract normalization override values from the parameter sheet
 #' if they exist
