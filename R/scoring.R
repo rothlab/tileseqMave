@@ -322,7 +322,7 @@ collapseByAA <- function(scoreTable,params,sCond,scoreCol="score",sdCol="score.s
 	} else {
 		aaTable <- as.df(tapply(1:nrow(filteredTable),filteredTable$hgvsp, function(is) {
 			list(
-				hgvs_pro=unique(filteredTable[is,hgvsp]),
+				hgvs_pro=unique(filteredTable[is,"hgvsp"]),
 				score=mean(fin(filteredTable[is,scoreCol])),
 				sd=NA,
 				df=length(fin(filteredTable[is,scoreCol]))
