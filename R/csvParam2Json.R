@@ -79,14 +79,22 @@ validateParameters <- function(params,srOverride=FALSE) {
 	#for QC runs, no relationships are declared, but in any other case, the following rules must apply:
 	if (nrow(params$conditions$definitions) > 0) {
 		#check that definitions use valid condition names
-		if (!all(params$conditions$definitions[,"Condition 1"] %in% params$conditions$names) || 
-			!all(params$conditions$definitions[,"Condition 2"] %in% params$conditions$names)) {
-			stop("Undeclared condition name in definitions!")
+		defconds <- unique(c(
+			params$conditions$definitions[,"Condition 1"],
+			params$conditions$definitions[,"Condition 2"]
+		))
+		if (!all(defconds %in% params$conditions$names)) {
+			culprits <- defconds[which(!(defconds %in% params$conditions$names))]
+			stop("The following condition(s) listed in the relationship definitions was(were) not declared in the list of conditions: ",
+				paste(culprits,collapse=", ")
+			)
 		}
 		#and that they use valid relationship names
 		relationships <- c("is_selection_for","is_wt_control_for")
 		if (!all(params$conditions$definitions[,"Relationship"] %in% relationships)) {
-			stop("Invalid relationship in condition definitions!")
+			rels <- params$conditions$definitions[,"Relationship"]
+			culprits <- unique(rels[which(!(rels %in% relationships))])
+			stop("Invalid relationship(s) in condition definitions: ",paste(culprits,collapse=", "))
 		}
 		#check that each condition has at least one relationship
 		used <- sapply(params$conditions$names, function(cname) {
@@ -107,7 +115,7 @@ validateParameters <- function(params,srOverride=FALSE) {
 		numNS <- sapply(getSelects(params), function(sCond) length(getNonselectFor(sCond,params)))
 		if (any(numNS > 1)) {
 			culprits <- getSelects(params)[which(numNS > 1)]
-			stop("Each selection conditon may only have one corresponding nonselect condition! Violations:",culprits)
+			stop("Each selection conditon may only have one corresponding nonselect condition! Violations: ",culprits)
 		}
 		#Check that each sel/nonsel condition has a WT control
 		mainConds <- c(getSelects(params),getNonselects(params))
@@ -144,24 +152,43 @@ validateParameters <- function(params,srOverride=FALSE) {
 
 	#validate the sample sheet
 	if (!all(params$samples[,"Tile ID"] %in% params$tiles[,"Tile Number"])) {
-		stop("Undeclared tiles found in sample sheet!")
+		tid <- params$samples[,"Tile ID"]
+		culprits <- unique(tid[which(!(tid %in% params$tiles[,"Tile Number"]))])
+		stop("Undeclared tiles found in sample sheet:",
+			paste(culprits,collapse=", "),
+			"\nPlease declare them in the Tile table!"
+		)
 	}
 	if (!all(grepl("^[A-Za-z0-9-]+$",params$samples[,"Sample ID"]))) {
-		stop("Sample IDs must not contain special characters except minus signs!")
+		sid <- params$samples[,"Sample ID"]
+		culprits <- sid[which(!grepl("^[A-Za-z0-9-]+$",sid))]
+		stop("Sample IDs must not contain special characters except minus signs!\n",
+			"Violations: ",paste(culprits,collapse=", ")
+		)
 	}
 	if (!all(params$samples[,"Condition"] %in% params$conditions$names)) {
-		stop("Undeclared conditions found in sample sheet!")
+		cid <- params$samples[,"Condition"]
+		culprits <- unique(cid[which(!(cid %in% params$conditions$names))])
+		stop("Undeclared conditions found in sample sheet:",
+			paste(culprits,collapse=", "),
+			"\nPlease declare them in the list of conditions!"
+		)
 	}
 	if (!all(params$samples[,"Time point"] %in% params$timepoints[,"Time point name"])) {
-		stop("Undeclared time points found in sample sheet!")
+		tid <- params$samples[,"Time point"]
+		culprits <- unique(tid[which(!(tid %in% params$timepoints[,"Time point name"]))])
+		stop("Undeclared time points found in sample sheet:",
+			paste(culprits,collapse=", "),
+			"\nPlease declare them in the time point definition section!"
+		)
 	}
 	repsPerCon <- tapply(params$samples[,"Replicate"],params$samples[,"Condition"],table)
 	invisible(lapply(params$conditions$names, function(cond) {
 		if (!(length(repsPerCon[[cond]]) == params$numReplicates[[cond]])) {
-			stop("Number of replicates for condition ",cond," doesn't match declaration!")
+			stop("Number of replicate samples for condition ",cond," does not match declared number of replicates!")
 		}
 		if (!all(repsPerCon[[cond]] == repsPerCon[[cond]][[1]])) {
-			stop("Inconsistent number of samples for condition ",cond,"!")
+			stop("Inconsistent number of samples for condition ",cond,"! (Some samples have more replicates than others!)")
 		}
 	}))
 
