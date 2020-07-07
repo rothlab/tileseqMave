@@ -542,13 +542,17 @@ scoreDistributions <- function(scores,sCond,tp,outDir,params) {
 #' @return NULL
 drawDistributions <- function(aaScores,seCutoff=Inf,reg=NA) {
 
-	numNsSurvive <- with(aaScores,sum(se < seCutoff & grepl("Ter$",hgvsp),na.rm=TRUE))
-	if (numNsSurvive < 10) {
-		nonsenseSDs <- with(aaScores,se[grepl("Ter$",hgvsp)])
-		r10Threshold <- sort(nonsenseSDs)[[min(10,length(nonsenseSDs))]]
-		logWarn(sprintf("sdThreshold %.03f is too restrictive! Using se < %.03f instead.",seCutoff,r10Threshold))
-		seCutoff <- r10Threshold
-	}
+  if (seCutoff < Inf) {
+    #check that the cutoff leaves at least 10 nonsense variants to work with
+    #otherwise, make it more permissive
+  	numNsSurvive <- with(aaScores,sum(se < seCutoff & grepl("Ter$",hgvsp),na.rm=TRUE))
+  	if (numNsSurvive < 10) {
+  		nonsenseSDs <- with(aaScores,se[grepl("Ter$",hgvsp)])
+  		r10Threshold <- sort(nonsenseSDs)[[min(10,length(nonsenseSDs))]]
+  		logWarn(sprintf("sdThreshold %.03f is too restrictive! Using se < %.03f instead.",seCutoff,r10Threshold))
+  		seCutoff <- r10Threshold
+  	}
+  }
 
 	#extract filtered scores
 	if (!all(is.na(aaScores$se))) {
