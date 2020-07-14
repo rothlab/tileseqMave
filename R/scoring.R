@@ -18,10 +18,15 @@
 #' run scoring function
 #' 
 #' @param dataDir working data directory
+#' @param inDir input directory, defaults to subdirectory with latest timestamp ending in _mut_count.
+#' @param outDir output directory, defaults to name of input directory with _QC tag attached.
 #' @param paramFile input parameter file. defaults to <dataDir>/parameters.json
+#' @param mc.cores number of CPU cores to use in parallel
+#' @param srOverride single replicate override
+#' @param bnOverride bottleneck filter override
 #' @return NULL. Results are written to file.
 #' @export
-scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
+scoring <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"parameters.json"),
 	mc.cores=6, srOverride=FALSE, bnOverride=FALSE) {
 
 	op <- options(stringsAsFactors=FALSE)
@@ -38,7 +43,7 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 	if (!dir.exists(dataDir)) {
 		#we don't use the logger here, assuming that whichever script wraps our function
 		#catches the exception and writes to the logger (or uses the log error handler)
-		stop("Data folder does not exist!")
+		stop("Workspace data folder ",dataDir," does not exist!")
 	}
 	if (!canRead(paramFile)) {
 		stop("Unable to read parameter file!")
@@ -64,29 +69,49 @@ scoring <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 		)
 	}
 
+	
 	#find counts folder
-	# subDirs <- list.dirs(dataDir,recursive=FALSE)
-	# countDirs <- subDirs[grepl("_mut_call$",subDirs)]
-	# if (length(countDirs) == 0) {
-	# 	stop("No mutation call output found!")
-	# }
-	# latestCountDir <- sort(countDirs,decreasing=TRUE)[[1]]
-	# logInfo("Selecting latest data directory: ",latestCountDir)
-	# #extract time stamp
-	# timeStamp <- extract.groups(latestCountDir,"/(\\d{4}-\\d{2}-\\d{2}-\\d{2}-\\d{2}-\\d{2})")
-
-	#find counts folder
-	latest <- latestSubDir(parentDir=dataDir,pattern="_mut_call$|mut_count$")
-
-	#create a matching output directory
-	outDir <- paste0(dataDir,latest[["label"]],latest[["timeStamp"]],"_scores/")
+	if (is.na(inDir)) {
+	  latest <- latestSubDir(parentDir=dataDir,pattern="_mut_call$|mut_count$")
+	  inDir <- latest[["dir"]]
+	} else { #if custom input dir was provided
+	  #make sure it exists
+	  if (!dir.exists(inDir)) {
+	    stop("Input folder ",inDir," does not exist!")
+	  }
+	}
+	#make sure it ends in "/"
+	if (!grepl("/$",inDir)) {
+	  inDir <- paste0(inDir,"/")
+	}
+	
+	#if no output directory was defined
+	if (is.na(outDir)) {
+	  #derive one from the input
+	  if (grepl("_mut_count/$",inDir)) {
+	    outDir <- sub("_mut_count/$","_scores/",inDir)
+	  } else {
+	    outDir <- sub("/$","_scores/",inDir)
+	  }
+	} 
+	#make sure it ends in "/"
+	if (!grepl("/$",outDir)) {
+	  outDir <- paste0(outDir,"/")
+	}
+	#make sure outdir exists
 	dir.create(outDir,recursive=TRUE,showWarnings=FALSE)
-
+	
+	logInfo("Using input directory",inDir,"and output directory",outDir)
+	
+	
 	#identify selection conditions
 	selectConds <- getSelects(params)
 
 	#load the marginal counts	
-	marginalCountFile <- paste0(latest[["dir"]],"/marginalCounts.csv")
+	marginalCountFile <- paste0(inDir,"/marginalCounts.csv")
+	if (!file.exists(marginalCountFile)) {
+	  stop("Invalid input folder ",inDir," ! Must contain marginalCounts.csv !")
+	}
 	marginalCounts <- read.csv(marginalCountFile)
 
 	#filter out frameshifts and indels

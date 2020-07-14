@@ -18,10 +18,15 @@
 #' run library quality control (QC)
 #' 
 #' @param dataDir working data directory
+#' @param countDir input directory for counts, defaults to subdirectory with latest timestamp ending in _mut_count.
+#' @param scoreDir input directory for scores, defaults to subdirectory with latest timestamp ending in _scores.
+#' @param outDir output directory, defaults to name of input directory with _QC tag attached.
 #' @param paramFile input parameter file. defaults to <dataDir>/parameters.json
 #' @return NULL. Results are written to file.
 #' @export
-selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),srOverride=FALSE) {
+selectionQC <- function(dataDir,countDir=NA, scoreDir=NA, outDir=NA, 
+                        paramFile=paste0(dataDir,"parameters.json"),
+                        srOverride=FALSE) {
 
 
 	op <- options(stringsAsFactors=FALSE)
@@ -31,7 +36,7 @@ selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),srOv
 	library(pbmcapply)
 	library(optimization)
 
-	#make sure data and out dir exist and ends with a "/"
+	#make sure data exists and ends with a "/"
 	if (!grepl("/$",dataDir)) {
 		dataDir <- paste0(dataDir,"/")
 	}
@@ -51,36 +56,88 @@ selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),srOv
 		warning=function(w)logWarn(conditionMessage(w))
 	)
 	
-	#find scores folder
-	# subDirs <- list.dirs(dataDir,recursive=FALSE)
-	# scoreDirs <- subDirs[grepl("_scores$",subDirs)]
-	# if (length(scoreDirs) == 0) {
-	# 	stop("No mutation call output found!")
-	# }
-	# latestScoreDir <- sort(scoreDirs,decreasing=TRUE)[[1]]
-	# #find corresponding count directory
-	# latestCountDir <- sub("_scores$","_mut_call",latestScoreDir)
-	# #extract time stamp
-	# timeStamp <- extract.groups(latestScoreDir,"/(\\d{4}-\\d{2}-\\d{2}-\\d{2}-\\d{2}-\\d{2})")
-
-	#find counts and scores folder
-	latestCount <- latestSubDir(parentDir=dataDir,pattern="_mut_call$|mut_count$")
-	latestScore <- latestSubDir(parentDir=dataDir,pattern="_scores$")
-	if (latestCount[["timeStamp"]] != latestScore[["timeStamp"]]) {
-		stop("latest score folder does not match latest counts folder time stamp!")
+	#find counts folder
+	if (is.na(countDir)) {
+	  latest <- latestSubDir(parentDir=dataDir,pattern="_mut_call$|mut_count$")
+	  countDir <- latest[["dir"]]
+	  timeStamp <- latest[["timeStamp"]]
+	  runLabel <- latest[["label"]]
+	} else { #if custom input dir was provided
+	  #make sure it exists
+	  if (!dir.exists(countDir)) {
+	    stop("Input count folder ",countDir," does not exist!")
+	  }
+	  #try to extract a timestamp and label
+	  lt <- extract.groups(countDir,"([^/]+_)?(\\d{4}-\\d{2}-\\d{2}-\\d{2}-\\d{2}-\\d{2})")[1,]
+	  if (!any(is.na(lt))) {
+	    runLabel <- lt[[1]]
+	    timeStamp <- lt[[2]]
+	  } else {
+	    #if none can be extracted, use current time and no tag
+	    timeStamp <- format(Sys.time(), "%Y-%m-%d-%H-%M-%S")
+	    runLabel <- ""
+	  }
 	}
-
-	pdftag <- with(params,sprintf("%s (%s): %s%s",project,template$geneName,latestCount[["label"]],latestCount[["timeStamp"]]))
+	#make sure it ends in "/"
+	if (!grepl("/$",countDir)) {
+	  countDir <- paste0(countDir,"/")
+	}
+	
+	#if no score directory was provided
+	if (is.na(scoreDir)) {
+	  #try to guess its name
+	  if (grepl("_mut_count/$",countDir)) {
+	    scoreDir <- sub("_mut_count/$","_scores/",countDir)
+	  } else {
+	    scoreDir <- sub("/$","_scores/",countDir)
+	  }
+	  if (!dir.exists(scoreDir)) {
+	    stop("No matching score directory found for ",countDir,"!\n",
+	         "(Expecting ",scoreDir,")\n",
+	         "Use --scores option to define explicitly."
+	    )
+	  }
+	} else {
+	  if (!dir.exists(scoreDir)) {
+	    stop("Score directory ",scoreDir," does not exist!")
+	  }
+	}
+	#make sure it ends in "/"
+	if (!grepl("/$",scoreDir)) {
+	  scoreDir <- paste0(scoreDir,"/")
+	}
+	
+	#if not output directory was defined
+	if (is.na(outDir)) {
+	  #derive one from the input
+	  if (grepl("_mut_count/$",countDir)) {
+	    outDir <- sub("_mut_count/$","_QC/",countDir)
+	  } else {
+	    outDir <- sub("/$","_QC/",countDir)
+	  }
+	} 
+	#make sure it ends in "/"
+	if (!grepl("/$",outDir)) {
+	  outDir <- paste0(outDir,"/")
+	}
+	
+	#make sure outdir exists
+	dir.create(outDir,recursive=TRUE,showWarnings=FALSE)
+	
+	logInfo("Using count directory",countDir,
+	        "score directory", scoreDir,
+	        "and output directory",outDir
+	)
+	#create PDF tag
+	pdftag <- with(params,sprintf("%s (%s): %s%s",project,template$geneName,runLabel,timeStamp))
 	params$pdftagbase <- pdftag
 
-	#create a matching output directory
-	outDir <- paste0(dataDir,latestScore[["label"]],latestScore[["timeStamp"]],"_QC/")
-	if (!dir.exists(outDir)) {
-		dir.create(outDir,recursive=TRUE,showWarnings=FALSE)
-	}
-
+	
 	logInfo("Reading count data")
-	marginalCountFile <- paste0(latestCount[["dir"]],"/marginalCounts.csv")
+	marginalCountFile <- paste0(countDir,"/marginalCounts.csv")
+	if (!file.exists(marginalCountFile)) {
+	  stop("Invalid counts directory ",countDir,"! Must contain marginalCounts.csv!")
+	}
 	marginalCounts <- read.csv(marginalCountFile)
 	rownames(marginalCounts) <- marginalCounts$hgvsc
 
@@ -98,7 +155,7 @@ selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),srOv
 			logInfo("Processing condition",sCond, "; time",tp)
 
 			#load score table for this condition
-			scoreFile <- paste0(latestScore[["dir"]],"/",sCond,"_t",tp,"_complete.csv")
+			scoreFile <- paste0(scoreDir,"/",sCond,"_t",tp,"_complete.csv")
 			if (!file.exists(scoreFile)) {
 				logWarn("No score file found! Skipping...")
 				next
@@ -124,7 +181,7 @@ selectionQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),srOv
 				replicateCorrelation(scores, marginalSubset, params, sCond, tp, outDir)
 
 				#load error model file
-				modelFile <- paste0(latestScore[["dir"]],"/",sCond,"_t",tp,"_errorModel.csv")
+				modelFile <- paste0(scoreDir,"/",sCond,"_t",tp,"_errorModel.csv")
 				if (!file.exists(modelFile)) {
 					logWarn("No error model file found. Skipping regularization QC.")
 				} else {

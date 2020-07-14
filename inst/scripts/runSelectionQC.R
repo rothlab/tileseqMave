@@ -37,9 +37,11 @@ p <- arg_parser(
 	"Performs a selection QC analysis on the output of runScoring.R, yielding informative plots.",
 	name="runSelectionQC.R"
 )
-p <- add_argument(p, "dataDir", help="workspace data directory")
+p <- add_argument(p, "--workspace", help="workspace data directory. Defaults to current working directory")
+p <- add_argument(p, "--counts", help="input directory containing the count data. Defaults to subdirectory with latest timestamp ending in _mut_count")
+p <- add_argument(p, "--scores", help="input directory containing the score data. Defaults to subdirectory with latest timestamp ending in _scores")
+p <- add_argument(p, "--output", help="output directory. Defaults to name of input directory with _scores tag")
 p <- add_argument(p, "--parameters", help="parameter file. Defaults to parameters.json in the data directory.")
-# p <- add_argument(p, "--sdThreshold", default=0.3, help="Stdev threshold for determination of syn/stop medians.")
 p <- add_argument(p, "--logfile", help="log file. Defaults to selectionQC.log in the same directory")
 p <- add_argument(p, "--srOverride", help="Manual override to allow singleton replicates. USE WITH EXTREME CAUTION!",flag=TRUE)
 args <- parse_args(p)
@@ -51,7 +53,11 @@ commandArgs <- function(trailingOnly=FALSE) {
 }
 
 #ensure datadir ends in "/" and exists
-dataDir <- args$dataDir
+if (is.na(args$workspace)) {
+  dataDir <- getwd()
+} else {
+  dataDir <- args$workspace
+}
 if (!grepl("/$",dataDir)) {
 	dataDir <- paste0(dataDir,"/")
 }
@@ -59,7 +65,7 @@ if (!dir.exists(dataDir)) {
 	#logger cannot initialize without dataDirectory, so just a simple exception here.
 	stop("Data folder does not exist!")
 }
-paramfile <- if (is.na(args$parameters)) paste0(dataDir,"parameters.json") else args$parameters
+paramFile <- if (is.na(args$parameters)) paste0(dataDir,"parameters.json") else args$parameters
 logfile <- if (is.na(args$logfile)) paste0(dataDir,"selectionQC.log") else args$logfile
 
 #set up logger and shunt it into the error handler
@@ -71,8 +77,8 @@ logVersion()
 #run the actual function
 invisible(
 	selectionQC(
-		dataDir,paramfile,
-		srOverride=args$srOverride
+		dataDir, countDir=args$counts, scoreDir=args$scores, outDir=args$output, 
+		paramFile=paramFile, srOverride=args$srOverride
 	)
 )
 

@@ -36,7 +36,9 @@ p <- arg_parser(
 	"Performs a library QC analysis on the output of joinCounts.R, yielding informative plots.",
 	name="runLibraryQC.R"
 )
-p <- add_argument(p, "dataDir", help="workspace data directory")
+p <- add_argument(p, "--workspace", help="workspace data directory. Defaults to current working directory")
+p <- add_argument(p, "--input", help="input directory containing the count data. Defaults to subdirectory with latest timestamp ending in _mut_count")
+p <- add_argument(p, "--output", help="output directory. Defaults to name of input directory with _QC tag")
 p <- add_argument(p, "--parameters", help="parameter file. Defaults to parameters.json in the data directory.")
 p <- add_argument(p, "--logfile", help="log file. Defaults to libraryQC.log in the same directory")
 p <- add_argument(p, "--cores", default=6L, help="number of CPU cores to use in parallel for multi-threading")
@@ -58,7 +60,11 @@ commandArgs <- function(trailingOnly=FALSE) {
 }
 
 #ensure datadir ends in "/" and exists
-dataDir <- args$dataDir
+if (is.na(args$workspace)) {
+  dataDir <- getwd()
+} else {
+  dataDir <- args$workspace
+}
 if (!grepl("/$",dataDir)) {
 	dataDir <- paste0(dataDir,"/")
 }
@@ -78,6 +84,6 @@ logVersion()
 
 #run the actual function
 invisible(
-	libraryQC(dataDir,paramfile,mc.cores,srOverride=args$srOverride,wmThreshold=args$wmThreshold)
+	libraryQC(dataDir,inDir=args$input,outDir=args$output,paramfile,mc.cores,srOverride=args$srOverride,wmThreshold=args$wmThreshold)
 )
 

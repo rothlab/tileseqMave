@@ -36,11 +36,10 @@ p <- arg_parser(
 	"Runs the main scoring function on the output of joinCounts.R",
 	name="runScoring.R"
 )
-p <- add_argument(p, "dataDir", help="workspace data directory")
+p <- add_argument(p, "--workspace", help="workspace data directory. Defaults to current working directory")
+p <- add_argument(p, "--input", help="input directory containing the count data. Defaults to subdirectory with latest timestamp ending in _mut_count")
+p <- add_argument(p, "--output", help="output directory. Defaults to name of input directory with _scores tag")
 p <- add_argument(p, "--parameters", help="parameter file. Defaults to parameters.json in the data directory.")
-# p <- add_argument(p, "--countThreshold", default=10L, help="Filter threshold for minimal required read counts.")
-# p <- add_argument(p, "--pseudoReplicates", default=8L, short="-r", help="Number of pseudo-replicates for Baldi&Long regularization.")
-# p <- add_argument(p, "--sdThreshold", default=0.3, help="Stdev threshold for determination of syn/stop medians.")
 p <- add_argument(p, "--logfile", help="log file. Defaults to 'scoring.log' in the same directory")
 p <- add_argument(p, "--cores", default=6L, help="number of CPU cores to use in parallel for multi-threading")
 p <- add_argument(p, "--srOverride", help="Manual override to allow singleton replicates. USE WITH EXTREME CAUTION!",flag=TRUE)
@@ -54,15 +53,19 @@ commandArgs <- function(trailingOnly=FALSE) {
 }
 
 #ensure datadir ends in "/" and exists
-dataDir <- args$dataDir
+if (is.na(args$workspace)) {
+  dataDir <- getwd()
+} else {
+  dataDir <- args$workspace
+}
 if (!grepl("/$",dataDir)) {
 	dataDir <- paste0(dataDir,"/")
 }
 if (!dir.exists(dataDir)) {
 	#logger cannot initialize without dataDirectory, so just a simple exception here.
-	stop("Data folder does not exist!")
+	stop("Workspace folder ",dataDir," folder does not exist!")
 }
-paramfile <- if (is.na(args$parameters)) paste0(dataDir,"parameters.json") else args$parameters
+paramFile <- if (is.na(args$parameters)) paste0(dataDir,"parameters.json") else args$parameters
 logfile <- if (is.na(args$logfile)) paste0(dataDir,"scoring.log") else args$logfile
 
 #set up logger and shunt it into the error handler
@@ -74,7 +77,8 @@ logVersion()
 #run the actual function
 invisible(
 	scoring(
-		dataDir,paramfile,args$cores,
+		dataDir, inDir=args$input, outDir=args$output, paramFile=paramFile,
+		mc.cores=args$cores,
 		srOverride=args$srOverride,
 		bnOverride=args$bnOverride
 	)

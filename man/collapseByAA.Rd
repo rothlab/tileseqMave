@@ -10,7 +10,8 @@ collapseByAA(
   sCond,
   scoreCol = "score",
   sdCol = "score.sd",
-  srOverride = FALSE
+  srOverride = FALSE,
+  bnOverride = FALSE
 )
 }
 \arguments{

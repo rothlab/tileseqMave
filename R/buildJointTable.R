@@ -18,12 +18,14 @@
 #' run library quality control (QC)
 #' 
 #' @param dataDir working data directory
+#' @param inDir input directory, defaults to subdirectory with latest timestamp ending in _mut_count.
+#' @param outDir output directory, defaults to input directory.
 #' @param paramFile input parameter file. defaults to <dataDir>/parameters.json
 #' @param mc.cores the number of CPU cores to use in parallel
 #' @param srOverride the single-replicate override flag
 #' @return NULL. Results are written to file.
 #' @export
-buildJointTable <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),mc.cores=6,srOverride=FALSE) {
+buildJointTable <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"parameters.json"),mc.cores=6,srOverride=FALSE) {
 
 	op <- options(stringsAsFactors=FALSE)
 
@@ -40,34 +42,57 @@ buildJointTable <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 	if (!dir.exists(dataDir)) {
 		#we don't use the logger here, assuming that whichever script wraps our function
 		#catches the exception and writes to the logger (or uses the log error handler)
-		stop("Data folder does not exist!")
+		stop("Workspace folder ",dataDir," does not exist!")
 	}
-	if (!canRead(paramFile)) {
-		stop("Unable to read parameter file!")
-	}
-
+	
+	
 	#Read parameters
+	if (!canRead(paramFile)) {
+	  stop("Unable to read parameter file!")
+	}
 	logInfo("Reading parameters")
 	params <- withCallingHandlers(
 		parseParameters(paramFile,srOverride=srOverride),
 		warning=function(w)logWarn(conditionMessage(w))
 	)
 	
+	#configure input and output folders
+	if (is.na(inDir)) {
+  	latest <- latestSubDir(parentDir=dataDir,pattern="_mut_call$|mut_count$")
+  	inDir <- latest[["dir"]]
+	} else {
+	  if (!dir.exists(inDir)) {
+	    stop("Input folder ",inDir," does not exist!")
+	  }
+	}
+	if (!grepl("/$",inDir)) {
+	  inDir <- paste0(inDir,"/")
+	}
+	if (is.na(outDir)) {
+	  outDir <- inDir
+	} else if (!dir.exists(outDir)) {
+	  dir.create(outDir, recursive = TRUE, showWarnings = FALSE)
+	}
+
+	if (!grepl("/$",outDir)) {
+	  outDir <- paste0(outDir,"/")
+	}
+	
+	logInfo("Using input directory",inDir,"and output directory",outDir)
+	
+	
 	######################
 	# BUILD SAMPLE TABLE #
 	######################
-
+	
 	#prepare a table of all samples
 	logInfo("Accounting for all input count files")
 	sampleTable <- params$samples
-
-	#find counts folder
-	latest <- latestSubDir(parentDir=dataDir,pattern="_mut_call$|mut_count$")
-
+	
 	#find count table files and assign each to its respective sample
-	countfiles <- list.files(latest[["dir"]],pattern="counts_sample_.+\\.csv$",full.names=TRUE)
+	countfiles <- list.files(inDir,pattern="counts_sample_.+\\.csv$",full.names=TRUE)
 	if (length(countfiles)==0) {
-		error("No count files found! (Are they named correctly?)")
+		error("No count files found in ",inDir,"! (Are they named correctly?)")
 	}
 	filesamples <- extract.groups(countfiles,"counts_sample_(.+)\\.csv$")[,1]
 	sampleTable$countfile <- sapply(as.character(sampleTable$`Sample ID`), function(sid) {
@@ -102,7 +127,7 @@ buildJointTable <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 	sampleTable$depth <- sapply(allCounts,function(counts) as.integer(attr(counts,"depth"))) 
 	#and save the sample table for future reference
 	logInfo("Exporting sequencing depth information.")
-	outfile <- paste0(latest[["dir"]],"/sampleDepths.csv")
+	outfile <- paste0(outDir,"/sampleDepths.csv")
 	write.csv(sampleTable,outfile,row.names=FALSE)
 	
 
@@ -203,7 +228,7 @@ buildJointTable <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 	# WRITE OUTPUT TO FILE #
 	########################
 	logInfo("Writing results to file.")
-	outfile <- paste0(latest[["dir"]],"/allCounts.csv")
+	outfile <- paste0(outDir,"/allCounts.csv")
 	write.csv(jointTable,outfile,row.names=FALSE)
 	
 	##################################
@@ -267,7 +292,7 @@ buildJointTable <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 	},mc.cores=mc.cores))
 
 	logInfo("Writing results to file.")
-	outfile <- paste0(latest[["dir"]],"/marginalCounts.csv")
+	outfile <- paste0(outDir,"/marginalCounts.csv")
 	write.csv(marginalCounts,outfile,row.names=FALSE)
 
 

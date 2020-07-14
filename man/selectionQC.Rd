@@ -6,12 +6,21 @@
 \usage{
 selectionQC(
   dataDir,
+  countDir = NA,
+  scoreDir = NA,
+  outDir = NA,
   paramFile = paste0(dataDir, "parameters.json"),
   srOverride = FALSE
 )
 }
 \arguments{
 \item{dataDir}{working data directory}
+
+\item{countDir}{input directory for counts, defaults to subdirectory with latest timestamp ending in _mut_count.}
+
+\item{scoreDir}{input directory for scores, defaults to subdirectory with latest timestamp ending in _scores.}
+
+\item{outDir}{output directory, defaults to name of input directory with _QC tag attached.}
 
 \item{paramFile}{input parameter file. defaults to <dataDir>/parameters.json}
 }

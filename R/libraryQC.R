@@ -18,10 +18,12 @@
 #' run library quality control (QC)
 #' 
 #' @param dataDir working data directory
+#' @param inDir input directory, defaults to subdirectory with latest timestamp ending in _mut_count.
+#' @param outDir output directory, defaults to name of input directory with _QC tag attached.
 #' @param paramFile input parameter file. defaults to <dataDir>/parameters.json
 #' @return NULL. Results are written to file.
 #' @export
-libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
+libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"parameters.json"),
 	mc.cores=6,srOverride=FALSE, wmThreshold=5e-5) {
 
 	op <- options(stringsAsFactors=FALSE)
@@ -42,40 +44,71 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 	if (!canRead(paramFile)) {
 		stop("Unable to read parameter file!")
 	}
-
-
+	
+	if (!is.na(outDir)){
+	  if (!grepl("/$",outDir)) {
+	    outDir <- paste0(outDir,"/")
+	  }
+	}
+	
 	logInfo("Reading parameters")
 	params <- withCallingHandlers(
 		parseParameters(paramFile,srOverride=srOverride),
 		warning=function(w)logWarn(conditionMessage(w))
 	)
 	
-	# #find counts folder
-	# subDirs <- list.dirs(dataDir,recursive=FALSE)
-	# countDirs <- subDirs[grepl("_mut_call$",subDirs)]
-	# if (length(countDirs) == 0) {
-	# 	stop("No mutation call output found!")
-	# }
-	# latestCountDir <- sort(countDirs,decreasing=TRUE)[[1]]
-	# #extract time stamp
-	# timeStamp <- extract.groups(latestCountDir,"/(\\d{4}-\\d{2}-\\d{2}-\\d{2}-\\d{2}-\\d{2})")
-
 	#find counts folder
-	latest <- latestSubDir(parentDir=dataDir,pattern="_mut_call$|mut_count$")
-
-	#create a matching output directory
-	outDir <- paste0(dataDir,latest[["label"]],latest[["timeStamp"]],"_QC/")
-	dir.create(outDir,recursive=TRUE,showWarnings=FALSE)
+	if (is.na(inDir)) {
+	  latest <- latestSubDir(parentDir=dataDir,pattern="_mut_call$|mut_count$")
+	  inDir <- latest[["dir"]]
+	  timeStamp <- latest[["timeStamp"]]
+	  runLabel <- latest[["label"]]
+	} else { #if custom input dir was provided
+	  #make sure it exists
+	  if (!dir.exists(inDir)) {
+	    stop("Input folder ",inDir," does not exist!")
+	  }
+	  #try to extract a timestamp and label
+	  lt <- extract.groups(inDir,"([^/]+_)?(\\d{4}-\\d{2}-\\d{2}-\\d{2}-\\d{2}-\\d{2})")[1,]
+	  if (!any(is.na(lt))) {
+	    runLabel <- lt[[1]]
+	    timeStamp <- lt[[2]]
+	  } else {
+	    #if none can be extracted, use current time and no tag
+	    timeStamp <- format(Sys.time(), "%Y-%m-%d-%H-%M-%S")
+	    runLabel <- ""
+	  }
+	}
+	#make sure it ends in "/"
+	if (!grepl("/$",inDir)) {
+	  inDir <- paste0(inDir,"/")
+	}
+	
+	#if not output directory was defined
+	if (is.na(outDir)) {
+	  #derive one from the input
+	  if (grepl("_mut_count/$",inDir)) {
+	    outDir <- sub("_mut_count/$","_QC/",inDir)
+	  } else {
+	    outDir <- sub("/$","_QC/",inDir)
+	  }
+	} 
+	#make sure it ends in "/"
+	if (!grepl("/$",outDir)) {
+	  outDir <- paste0(outDir,"/")
+	}
+	
+  #make sure outdir exists
+  dir.create(outDir,recursive=TRUE,showWarnings=FALSE)
+  
+  logInfo("Using input directory",inDir,"and output directory",outDir)
 
 
 	#create PDF tag
-	pdftag <- with(params,sprintf("%s (%s): %s%s",project,template$geneName,latest[["label"]],latest[["timeStamp"]]))
+	pdftag <- with(params,sprintf("%s (%s): %s%s",project,template$geneName,runLabel,timeStamp))
 
 	#identify nonselect conditions
 	nsConditions <- getNonselects(params)
-	# nsConditions <- unique(with(as.data.frame(params$conditions$definitions),{
-	# 	`Condition 2`[which(Relationship == "is_selection_for")]
-	# }))
 
 	#if this is a pure QC run, there are no conditions declared as nonselect, so
 	# we treat *all* conditions as nonselect.
@@ -90,13 +123,16 @@ libraryQC <- function(dataDir,paramFile=paste0(dataDir,"parameters.json"),
 
 	logInfo("Reading count data")
 
-	allCountFile <- paste0(latest[["dir"]],"/allCounts.csv")
+	allCountFile <- paste0(inDir,"/allCounts.csv")
+	marginalCountFile <- paste0(inDir,"/marginalCounts.csv")
+	depthTableFile <-  paste0(inDir,"/sampleDepths.csv")
+	
+	if (!all(file.exists(allCountFile, marginalCountFile, depthTableFile))) {
+	  stop("Invalid input directory ",inDir," ! Must contain allCounts.csv, marginalCounts.csv and sampleDepths.csv !")
+	}
+	
 	allCounts <- read.csv(allCountFile)
-
-	marginalCountFile <- paste0(latest[["dir"]],"/marginalCounts.csv")
 	marginalCounts <- read.csv(marginalCountFile)
-
-	depthTableFile <-  paste0(latest[["dir"]],"/sampleDepths.csv")
 	depthTable <- read.csv(depthTableFile)
 
 

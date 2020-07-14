@@ -6,6 +6,8 @@
 \usage{
 libraryQC(
   dataDir,
+  inDir = NA,
+  outDir = NA,
   paramFile = paste0(dataDir, "parameters.json"),
   mc.cores = 6,
   srOverride = FALSE,
@@ -14,6 +16,10 @@ libraryQC(
 }
 \arguments{
 \item{dataDir}{working data directory}
+
+\item{inDir}{input directory, defaults to subdirectory with latest timestamp ending in _mut_count.}
+
+\item{outDir}{output directory, defaults to name of input directory with _QC tag attached.}
 
 \item{paramFile}{input parameter file. defaults to <dataDir>/parameters.json}
 }

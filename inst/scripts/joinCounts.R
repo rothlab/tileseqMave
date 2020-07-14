@@ -36,9 +36,11 @@ p <- arg_parser(
 	"Reads the output of fastq2Count to construct allCounts.csv and marginalCounts.csv",
 	name="joinCounts.R"
 )
-p <- add_argument(p, "dataDir", help="workspace data directory")
-p <- add_argument(p, "--parameters", help="parameter file. Defaults to parameters.json in the data directory.")
-p <- add_argument(p, "--logfile", help="log file. Defaults to joinCounts.log in the same directory")
+p <- add_argument(p, "--workspace", help="workspace data directory. Defaults to current working directory")
+p <- add_argument(p, "--input", help="input directory containing the count data. Defaults to subdirectory with latest timestamp ending in _mut_count")
+p <- add_argument(p, "--output", help="output directory. Defaults to same as input directory")
+p <- add_argument(p, "--parameters", help="parameter file. Defaults to parameters.json in the workspace directory.")
+p <- add_argument(p, "--logfile", help="log file. Defaults to joinCounts.log in the workspace directory")
 p <- add_argument(p, "--cores", default=6, help="number of CPU cores to use in parallel for multi-threading")
 p <- add_argument(p, "--srOverride", help="Manual override to allow singleton replicates. USE WITH EXTREME CAUTION!",flag=TRUE)
 args <- parse_args(p)
@@ -50,7 +52,10 @@ commandArgs <- function(trailingOnly=FALSE) {
 }
 
 #ensure datadir ends in "/" and exists
-dataDir <- args$dataDir
+dataDir <- args$workspace
+if (is.na(dataDir)) {
+  dataDir <- getwd()
+}
 if (!grepl("/$",dataDir)) {
 	dataDir <- paste0(dataDir,"/")
 }
@@ -58,8 +63,8 @@ if (!dir.exists(dataDir)) {
 	#logger cannot initialize without dataDirectory, so just a simple exception here.
 	stop("Data folder does not exist!")
 }
-paramfile <- if (is.na(args$parameters)) paste0(args$dataDir,"parameters.json") else args$parameters
-logfile <- if (is.na(args$logfile)) paste0(args$dataDir,"joinCounts.log") else args$logfile
+paramfile <- if (is.na(args$parameters)) paste0(dataDir,"parameters.json") else args$parameters
+logfile <- if (is.na(args$logfile)) paste0(dataDir,"joinCounts.log") else args$logfile
 mc.cores <- if (is.na(args$cores)) 6 else args$cores
 
 #set up logger and shunt it into the error handler
@@ -70,6 +75,6 @@ logVersion()
 
 #run the actual function
 invisible(
-	buildJointTable(dataDir,paramfile,mc.cores,srOverride=args$srOverride)
+	buildJointTable(dataDir,inDir=args$input,outDir=args$output,paramfile,mc.cores,srOverride=args$srOverride)
 )
 

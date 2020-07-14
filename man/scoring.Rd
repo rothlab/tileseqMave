@@ -6,15 +6,28 @@
 \usage{
 scoring(
   dataDir,
+  inDir = NA,
+  outDir = NA,
   paramFile = paste0(dataDir, "parameters.json"),
   mc.cores = 6,
-  srOverride = FALSE
+  srOverride = FALSE,
+  bnOverride = FALSE
 )
 }
 \arguments{
 \item{dataDir}{working data directory}
 
+\item{inDir}{input directory, defaults to subdirectory with latest timestamp ending in _mut_count.}
+
+\item{outDir}{output directory, defaults to name of input directory with _QC tag attached.}
+
 \item{paramFile}{input parameter file. defaults to <dataDir>/parameters.json}
+
+\item{mc.cores}{number of CPU cores to use in parallel}
+
+\item{srOverride}{single replicate override}
+
+\item{bnOverride}{bottleneck filter override}
 }
 \value{
 NULL. Results are written to file.

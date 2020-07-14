@@ -4,7 +4,7 @@
 \alias{errorProfile}
 \title{Draw error profile for the dataset}
 \usage{
-errorProfile(scores, sCond, tp, outDir)
+errorProfile(scores, sCond, tp, outDir, params)
 }
 \arguments{
 \item{scores}{the score table}
