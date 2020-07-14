@@ -36,13 +36,18 @@ p <- arg_parser(
 	"Condenser for PDF QC reports",
 	name="condenseQC.R"
 )
-p <- add_argument(p, "dataDir", help="workspace data directory")
+p <- add_argument(p, "--workspace", help="workspace data directory. Defaults to current working directory")
+p <- add_argument(p, "--input", help="input directory containing the QC documents. Defaults to subdirectory with latest timestamp ending in _QC")
 p <- add_argument(p, "--parameters", help="parameter file. Defaults to parameters.json in the data directory.")
 p <- add_argument(p, "--srOverride", help="Manual override to allow singleton replicates. USE WITH EXTREME CAUTION!",flag=TRUE)
 p <- add_argument(p, "--retainSingles", help="Retain individual files.",flag=TRUE)
 args <- parse_args(p)
 
-dataDir <- args$dataDir
+if (is.na(args$workspace)) {
+  dataDir <- getwd()
+} else {
+  dataDir <- args$workspace
+}
 if (!grepl("/$",dataDir)) {
 	dataDir <- paste0(dataDir,"/")
 }
@@ -54,8 +59,15 @@ paramfile <- if (is.na(args$parameters)) paste0(dataDir,"parameters.json") else 
 
 params <- parseParameters(paramfile,srOverride=args$srOverride)
 
-latest <- latestSubDir(parentDir=dataDir,pattern="_QC$")
-qcDir <- latest[["dir"]]
+qcDir <- args$input
+if (is.na(qcDir)) {
+  latest <- latestSubDir(parentDir=dataDir,pattern="_QC$")
+  qcDir <- latest[["dir"]]
+} else {
+  if(!dir.exists(qcDir)) {
+    stop("Input directory ",qcDir," does not exist!")
+  }
+}
 
 for (nsCond in getNonselects(params)) {
 	#list report files in order
