@@ -44,6 +44,7 @@ p <- add_argument(p, "--logfile", help="log file. Defaults to 'scoring.log' in t
 p <- add_argument(p, "--cores", default=6L, help="number of CPU cores to use in parallel for multi-threading")
 p <- add_argument(p, "--srOverride", help="Manual override to allow singleton replicates. USE WITH EXTREME CAUTION!",flag=TRUE)
 p <- add_argument(p, "--bnOverride", help="Manual override to disable bottleneck filtering.",flag=TRUE)
+p <- add_argument(p, "--bootstrap", default=1e4, help="Number of bootstrap samples to use. NA uses heuristics instead.")
 args <- parse_args(p)
 
 #Workaround for bug in future package, that re-uses command line arguments:
@@ -80,7 +81,8 @@ invisible(
 		dataDir, inDir=args$input, outDir=args$output, paramFile=paramFile,
 		mc.cores=args$cores,
 		srOverride=args$srOverride,
-		bnOverride=args$bnOverride
+		bnOverride=args$bnOverride,
+		nbs=args$bootstrap
 	)
 )
 

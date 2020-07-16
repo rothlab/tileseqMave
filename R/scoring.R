@@ -27,7 +27,7 @@
 #' @return NULL. Results are written to file.
 #' @export
 scoring <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"parameters.json"),
-	mc.cores=6, srOverride=FALSE, bnOverride=FALSE) {
+	mc.cores=6, srOverride=FALSE, bnOverride=FALSE, nbs=1e4) {
 
 	op <- options(stringsAsFactors=FALSE)
 
@@ -36,6 +36,19 @@ scoring <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"paramet
 	library(pbmcapply)
 	library(optimization)
 
+	if (nbs != 0) {
+  	if (nbs < 1e2) {
+  	  stop("Must use at least 100 bootstrap samples!")
+  	}
+  	if (nbs > 1e5) {
+  	  logWarn("Large number of bootrap samples requested!",
+  	          "This may take a very long time and possibly exceed memory limitations!"
+  	  )
+  	}
+	} else {
+    logWarn("Bootstrapping disabled. Using heuristic error propagation instead.")
+  }
+	
 	#make sure data and out dir exist and ends with a "/"
 	if (!grepl("/$",dataDir)) {
 		dataDir <- paste0(dataDir,"/")
@@ -218,7 +231,12 @@ scoring <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"paramet
 				
 				#Calculate enrichment ratios (phi) and propagate error
 				logInfo("Scoring...")
-				msc <- cbind(msc,calcPhi(msc))
+				if (nbs < 10) {
+				  logInfo("Bootstrapping disabled. Defaulting to heuristic error propagation.")
+				  msc <- cbind(msc,calcPhi(msc))
+				} else {
+				  msc <- cbind(msc,calcPhiBootstrap(msc,N=nbs))
+				}
 
 				#if this is a negative assay, invert the scores
 				if (params$assay[["selection"]] == "Negative") {
@@ -547,6 +565,38 @@ regularizeRaw <- function(msc,condNames,tiles,n,pseudo.n, modelFunctions) {
 		out
 	}))
 	return(regul)
+}
+
+
+calcPhiBootstrap <- function(msc,N=10000) {
+  
+  #determine pseudocounts
+  smallestSelect <- unique(sort(na.omit(msc$select.mean)))[[2]]
+  pseudoCount <- 10^floor(log10(smallestSelect))
+  
+  #calculate phi
+  select <- with(msc,floor0(select.mean-selWT.mean))
+  nonselect <- with(msc,floor0(nonselect.mean-nonWT.mean))
+  phi <- (select+pseudoCount)/nonselect
+  logPhi <- log10(phi)
+  
+  logInfo("Bootstrapping for error propagation...")
+  boot <- pbmclapply(1:N, function(i) {
+    selectSam <- with(msc,rnorm(length(select.mean),select.mean,select.sd.bayes))
+    selWTSam <- with(msc,rnorm(length(selWT.mean),selWT.mean,selWT.sd.bayes))
+    nonselectSam <- with(msc,rnorm(length(nonselect.mean),nonselect.mean,nonselect.sd.bayes))
+    nonWTSam <- with(msc,rnorm(length(nonWT.mean),nonWT.mean,nonWT.sd.bayes))
+    
+    select <- floor0(selectSam-selWTSam)
+    nonselect <-floor0(nonselectSam-nonWTSam)
+    phi <- (select+pseudoCount)/nonselect
+    logPhi <- log10(phi)
+    return(cbind(phi=phi,logPhi=logPhi))
+  })
+  sds <- apply(do.call(zbind,boot),c(1,2),function(x)sd(fin(x)))
+  
+  return(data.frame(phi=phi,phi.sd=sds[,"phi"],logPhi=logPhi,logPhi.sd=sds[,"logPhi"]))
+  
 }
 
 #' Calculate enrichment ratios (phi) and perform error propagation
