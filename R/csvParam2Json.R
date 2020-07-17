@@ -232,6 +232,12 @@ validateParameters <- function(params,srOverride=FALSE) {
 	if (params$scoring$sdThreshold <= 0) {
 		stop("SD threshold must be greater than 0!")
 	}
+	if (is.na(params$scoring$wtQuantile)) {
+	  stop("WT filter quantile must be numeric!")
+	}
+	if (params$scoring$wtQuantile < 0.5 || params$scoring$wtQuantile >= 1) {
+	  stop("WT filter quantile only allows values from interval [0.5;1[ ")
+	}
 
 	#validate normalization table
 	if (length(params$normalization) > 0 && nrow(params$normalization) > 0) {
@@ -438,6 +444,12 @@ csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",infile),
 	} else {
 		logWarn("No SD threshold specified. Defaulting to 0.3")
 		output$scoring$sdThreshold <- 0.3
+	}
+	if (hasRow("WT filter quantile:")) {
+	  output$scoring$wtQuantile <- as.numeric(csv[[getRow("WT filter quantile:")]][[2]])
+	} else {
+	  logWarn("No WT filter quantile specified. Defaulting to 0.95")
+	  output$scoring$wtQuantile <- 0.95
 	}
 	
 	#Extract normalization overrides
