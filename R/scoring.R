@@ -452,12 +452,13 @@ rawFilter <- function(msc,countThreshold,wtq=0.95) {
   nQuant <- qnorm(wtq,msc$nonWT.mean,sd.nWT)
 	#calculate nonselect filter using WT control
 	nsFilter <- with(msc, 
-		nonselect.count < countThreshold | nonselect.mean < nQuant
+		nonselect.count < countThreshold | nonselect.mean <= nQuant
 		# nonselect.count < countThreshold | nonselect.mean <= nonWT.mean + 3*sd.nWT
 	)
 	#and select filter using WT control
 	sFilter <- with(msc, 
-		select.mean < sQuant
+	  #using `<=` instead of `<` to catch zeroes!
+		select.mean <= sQuant
 		# select.mean <= selWT.mean + 3*sd.sWT
 	)
 	mapply(function(ns,s) {
