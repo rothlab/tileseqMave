@@ -225,7 +225,8 @@ scoring <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"paramet
 				logInfo("Filtering...")
 				msc$filter <- rawFilter(msc,
           params$scoring$countThreshold,
-          params$scoring$wtQuantile
+          params$scoring$wtQuantile,
+          params$scoring$cvDeviation
 				)
 
 				
@@ -440,7 +441,7 @@ mean.sd.count <- function(cond,regionalCounts,tp,params) {
 #' @param msc dataframe containing the output of the 'mean.sd.count()' function.
 #' @param countThreshold the threshold of raw counts that must be met
 #' @return a vector listing for each row in the table which (if any) filters apply, otherwise NA.
-rawFilter <- function(msc,countThreshold,wtq=0.95) {
+rawFilter <- function(msc,countThreshold,wtq=0.95,cvm=10) {
 	#if no error estimates are present, pretend it's 0
 	if (all(c("nonWT.sd.bayes", "selWT.sd.bayes") %in% colnames(msc))) {
 		sd.sWT <- msc$selWT.sd.bayes
@@ -461,9 +462,23 @@ rawFilter <- function(msc,countThreshold,wtq=0.95) {
 		select.mean <= sQuant
 		# select.mean <= selWT.mean + 3*sd.sWT
 	)
-	mapply(function(ns,s) {
-		if (ns) "frequency" else if (s) "bottleneck" else NA
-	},nsFilter,sFilter)
+	
+	#determine replicate bottlenecks
+	non.cv.poisson <- 1/sqrt(msc[,"nonselect.count"])
+	sel.cv.poisson <- 1/sqrt(msc[,"select.count"]+.1)
+	non.cv <- msc$nonselect.cv
+	sel.cv <- msc$select.cv
+	#remove NAs caused by mean = 0 (their sd is also zero)
+	sel.cv[is.na(sel.cv)] <- 0
+	rFilter <- non.cv > cvm*non.cv.poisson | sel.cv > cvm*sel.cv.poisson
+	
+	
+	mapply(function(ns,s,rf) {
+		if (ns) "frequency" 
+	  else if (s) "bottleneck:select" 
+	  else if (rf) "bottleneck:rep"
+	  else NA
+	},nsFilter,sFilter,rFilter)
 }
 
 #' Run model fitting on all tiles in all given conditions

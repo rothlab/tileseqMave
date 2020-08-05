@@ -238,6 +238,12 @@ validateParameters <- function(params,srOverride=FALSE) {
 	if (params$scoring$wtQuantile < 0.5 || params$scoring$wtQuantile >= 1) {
 	  stop("WT filter quantile only allows values from interval [0.5;1[ ")
 	}
+	if (is.na(params$scoring$cvDeviation)) {
+	  stop("Replicate disagreement factor (cvDeviation) must be numeric!")
+	}
+	if (params$scoring$cvDeviation < 1) {
+	  stop("Replicate disagreement factor (cvDevation) must be greater than 1!")
+	}
 
 	#validate normalization table
 	if (length(params$normalization) > 0 && nrow(params$normalization) > 0) {
@@ -450,6 +456,12 @@ csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",infile),
 	} else {
 	  logWarn("No WT filter quantile specified. Defaulting to 0.95")
 	  output$scoring$wtQuantile <- 0.95
+	}
+	if (hasRow("Replicate disagreement factor:")) {
+	  output$scoring$cvDeviation <- as.numeric(csv[[getRow("Replicate disagreement factor:")]][[2]])
+	} else {
+	  logWarn("No replicate disagreement factor specified. Defaulting to 10.")
+	  output$scoring$cvDeviation <- 10
 	}
 	
 	#Extract normalization overrides
