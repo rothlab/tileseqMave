@@ -172,6 +172,9 @@ selectionQC <- function(dataDir,countDir=NA, scoreDir=NA, outDir=NA,
 
 			#filter progression graph
 			filterProgression(scores,sCond,tp,params,outDir)
+			
+			#examine codon agreement for same amino acids
+			codonAgreement(scores,sCond,tp,params,outDir)
 
 			#all of these analyses require more than one replicate
 			# if (params$numReplicates[[sCond]] > 1) {
@@ -727,3 +730,72 @@ errorProfile <- function(scores,sCond,tp,outDir,params) {
 	invisible(dev.off())
 	
 }
+
+
+#' Draw plots to analyze agreement between equivalent codons
+#'
+#' @param scores the score table
+#' @param sCond currently active selection condition
+#' @param tp currently active time point
+#' @param params parameter sheet object
+#' @param outdir output directory
+#' @return nothing. writes plots to output directory
+codonAgreement <- function(scores,sCond,tp,params,outDir) {
+  codonGroups <- tapply(1:nrow(scores),scores$hgvsp,c)
+  nCodons <- sapply(codonGroups,length)
+  
+  #create pairwise combinations
+  pairings <- t(do.call(cbind,lapply(codonGroups[nCodons > 1],combn,2)))
+  pairScores <- as.df(apply(pairings,1,function(idxs) {
+    filter <- any(!is.na(scores[idxs,"filter"]))
+    lphi <- scores[idxs,"logPhi"]
+    lpsd <- scores[idxs,"logPhi.sd"]
+    c(list(filter=filter),c(logPhi=lphi,sd=lpsd))
+  }))
+  
+  alphaCol <- colAlpha("black",0.2)
+  
+  outfile <- paste0(outDir,sCond,"_t",tp,"_codonCorr.pdf")
+  tagger <- pdftagger(paste(params$pdftagbase,"; selection condition:",sCond),cpp=1)
+  pdf(outfile,8.5,11)
+  
+  layout(cbind(1:3),heights=c(1,2,2))
+  op <- par(mar=c(5,4,.1,1),oma=c(2,15,2,15))
+  barplot(
+    table(nCodons),
+    xlab="#equivalent codons per AA",
+    ylab="Frequency", col="steelblue3",border=NA
+  )
+  
+  with(pairScores[!pairScores$filter,],{
+    
+    #plot codon scores against each other
+    par(mar=c(5,4,2,1))
+    plot(
+      logPhi1,logPhi2,type="n",
+      xlab=expression("codon 1"~log(phi)),
+      ylab=expression("codon 2"~log(phi))
+    )
+    yogitools::errorBars(
+      logPhi1,logPhi2,sd2,col=alphaCol
+    )
+    yogitools::errorBars(
+      logPhi2,logPhi1,sd1,vertical=FALSE,col=alphaCol
+    )
+    abline(0,1,col="gray",lty="dashed")
+    mtext(sprintf("PCC=%.02f",cor(logPhi1,logPhi2)))
+   
+    #plot score difference against max(sd)
+    par(mar=c(5,4,2,1))
+    plot(
+      abs(logPhi1-logPhi2),mapply(max,sd1,sd2),log="y",
+      pch=20,col=alphaCol,
+      xlab=expression(Delta~log(phi)),ylab=expression(max(sigma))
+    )
+  })
+  tagger$cycle()
+  par(op)
+  invisible(dev.off())
+  
+}
+

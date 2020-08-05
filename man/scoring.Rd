@@ -11,7 +11,8 @@ scoring(
   paramFile = paste0(dataDir, "parameters.json"),
   mc.cores = 6,
   srOverride = FALSE,
-  bnOverride = FALSE
+  bnOverride = FALSE,
+  nbs = 10000
 )
 }
 \arguments{
