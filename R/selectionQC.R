@@ -175,6 +175,9 @@ selectionQC <- function(dataDir,countDir=NA, scoreDir=NA, outDir=NA,
 			
 			#examine codon agreement for same amino acids
 			codonAgreement(scores,sCond,tp,params,outDir)
+			
+			#running mean of synonymous, stop and their difference
+			synNonDelta(scores,sCond,tp,params,outDir)
 
 			#all of these analyses require more than one replicate
 			# if (params$numReplicates[[sCond]] > 1) {
@@ -798,4 +801,69 @@ codonAgreement <- function(scores,sCond,tp,params,outDir) {
   invisible(dev.off())
   
 }
+
+
+#' Draws a plot showing running means of synonymous and nonsense variant scores
+#' across the length of the protein, as well as difference track between the two.
+#'
+#' @param scores data.frame of the scores
+#' @param sCond the currently active selective condition
+#' @param tp the currently active time point
+#' @param params the parameter sheet object
+#' @param outDir the output directory
+#' @return nothing, writes plot to output directory
+synNonDelta <- function(scores,sCond,tp,params,outDir){
+  scores$pos <- as.integer(gsub("\\D+","",scores$aaChange))
+  syns <- as.df(with(scores[scores$type=="synonymous" & is.na(scores$filter),],tapply(1:length(pos),pos,function(idxs){
+    joint <- join.datapoints(logPhi[idxs],logPhi.sd[idxs],rep(2,length(idxs)))
+    p <- unique(pos[idxs])
+    c(pos=p,joint)
+  })))
+  stops <- as.df(with(scores[scores$type=="nonsense" & is.na(scores$filter),],tapply(1:length(pos),pos,function(idxs){
+    joint <- join.datapoints(logPhi[idxs],logPhi.sd[idxs],rep(2,length(idxs)))
+    p <- unique(pos[idxs])
+    c(pos=p,joint)
+  })))
+  
+  allpos <- as.character(1:params$template$proteinLength)
+  joint <- cbind(pos=as.integer(allpos),syn=syns[allpos,2:4],non=stops[allpos,2:4])
+  runningWeights <- as.df(lapply(joint$pos,function(p) {
+    idxs <- which(abs(joint$pos-p) < 5)
+    synsubset <- na.omit(joint[idxs,c("syn.mj","syn.sj","syn.dfj")])
+    synAv <- join.datapoints(synsubset[,1],synsubset[,2],synsubset[,3])
+    nonsubset <- na.omit(joint[idxs,c("non.mj","non.sj","non.dfj")])
+    nonAv <- join.datapoints(nonsubset[,1],nonsubset[,2],nonsubset[,3])
+    c(pos=p,synAv=synAv[["mj"]],synSD=synAv[["sj"]],nonAv=nonAv[["mj"]],nonSD=nonAv[["sj"]])
+  }))
+  runningWeights$delta <- with(runningWeights,synAv - nonAv)
+  runningWeights$deltaSD <- with(runningWeights,sqrt(synSD^2 + nonSD^2))
+  
+  outfile <- paste0(outDir,sCond,"_t",tp,"_synNonDiff.pdf")
+  tagger <- pdftagger(paste(params$pdftagbase,"; selection condition:",sCond),cpp=1)
+  pdf(outfile,11,8.5)
+  layout(rbind(1,2),heights=c(0.3,1))
+  op <- par(mar=c(0,4,1,1),oma=c(12,2,12,2))
+  with(runningWeights,{
+    plot(NA,type="n",xlim=range(pos),ylim=c(0,1),xlab="",ylab="",axes=FALSE)
+    rect(params$regions[,"Start AA"],0,params$regions[,"End AA"],0.49,col="gray80",border=NA)
+    text(rowMeans(params$regions[,c("Start AA","End AA")]),0.25,params$regions[,"Region Number"])
+    rect(params$tiles[,"Start AA"],0.51,params$tiles[,"End AA"],1,col="gray90",border=NA)
+    text(rowMeans(params$tiles[,c("Start AA","End AA")]),0.75,params$tiles[,"Tile Number"])
+    par(mar=c(5,4,0,1))
+    plot(NA,type="n",xlim=range(pos),ylim=range(c(synAv,nonAv)),
+         xlab="AA position",ylab=expression("running average"~log(phi))
+    )
+    polygon(c(pos,rev(pos)),c(synAv+synSD/2,rev(synAv-synSD/2)),col=colAlpha("chartreuse3",0.2),border=NA)
+    lines(pos,synAv,col="chartreuse3")
+    polygon(c(pos,rev(pos)),c(nonAv+nonSD/2,rev(nonAv-nonSD/2)),col=colAlpha("firebrick3",0.2),border=NA)
+    lines(pos,nonAv,col="firebrick3")
+    abline(v=params$tiles[-1,"Start AA"],col="gray90",lty="dashed")
+    abline(v=params$regions[-1,"Start AA"],col="gray80",lty="dashed")
+  })
+  tagger$cycle()
+  par(op)
+  invisible(dev.off())
+
+}
+
 
