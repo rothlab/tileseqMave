@@ -109,13 +109,14 @@ validateParameters <- function(params,srOverride=FALSE) {
 		}
 		#at least one selection condition must be declared:
 		if (!("is_selection_for" %in% params$conditions$definitions[,"Relationship"])) {
-			stop("No select-nonselect relationship was defined!")
-		}
-		#make sure that no selection condition has more than one nonselect partner
-		numNS <- sapply(getSelects(params), function(sCond) length(getNonselectFor(sCond,params)))
-		if (any(numNS > 1)) {
-			culprits <- getSelects(params)[which(numNS > 1)]
-			stop("Each selection conditon may only have one corresponding nonselect condition! Violations: ",culprits)
+			logWarn("No select-nonselect relationship was defined! Is this a QC run?")
+		} else {
+  		#make sure that no selection condition has more than one nonselect partner
+  		numNS <- sapply(getSelects(params), function(sCond) length(getNonselectFor(sCond,params)))
+  		if (any(numNS > 1)) {
+  			culprits <- getSelects(params)[which(numNS > 1)]
+  			stop("Each selection conditon may only have one corresponding nonselect condition! Violations: ",culprits)
+  		}
 		}
 		#Check that each sel/nonsel condition has a WT control
 		mainConds <- c(getSelects(params),getNonselects(params))
@@ -123,7 +124,7 @@ validateParameters <- function(params,srOverride=FALSE) {
 			length(getWTControlFor(cond,params)) > 0
 		})
 		if (!all(hasWT)) {
-			stop("No WT control defined for: ",paste(mainConds[!hasWT],collapse=", "))
+			logWarn("No WT control defined for: ",paste(mainConds[!hasWT],collapse=", "))
 		}
 	} else {
 		logWarn("No condition definitions detected! Is this a QC run?")
@@ -299,7 +300,7 @@ csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",infile),
 	#remove any potential quotes introduced by Excel
 	csv <- lapply(csv,function(row) {
 		sapply(row,function(cell) {
-			gsub("\"","",cell)
+			trimws(gsub("\"","",cell))
 		})
 	})
 	#Extract the first column
