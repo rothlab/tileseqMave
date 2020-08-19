@@ -512,7 +512,7 @@ parseParameters <- function(filename,srOverride=FALSE) {
 	stopifnot(grepl("\\.json$",filename), canRead(filename))
 
 	#parse JSON to list of lists
-	params <- fromJSON(filename)
+	params <- fromJSON(filename,nullValue=NA)
 
 	#rebuild tables and dataframes from lists
 	params$conditions$definitions <- do.call(rbind,params$conditions$definitions)
