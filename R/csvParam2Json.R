@@ -146,7 +146,7 @@ validateParameters <- function(params,srOverride=FALSE) {
 		stop("Each condition must have at least 1 timepoint!")
 	}
 	if (!all(params$numTimepoints == params$numTimepoints[[1]])) {
-		stop("Differing numbers of timepoints per condition are not yet supported!")
+		logWarn("Differing numbers of timepoints per condition are not yet supported for scoring!")
 	}
 
 
@@ -183,16 +183,23 @@ validateParameters <- function(params,srOverride=FALSE) {
 			"\nPlease declare them in the time point definition section!"
 		)
 	}
-	repsPerCon <- tapply(params$samples[,"Replicate"],params$samples[,"Condition"],table)
-	invisible(lapply(params$conditions$names, function(cond) {
-		if (!(length(repsPerCon[[cond]]) == params$numReplicates[[cond]])) {
-			stop("Number of replicate samples for condition ",cond," does not match declared number of replicates!")
-		}
-		if (!all(repsPerCon[[cond]] == repsPerCon[[cond]][[1]])) {
-			stop("Inconsistent number of samples for condition ",cond,"! (Some samples have more replicates than others!)")
-		}
-	}))
 
+	repCombos <- apply(params$samples[,c("Tile ID","Condition","Time point")],1,paste,collapse="\t")
+	repPerCombo <- tapply(params$samples[,"Replicate"],repCombos,function(x)length(unique(x)))
+	comboCondition <- do.call(rbind,strsplit(names(repPerCombo),"\\t"))[,2]
+	if (any(repPerCombo != params$numReplicates[comboCondition])) {
+	  culprits <- which(repPerCombo != params$numReplicates[comboCondition])
+	  stop("The following tile-condition-time combination(s) do(es) not have the correct set of replicates: ",paste(names(repPerCombo),collapse=", "))
+	}
+	
+	tpCombos <- apply(params$samples[,c("Tile ID","Condition","Replicate")],1,paste,collapse="\t")
+	tpPerCombo <- tapply(params$samples[,"Time point"],tpCombos,function(x)length(unique(x)))
+	comboCondition <- do.call(rbind,strsplit(names(tpPerCombo),"\\t"))[,2]
+	if (any(tpPerCombo != params$numTimepoints[comboCondition])) {
+	  culprits <- which(tpPerCombo != params$numTimepoints[comboCondition])
+	  stop("The following tile-condition-replicate combination(s) do(es) not have the correct set of time points: ",paste(names(repPerCombo),collapse=", "))
+	}
+	
 	#validate metaparameters
 	if (is.na(params$varcaller$posteriorThreshold)) {
 		stop("Posterior threshold must be numeric!")
