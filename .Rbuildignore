@@ -2,3 +2,5 @@
 ^workspace/
 ^.*\.Rproj$
 ^\.Rproj\.user$
+^README*
+^\.Rhistory$
