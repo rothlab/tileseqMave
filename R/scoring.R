@@ -138,7 +138,7 @@ scoring <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"paramet
 	marginalCounts$region <- params$pos2reg(marginalCounts$position)
 	marginalCounts$tile <- params$pos2tile(marginalCounts$position)
 
-	#iterate over (possibly multiple different) selection conditons
+	# iterate selection conditions -----------------------------------------------
 	for (sCond in selectConds) {
 
 		#pull up matching nonselect and WT controls
@@ -159,7 +159,7 @@ scoring <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"paramet
 			condQuad[culprits] <- paste0("X",condQuad[culprits])
 		}
 
-		#iterate over time points
+		# iterate time points -----------------------------------------------------
 		for (tp in params$timepoints$`Time point name`) {
 
 			logInfo("Processing selection",sCond,"; time point",tp)
@@ -167,7 +167,7 @@ scoring <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"paramet
 			#variable for collecting error model parameters as they become available
 			allModelParams <- NULL
 
-			#iterate over mutagenesis regions and process separately.
+			# iterate regions to process separately. --------------
 			# regions <- 1:nrow(params$regions)
 			regions <- params$regions[,"Region Number"]
 			scoreTable <- do.call(rbind,lapply(regions, function(region) {
@@ -183,7 +183,7 @@ scoring <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"paramet
 				#extract relevant count data for this region
 				regionalCounts <- marginalCounts[which(marginalCounts$region == region),]
 
-				#Calculate means, stdevs and average count for each condition
+				# means, stdevs and average count calculation for each condition----------
 				msc <- do.call(cbind,lapply(condQuad, mean.sd.count, regionalCounts, tp, params))
 
 				#for multi-condition maps, filter out rows that don't occur at all in this condition
@@ -195,7 +195,7 @@ scoring <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"paramet
 				# if (params$numReplicates[[sCond]] > 1) {
 				if (!srOverride) {
 
-					#fit tile-specific error models
+					# error model fitting -------------------------------------
 					logInfo("Fitting error models for each tile")
 					models <- runModelFits(msc,condNames,regionalCounts$tile, mc.cores=mc.cores)
 
@@ -210,7 +210,7 @@ scoring <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"paramet
 					#extract model functions
 					modelFunctions <- lapply(models,function(ms) lapply(ms,`[[`,1))
 
-					#Regularize stdev of raw frequencies
+					# regularize stdev of raw frequencies --------------------------------
 					logInfo("Performing error regularization")
 					msc <- cbind(msc,
 						regularizeRaw(msc, condNames, 
@@ -221,7 +221,7 @@ scoring <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"paramet
 					)
 				}
 
-				#Apply raw filter (count and frequency thresholds met)
+				# filtering (count and frequency thresholds met) -----------------------
 				logInfo("Filtering...")
 				msc$filter <- rawFilter(msc,
           params$scoring$countThreshold,
@@ -230,7 +230,7 @@ scoring <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"paramet
 				)
 
 				
-				#Calculate enrichment ratios (phi) and propagate error
+				# log(phi) calculation and error propagation ---------------------------
 				logInfo("Scoring...")
 				if (nbs < 10) {
 				  logInfo("Bootstrapping disabled. Defaulting to heuristic error propagation.")
@@ -244,14 +244,14 @@ scoring <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"paramet
 					msc$logPhi <- -msc$logPhi
 				}
 
-				#Normalize to synonymous and nonsense medians
+				# Scaling to synonymous and nonsense medians -----------------------------
 				logInfo("Normalizing...")
 				#check if overrides were provided for the distribution modes
 				normOvr <- getNormOverrides(params,sCond,tp,region)
 				#and apply
 				msc <- cbind(msc,normalizeScores(msc,regionalCounts$aaChange,params$scoring$sdThreshold,normOvr))
 
-				#flooring and stderr calculation only where more than one replicate exists
+				# flooring and stderr calculation only where more than one replicate exists ----
 				if (params$numReplicates[[sCond]] > 1) {
 					#Flooring and SD adjustment
 					msc <- cbind(msc,flooring(msc,params))
@@ -264,6 +264,7 @@ scoring <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"paramet
 				return(cbind(regionalCounts[,1:4],msc))
 			}))
 
+			# write output ----------------------------------------------
 			#export model parameters
 			outFile <- paste0(outDir,sCond,"_t",tp,"_errorModel.csv")
 			write.csv(as.data.frame(allModelParams),outFile)
@@ -717,10 +718,18 @@ normalizeScores <- function(msc,aac,sdThreshold,overrides=c(syn=NA,non=NA)) {
 	nonsenseMedian <- with(mscFiltered,median(
 		logPhi[which(type == "nonsense")]
 	,na.rm=TRUE))
-
+	
 	logInfo(sprintf("Auto-detected nonsense median: %.03f",nonsenseMedian))
 	logInfo(sprintf("Auto-detected synonymous median: %.03f",synonymousMedian))
-
+	
+	if (is.na(nonsenseMedian) || is.na(synonymousMedian)) {
+	  logWarn(
+	    "No nonsense or no synonymous variants of sufficient quality were found!\n",
+	    "!!Scaling/normalization is impossible! Most downstream analyses will not work!!"
+	  )
+	  return(data.frame(type=msc$type,score=NA,score.sd=NA))
+	}
+	
 	#apply any potential overrides
 	if (!is.na(overrides[["syn"]])) {
 		logWarn(sprintf(
