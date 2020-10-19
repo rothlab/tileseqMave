@@ -69,7 +69,14 @@ if (is.na(qcDir)) {
   }
 }
 
-for (nsCond in getNonselects(params)) {
+nonSels <- getNonselects(params)
+#if there are no nonselect conditions, then treat everything as nonselect
+#(this is so we can process pure library QC runs)
+if (length(nonSels) == 0) {
+  nonSels <- params$conditions$names
+}
+
+for (nsCond in nonSels) {
 	#list report files in order
 	reportFiles <- sprintf("%s/%s_%s.pdf",qcDir,nsCond,c(
 		"coverage","census","wellmeasured","complexity","mutationtypes","nucleotide_bias"
