@@ -23,7 +23,8 @@
 
 options(
 	stringsAsFactors=FALSE,
-	ignore.interactive=TRUE
+	ignore.interactive=TRUE,
+	future.cmdargs=c()
 )
 
 #load libraries
