@@ -184,17 +184,15 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
 	# }
 
 
-	################################################################################
-	# ITERATE OVER (POSSIBLY MULTIPLE) NONSELECT CONDITIONS AND ANALYZE SEPARATELY
-	################################################################################
 
+
+	#ITERATE OVER (POSSIBLY MULTIPLE) NONSELECT CONDITIONS AND ANALYZE SEPARATELY
 	for (nsCond in nsConditions) {
 
 		logInfo("Processing",nsCond)
 
-		#########################################
-		# CALCULATE NONSELECT MEANS AND NORMALIZE
-		#########################################
+	  # CALC MEANS AND NORMALIZE ------------------------------------------------
+	  
 		#pull out nonselect condition and average over replicates
 		nsReps <- sprintf("%s.t%s.rep%s.frequency",nsCond,params$timepoints[1,1],1:params$numReplicates[[nsCond]])
 		if (params$numReplicates[[nsCond]] > 1) {
@@ -237,9 +235,8 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
 		simplifiedMarginal <- cbind(marginalSplitChanges,freq=nsMarginalMeans,tile=marginalTiles)
 
 
-		#################################
-		# RUN NUCLEOTIDE BIAS ANALYSIS
-		#################################
+		# NUCL BIAS ANALYSIS -------------------------------------------
+		
 		logInfo("Checking nucleotide distribution")
 		pdf(paste0(outDir,nsCond,"_nucleotide_bias.pdf"),8.5,11)
 		opar <- par(mfrow=c(6,1),oma=c(2,2,2,2))
@@ -272,9 +269,8 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
 		numChanges <- sapply(allSplitChanges, nrow)
 		maxChanges <- max(numChanges)
 		
-		###########################
-		# CALCULATE VARIANT CENSUS
-		###########################
+		
+		# CENSUS -------------------------------------------------
 
 		logInfo("Calculating variant census")
 		#Census per tile
@@ -316,9 +312,8 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
 		}))
 		rownames(tileLambdas) <- params$tiles[,1]
 
-		####################################################
-		# Extrapolate overall census per mutagenesis region
-		####################################################
+		
+	  # OVERALL CENSUS ----------------------------------------------------------
 
 		logInfo("Extrapolating variant censi for each region")
 		#determine which tiles are in which regions
@@ -357,9 +352,8 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
 		invisible(dev.off())
 
 
-		######################
-		# BUILD COVERAGE MAP #
-		######################
+		# COVERAGE MAP -------------------------------------------------------------
+		
 		logInfo("Building coverage map.")
 		#load translation table
 		data(trtable)
@@ -437,9 +431,9 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
 		par(opar)
 		invisible(dev.off())
 
-		#######################
-		# Complexity analysis #
-		#######################
+		
+		# COMPLEXITY ANALYSIS ------------------------------------------------------
+		
 		logInfo("Running complexity analysis.")
 		ccList <- strsplit(allCounts$codonChanges,"\\|")
 		#count the number of combinations in which each codon change occurs (="complexity")
@@ -478,9 +472,9 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
 		par(opar)
 		invisible(dev.off())
 		
-		##############################
-		# Well-measuredness analysis #
-		##############################
+		
+		# WELL-MEASUREDNESS ANALYSIS -----------------------------------------------
+		
 		logInfo("Running Well-measuredness analysis")
 		reachable <- reachableChanges(params)
 
@@ -587,9 +581,7 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
 		par(opar)
 		invisible(dev.off())
 		
-		#################################################
-		# Stacked barplots for missense/syn/stop/indel/frameshift (for each tile)
-		##################################################
+		# MUT-TYPE ANALYSIS --------------------------------------------------------
 
 		logInfo("Plotting mutation type breakdown per tile")
 		#FIXME: Frameshifts have been accidentally joined into one entry
