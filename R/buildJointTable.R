@@ -50,7 +50,7 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,
 	if (!canRead(paramFile)) {
 	  stop("Unable to read parameter file!")
 	}
-	logInfo("Reading parameters")
+	logInfo("Reading parameters from",normalizePath(paramFile))
 	params <- withCallingHandlers(
 		parseParameters(paramFile,srOverride=srOverride),
 		warning=function(w)logWarn(conditionMessage(w))

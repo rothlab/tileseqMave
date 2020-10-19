@@ -50,7 +50,7 @@ selectionQC <- function(dataDir,countDir=NA, scoreDir=NA, outDir=NA,
 	}
 
 
-	logInfo("Reading parameters")
+	logInfo("Reading parameters from",normalizePath(paramFile))
 	params <- withCallingHandlers(
 		parseParameters(paramFile,srOverride=srOverride),
 		warning=function(w)logWarn(conditionMessage(w))
