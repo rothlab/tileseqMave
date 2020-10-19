@@ -59,7 +59,7 @@ rownames(provean) <- provean$hgvs
 
 
 #read complete score file
-allscores <- read.csv(args$scorefile)
+allscores <- read.csv(args$scorefile,comment.char="#")
 
 #split aa change information for easy access
 aac <- allscores$aaChange

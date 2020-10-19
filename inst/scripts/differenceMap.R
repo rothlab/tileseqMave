@@ -10,8 +10,8 @@ differenceMap <- function(condMapFile,refMapFile,outFile,pdfFile) {
 	library(hash)
 
 	cat("Reading and parsing input data...")
-	condMap <- read.csv(condMapFile)
-	refMap <- read.csv(refMapFile)
+	condMap <- read.csv(condMapFile,comment.char="#")
+	refMap <- read.csv(refMapFile,comment.char="#")
 	
 	condIdx <- hash(condMap$hgvs_pro,1:nrow(condMap))
 	refIdx <- hash(refMap$hgvs_pro,1:nrow(refMap))

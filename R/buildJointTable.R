@@ -229,7 +229,14 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,
 	########################
 	logInfo("Writing results to file.")
 	outfile <- paste0(outDir,"/allCounts.csv")
-	write.csv(jointTable,outfile,row.names=FALSE)
+	cat("# COMBINATORY VARIANT COUNTS #",
+	    "\n# project name:", params$project,
+	    "\n# gene name:",params$template$geneName,
+	    "\n# tileseqMave version:",as.character(packageVersion("tileseqMave")),
+	    "\n# parameter sheet:",normalizePath(paramFile),"\n",
+	    file=outfile
+	)
+	write.table(jointTable,outfile,sep=",",append=TRUE,row.names=FALSE,qmethod="double")
 	
 	##################################
 	# CALCULATE MARGINAL FREQUENCIES #
@@ -293,8 +300,14 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,
 
 	logInfo("Writing results to file.")
 	outfile <- paste0(outDir,"/marginalCounts.csv")
-	write.csv(marginalCounts,outfile,row.names=FALSE)
-
+	cat("# MARGINAL VARIANT COUNTS #",
+	    "\n# project name:", params$project,
+	    "\n# gene name:",params$template$geneName,
+	    "\n# tileseqMave version:",as.character(packageVersion("tileseqMave")),
+	    "\n# parameter sheet:",normalizePath(paramFile),"\n",
+	    file=outfile
+	)
+	write.table(marginalCounts,outfile,sep=",",append=TRUE,row.names=FALSE,qmethod="double")
 
 	logInfo("Done.")
 

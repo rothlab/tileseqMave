@@ -138,7 +138,7 @@ selectionQC <- function(dataDir,countDir=NA, scoreDir=NA, outDir=NA,
 	if (!file.exists(marginalCountFile)) {
 	  stop("Invalid counts directory ",countDir,"! Must contain marginalCounts.csv!")
 	}
-	marginalCounts <- read.csv(marginalCountFile)
+	marginalCounts <- read.csv(marginalCountFile,comment.char="#")
 	rownames(marginalCounts) <- marginalCounts$hgvsc
 
 	#filter out frameshifts and indels
@@ -160,7 +160,7 @@ selectionQC <- function(dataDir,countDir=NA, scoreDir=NA, outDir=NA,
 				logWarn("No score file found! Skipping...")
 				next
 			}
-			scores <- read.csv(scoreFile)
+			scores <- read.csv(scoreFile,comment.char="#")
 
 			#ordering should match scores
 			rownames(scores) <- scores$hgvsc

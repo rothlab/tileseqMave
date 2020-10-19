@@ -131,8 +131,8 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
 	  stop("Invalid input directory ",inDir," ! Must contain allCounts.csv, marginalCounts.csv and sampleDepths.csv !")
 	}
 	
-	allCounts <- read.csv(allCountFile)
-	marginalCounts <- read.csv(marginalCountFile)
+	allCounts <- read.csv(allCountFile,comment.char="#")
+	marginalCounts <- read.csv(marginalCountFile,comment.char="#")
 	depthTable <- read.csv(depthTableFile)
 
 

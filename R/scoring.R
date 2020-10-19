@@ -75,6 +75,8 @@ scoring <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"paramet
 	logInfo("WT filter quantile =",params$scoring$wtQuantile)
 	logInfo("pseudoReplicates (pseudo.n) =",params$scoring$pseudo.n)
 	logInfo("sdThreshold =",params$scoring$sdThreshold)
+	logInfo("cvDeviation =",params$scoring$cvDeviation)
+	logInfo("assay direction =",params$assay[["selection"]])
 
 	if (bnOverride) {
 		logWarn(
@@ -126,7 +128,7 @@ scoring <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"paramet
 	if (!file.exists(marginalCountFile)) {
 	  stop("Invalid input folder ",inDir," ! Must contain marginalCounts.csv !")
 	}
-	marginalCounts <- read.csv(marginalCountFile)
+	marginalCounts <- read.csv(marginalCountFile,comment.char="#")
 
 	#filter out frameshifts and indels
 	toAA <- extract.groups(marginalCounts$aaChange,"\\d+(.*)$")
@@ -279,8 +281,24 @@ scoring <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"paramet
 
 			logInfo("Writing full table to file.")
 			#export to file
+			paramHeader <- paste0(
+			  "# project name: ", params$project,"\n",
+			  "# gene name: ",params$template$geneName,"\n",
+			  "# tileseqMave version: ",packageVersion("tileseqMave"),"\n",
+			  "# condition: ",sCond,"\n",
+			  "# time point: ",tp,"\n",
+			  "# parameter sheet: ",normalizePath(paramFile),"\n",
+			  "# count threshold: ",params$scoring$countThreshold,"\n",
+			  "# wt filter quantile: ",params$scoring$wtQuantile,"\n",
+			  "# pseudo-replicates: ",params$scoring$pseudo.n,"\n",
+			  "# syn/non sd threshold: ",params$scoring$sdThreshold,"\n",
+			  "# cv deviation threshold: ",params$scoring$cvDeviation,"\n",
+			  "# assay direction: ",params$assay[["selection"]],"\n",
+			  "# bootstrap samples: ",nbs,"\n"
+			)
 			outFile <- paste0(outDir,sCond,"_t",tp,"_complete.csv")
-			write.csv(scoreTable,outFile,row.names=FALSE)
+			cat("# COMPLETE UNFILTERED SCORES #\n",paramHeader,file=outFile,sep="")
+			write.table(scoreTable,outFile,sep=",",append=TRUE,row.names=FALSE,qmethod="double")
 
 			#configure filter level for export
 			exportFilter <- if (bnOverride) {
@@ -304,7 +322,8 @@ scoring <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"paramet
 			#export to file
 			logInfo("Writing simplified table to file.")
 			outFile <- paste0(outDir,sCond,"_t",tp,"_simple.csv")
-			write.csv(simpleTable,outFile,row.names=FALSE)
+			cat("# NUCLEOTIDE-LEVEL SCORES #\n",paramHeader,file=outFile,sep="")
+			write.table(simpleTable,outFile,sep=",",append=TRUE,row.names=FALSE,qmethod="double")
 
 			#collapse by amino acid change
 			logInfo("Collapsing amino acid changes...")
@@ -313,10 +332,12 @@ scoring <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"paramet
 
 			logInfo("Writing AA-centric table to file.")
 			outFile <- paste0(outDir,sCond,"_t",tp,"_simple_aa_floored.csv")
-			write.csv(flooredAA,outFile,row.names=FALSE)
+			cat("# FLOORED AMINO ACID-LEVEL SCORES #\n",paramHeader,file=outFile,sep="")
+			write.table(flooredAA,outFile,sep=",",append=TRUE,row.names=FALSE,qmethod="double")
 
 			outFile <- paste0(outDir,sCond,"_t",tp,"_simple_aa.csv")
-			write.csv(unflooredAA,outFile,row.names=FALSE)
+			cat("# UNFLOORED AMINO ACID-LEVEL SCORES #\n",paramHeader,file=outFile,sep="")
+			write.table(unflooredAA,outFile,sep=",",append=TRUE,row.names=FALSE,qmethod="double")
 
 		}
 
