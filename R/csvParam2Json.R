@@ -145,8 +145,28 @@ validateParameters <- function(params,srOverride=FALSE) {
 	if (any(params$numTimepoints < 1)) {
 		stop("Each condition must have at least 1 timepoint!")
 	}
-	if (!all(params$numTimepoints == params$numTimepoints[[1]])) {
-		logWarn("Differing numbers of timepoints per condition are not yet supported for scoring!")
+	# if (!all(params$numTimepoints == params$numTimepoints[[1]])) {
+	# 	logWarn("Differing numbers of timepoints per condition are not yet supported for scoring!")
+	# }
+	for (sel in getSelects(params)) {
+	  selTP <- params$numTimepoints[[sel]]
+	  nsel <- getNonselectFor(sel,params)
+	  nselTP <- params$numTimepoints[[nsel]]
+	  if (nselTP > 1 && nselTP != selTP) {
+	    stop("nonselection condition \'",nsel,"\' must either have only one time point, ",
+	         "or as many as its paired selection condition \'",sel,"\' (",selTP,")"
+	    )
+	  }
+	}
+	for (cond in c(getSelects(params),getNonselects(params))) {
+	  condTP <- params$numTimepoints[[cond]]
+	  wt <- getWTControlFor(cond,params)
+	  wtTP <- params$numTimepoints[[wt]]
+	  if (wtTP > 1 && wtTP != condTP) {
+	    stop("WT control condition \'",wt,"\' must either have only one time point, ",
+	         "or as many as its paired primary condition \'",cond,"\' (",condTP,")"
+	    )
+	  }
 	}
 
 
@@ -761,6 +781,7 @@ getNonselects <- function(params) {
 
 #' Convenience function get the matching non-selective condition for the given input condition
 #'
+#' @param cond the input condition
 #' @param param the parameter object
 #' @return the list of matching non-selective conditions
 #' @export
@@ -772,6 +793,7 @@ getNonselectFor <- function(cond,params) {
 
 #' Convenience function get the matching WT control condition for the given input condition
 #'
+#' @param cond the input condition
 #' @param param the parameter object
 #' @return the list of matching WT control conditions
 #' @export
@@ -779,6 +801,16 @@ getWTControlFor <- function(cond,params) {
 	unique(with(as.data.frame(params$conditions$definitions),{
 		`Condition 1`[which(Relationship == "is_wt_control_for" & `Condition 2` == cond)]
 	}))
+}
+
+#' Convenience function get the available time points for the given input condition
+#'
+#' @param cond the input condition
+#' @param param the parameter object
+#' @return the list of available time points
+#' @export
+getTimepointsFor <- function(cond,params) {
+  with(params$samples,tapply(`Time point`,Condition,unique))[[cond]]
 }
 
 #' Convenience function to find a subdirectory matching the given pattern.

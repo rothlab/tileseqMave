@@ -442,7 +442,19 @@ bnl <- function(pseudo.n,n,model.sd,empiric.sd) {
 #' @param tp the time point ID
 #' @param params the global parameters object
 mean.sd.count <- function(cond,regionalCounts,tp,params) {
+  #get the number of replicates for this condition
 	nrep <- params$numReplicates[[cond]]
+	#validate against applicable time points
+	tps <- getTimepointsFor(cond,params)
+	if (!(tp %in% tps)) {
+	  if (cond %in% getSelects(cond)) {
+	    stop("Unrecognized time point ",tp," for selection condition ",cond,"! ",
+	         "This was not declared in the parameter sheet!")
+	  } else {
+	    #if this is a nonselect or WT condition, only one time point may exist here, so we default to that one
+	    tp <- tps[[1]]
+	  }
+	}
 	freqs <- regionalCounts[,sprintf("%s.t%s.rep%d.frequency",cond,tp,1:params$numReplicates[[cond]])]
 	counts <- regionalCounts[,sprintf("%s.t%s.rep%d.count",cond,tp,1:params$numReplicates[[cond]])]
 	means <- if (nrep > 1) rowMeans(freqs,na.rm=TRUE) else freqs

@@ -7,6 +7,8 @@
 getNonselectFor(cond, params)
 }
 \arguments{
+\item{cond}{the input condition}
+
 \item{param}{the parameter object}
 }
 \value{

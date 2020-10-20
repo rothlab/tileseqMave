@@ -77,28 +77,29 @@ if (length(nonSels) == 0) {
 }
 
 for (nsCond in nonSels) {
-	#list report files in order
-	reportFiles <- sprintf("%s/%s_%s.pdf",qcDir,nsCond,c(
-		"coverage","census","wellmeasured","complexity","mutationtypes","nucleotide_bias"
-	))
-	#discard those that don't exist or are unreadable
-	reportFiles <- reportFiles[which(canRead(reportFiles))]
-	#if more than one file is applicable, merge them
-	if (length(reportFiles) > 0) {
-		condensedFile <- sprintf("%s/%s_libraryQC.pdf",qcDir,nsCond)
-		gsArgs <- c(
-			"-dNOPAUSE",
-			"-sDEVICE=pdfwrite",
-			paste0("-sOUTPUTFILE=",condensedFile),
-			"-dBATCH",
-			reportFiles
-		)
-		retVal <- system2("gs",gsArgs)
-		if (retVal == 0 && !args$retainSingles) {
-			file.remove(reportFiles)
-		}
-	}
-
+  for (tp in params$timepoints$`Time point name`) {
+  	#list report files in order
+  	reportFiles <- sprintf("%s/%s_t%s_%s.pdf",qcDir,nsCond,tp,c(
+  		"coverage","census","wellmeasured","complexity","mutationtypes","nucleotide_bias"
+  	))
+  	#discard those that don't exist or are unreadable
+  	reportFiles <- reportFiles[which(canRead(reportFiles))]
+  	#if more than one file is applicable, merge them
+  	if (length(reportFiles) > 0) {
+  		condensedFile <- sprintf("%s/%s_t%s_libraryQC.pdf",qcDir,nsCond,tp)
+  		gsArgs <- c(
+  			"-dNOPAUSE",
+  			"-sDEVICE=pdfwrite",
+  			paste0("-sOUTPUTFILE=",condensedFile),
+  			"-dBATCH",
+  			reportFiles
+  		)
+  		retVal <- system2("gs",gsArgs)
+  		if (retVal == 0 && !args$retainSingles) {
+  			file.remove(reportFiles)
+  		}
+  	}
+  }
 }
 
 for (sCond in getSelects(params)) {

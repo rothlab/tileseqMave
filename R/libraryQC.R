@@ -188,439 +188,447 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
 
 	#ITERATE OVER (POSSIBLY MULTIPLE) NONSELECT CONDITIONS AND ANALYZE SEPARATELY
 	for (nsCond in nsConditions) {
-
-		logInfo("Processing",nsCond)
-
-	  # CALC MEANS AND NORMALIZE ------------------------------------------------
 	  
-		#pull out nonselect condition and average over replicates
-		nsReps <- sprintf("%s.t%s.rep%s.frequency",nsCond,params$timepoints[1,1],1:params$numReplicates[[nsCond]])
-		if (params$numReplicates[[nsCond]] > 1) {
-			nsMarginalMeans <- rowMeans(marginalCounts[,nsReps],na.rm=TRUE)
-			nsAllMeans <- rowMeans(allCounts[,nsReps],na.rm=TRUE)
-		} else {
-			nsMarginalMeans <- marginalCounts[,nsReps]
-			nsAllMeans <- allCounts[,nsReps]
-		}
+	  for (tp in params$timepoints$`Time point name`) {
 
-		#if WT controls are present, average over them as well and subtract from nonselect
-		wtCond <- getWTControlFor(nsCond,params)
-		# wtCond <- findWTCtrl(params,nsCond)
-		if (length(wtCond) > 0) {
-			wtReps <- sprintf("%s.t%s.rep%s.frequency",wtCond,params$timepoints[1,1],1:params$numReplicates[[wtCond]])
+	    if (!(sprintf("%s.t%s.rep1.frequency",nsCond,tp) %in% colnames(marginalCounts))) {
+	      #if this time point does not exist for nonselect, then skip 
+	      next
+	    }
+	    
+	    logInfo("Processing",nsCond,"; time point",tp)
+  
+  	  # CALC MEANS AND NORMALIZE ------------------------------------------------
+  	  
+  		#pull out nonselect condition and average over replicates
+  		nsReps <- sprintf("%s.t%s.rep%s.frequency",nsCond,tp,1:params$numReplicates[[nsCond]])
+  		if (params$numReplicates[[nsCond]] > 1) {
+  			nsMarginalMeans <- rowMeans(marginalCounts[,nsReps],na.rm=TRUE)
+  			nsAllMeans <- rowMeans(allCounts[,nsReps],na.rm=TRUE)
+  		} else {
+  			nsMarginalMeans <- marginalCounts[,nsReps]
+  			nsAllMeans <- allCounts[,nsReps]
+  		}
+  
+  		#if WT controls are present, average over them as well and subtract from nonselect
+  		wtCond <- getWTControlFor(nsCond,params)
+  		# wtCond <- findWTCtrl(params,nsCond)
+  		if (length(wtCond) > 0) {
+  			wtReps <- sprintf("%s.t%s.rep%s.frequency",wtCond,tp,1:params$numReplicates[[wtCond]])
+  
+  			if (params$numReplicates[[wtCond]] > 1) {
+  				wtMarginalMeans <- rowMeans(marginalCounts[,wtReps],na.rm=TRUE)
+  			} else {
+  				wtMarginalMeans <- marginalCounts[,wtReps]
+  			}
+  			nsMarginalMeans <- mapply(function(nsf,wtf) {
+  				max(0,nsf-wtf)
+  			},nsf=nsMarginalMeans,wtf=wtMarginalMeans)
+  
+  			if (params$numReplicates[[wtCond]] > 1) {
+  				wtAllMeans <- rowMeans(allCounts[,wtReps],na.rm=TRUE)
+  			} else {
+  				wtAllMeans <- allCounts[,wtReps]
+  			}
+  			nsAllMeans <- mapply(function(nsf,wtf) {
+  				max(0,nsf-wtf)
+  			},nsf=nsAllMeans,wtf=wtAllMeans)
+  
+  		} else {
+  			logWarn("No WT control defined for",nsCond,": Unable to perform error correction!")
+  		}
+  
+  		#build a simplified marginal frequency table from the results
+  		simplifiedMarginal <- cbind(marginalSplitChanges,freq=nsMarginalMeans,tile=marginalTiles)
+  
+  
+  		# NUCL BIAS ANALYSIS -------------------------------------------
+  		
+  		logInfo("Checking nucleotide distribution")
+  		pdf(paste0(outDir,nsCond,"_t",tp,"_nucleotide_bias.pdf"),8.5,11)
+  		opar <- par(mfrow=c(6,1),oma=c(2,2,2,2))
+  		#set up pdf tagger
+  		tagger <- pdftagger(paste(pdftag,"; condition:",nsCond,"timepoint:",tp),cpp=6)
+  		nuclRates <- lapply(params$tiles[,"Tile Number"], function(tile) {
+  			if (any(simplifiedMarginal$tile == tile)){
+  				nucleotideBiasAnalysis(
+  					simplifiedMarginal[which(simplifiedMarginal$tile == tile),],
+  					tile
+  				)
+  			} else {
+  				plot.new()
+  				rect(0,0,1,1,col="gray80",border="gray30",lty="dotted")
+  				text(0.5,0.5,"no data")
+  				mtext(paste0("Tile #",tile),side=4)
+  				return(NA)
+  			}
+  			#add one pdf tag per page
+  			tagger$cycle()
+  		})
+  		par(opar)
+  		invisible(dev.off())
+  
+  		#calculate global filters that can be combined with tile-specific filters below
+  		isFrameshift <- grepl("fs$",allCounts$aaChanges)
+  		isInFrameIndel <- sapply(allSplitChanges, function(changes) {
+  			any(changes[,3] != "indel" & nchar(changes[,3]) != 3)
+  		})
+  		numChanges <- sapply(allSplitChanges, nrow)
+  		maxChanges <- max(numChanges)
+  		
+  		
+  		# CENSUS -------------------------------------------------
+  
+  		logInfo("Calculating variant census")
+  		#Census per tile
+  		tileCensi <- do.call(rbind,lapply(params$tiles[,1], function(tile) {
+  			#filter for entries in given tile
+  			isInTile <- sapply(allTiles,function(tiles) !any(is.na(tiles)) && tile %in% tiles)
+  			if (!any(isInTile)) {
+  				return(c(fs=NA,indel=NA,WT=NA,setNames(rep(NA,maxChanges),1:maxChanges)))
+  			}
+  			# WT frequency
+  			wtFreq <- 1 - sum(nsAllMeans[isInTile])
+  			#frameshift freq
+  			fsFreq <- sum(nsAllMeans[isInTile & isFrameshift])
+  			#indel frequency
+  			indelFreq <- sum(nsAllMeans[isInTile & !isFrameshift & isInFrameIndel])
+  			#substitution mutation census
+  			isSubst <- which(isInTile & !isFrameshift & !isInFrameIndel)
+  			census <- tapply(nsAllMeans[isSubst], numChanges[isSubst],sum)
+  			census <- c(
+  				fs=fsFreq,
+  				indel=indelFreq,
+  				WT=wtFreq,
+  				sapply(as.character(1:maxChanges),function(n) if (n %in% names(census)) census[[n]] else 0)
+  			)
+  			return(census)
+  		}))
+  		rownames(tileCensi) <- params$tiles[,1]
+  
+  		#calculate lambda and Poisson fits for each census
+  		tileLambdas <- do.call(rbind,lapply(rownames(tileCensi), function(tile) {
+  			freqs <- tileCensi[tile,-c(1,2)]
+  			if (any(is.na(freqs))) {
+  				return(c(lambda=NA,rmsd=NA))
+  			}
+  			ns <- 1:length(freqs)-1
+  			lambda <- sum(ns*(freqs/sum(freqs)))
+  			rmsd <- sqrt(mean((freqs-dpois(ns,lambda))^2))
+  			return(c(lambda=lambda,rmsd=rmsd))
+  		}))
+  		rownames(tileLambdas) <- params$tiles[,1]
+  
+  		
+  	  # OVERALL CENSUS ----------------------------------------------------------
+  
+  		logInfo("Extrapolating variant censi for each region")
+  		#determine which tiles are in which regions
+  		tilesPerRegion <- tilesInRegions(params)
+  		pdf(paste0(outDir,nsCond,"_t",tp,"_census.pdf"),8.5,11)
+  		opar <- par(mfrow=c(4,3),oma=c(2,2,2,2))
+  		tagger <- pdftagger(paste(pdftag,"; condition:",nsCond,"; time point:",tp),cpp=12)
+  		regionCensi <- lapply(names(tilesPerRegion), function(ri) {
+  
+  			relevantTiles <- as.character(tilesPerRegion[[ri]])
+  			#if there is no data for any of those tiles
+  			if (all(is.na(tileCensi[relevantTiles,"WT"]))) {
+  				plot.new()
+  				rect(0,0,1,1,col="gray80",border="gray30",lty="dotted")
+  				text(0.5,0.5,"no data")
+  				mtext(paste0("Extrapolation for Region #",ri))
+  				tagger$cycle()
+  				return(c(fs=NA,indel=NA,WT=NA,setNames(rep(NA,maxChanges),1:maxChanges)))
+  			}
+  
+  			#extrapolate overall frameshift and indel rates
+  			overallFS <- 1-(1-mean(tileCensi[relevantTiles,"fs"],na.rm=TRUE))^length(relevantTiles)
+  			overallIndel <- 1-(1-mean(tileCensi[relevantTiles,"indel"],na.rm=TRUE))^length(relevantTiles)
+  			#Neat: Potential length differences between tiles cancel out, as the lambdas are not length-normalized!
+  			overallLambda <- sum(tileLambdas[relevantTiles,"lambda"],na.rm=TRUE)
+  			overallCensus <- c(fs=overallFS,indel=overallIndel,
+  				setNames(dpois(0:maxChanges,overallLambda), 0:maxChanges)*(1-(overallIndel+overallFS))
+  			)
+  
+  			#Plot overall census
+  			plotCensus(overallCensus,overallLambda,main=paste0("Extrapolation for Region #",ri))
+  			tagger$cycle()
+  			return(overallCensus)
+  		})
+  		par(opar)
+  		invisible(dev.off())
+  
+  
+  		# COVERAGE MAP -------------------------------------------------------------
+  		
+  		logInfo("Building coverage map.")
+  		#load translation table
+  		data(trtable)
+  		#translate marginals and join by translation
+  		aaMarginal <- simplifiedMarginal[with(simplifiedMarginal,which(!is.na(pos) & nchar(to)==3)),]
+  		aaMarginal$toaa <- sapply(aaMarginal$to,function(codon)trtable[[codon]])
+  		aaMarginal <- as.df(with(aaMarginal,tapply(1:nrow(aaMarginal),paste0(pos,toaa), function(is) {
+  			list(
+  				from=trtable[[unique(from[is])]],
+  				pos=unique(pos[is]),
+  				to=unique(toaa[is]),
+  				tile=unique(tile[is]),
+  				freq=sum(freq[is])
+  			)
+  		})))
+  
+  		#plan PDF page layout with 3 rows, covering 4 tiles each.
+  		#each row being subdivided into a top track and bottom track
+  		#the top track will contain individual histograms, while the bottom track
+  		#will contain a joint heatmap for the 4 tiles.
+  		tpr <- 4 #tiles per row
+  		rpp <- 3 #rows per page
+  		ntiles <- nrow(params$tiles)
+  		lastTile <- max(params$tiles[,"Tile Number"])
+  		#build layout plan, which sequencing tiles go in which row/column
+  		tileLayout <- lapply(seq(1,ntiles,tpr),function(i) params$tiles[i:min(ntiles,i+tpr-1),"Tile Number"])
+  		nrows <- length(tileLayout)
+  		#break down the layout by PDF page
+  		pageLayout <- lapply(seq(1,nrows,rpp), function(i) tileLayout[i:min(nrows,i+rpp-1)])
+  
+  		#now do the actual plotting.
+  		pdf(paste0(outDir,nsCond,"_t",tp,"_coverage.pdf"),8.5,11)
+  		opar <- par(oma=c(2,2,2,2))
+  		tagger <- pdftagger(paste(pdftag,"; condition:",nsCond,"; time point:",tp),cpp=1)
+  		invisible(lapply(pageLayout, function(tileSets) {
+  
+  			#build a matrix that indicates the grid positions of plots in order of drawing
+  			plotIndex <- do.call(rbind,lapply(1:rpp, function(ri) {
+  				bottom <- (ri-1)*5+1
+  				topRow <- bottom+1:tpr
+  				bottomRow <- rep(bottom,tpr)
+  				currTiles <- min(tileSets[[min(ri,length(tileSets))]])-1+1:tpr
+  				bottomRow[currTiles > lastTile] <- -1
+  				#position map on bottom of the row, and census plots for the corresponding tiles above
+  				rbind(topRow, bottomRow)
+  			}))
+  			layout(plotIndex)
+  
+  			#For each row on the current page...
+  			lapply(tileSets, function(tiles) {
+  				#plot coverage map
+  				# startPos <- min(params$tiles[tiles,"Start AA"])
+  				startPos <- min(params$tili(tiles)[,"Start AA"])
+  				# endPos <- max(params$tiles[tiles,"End AA"])
+  				endPos <- max(params$tili(tiles)[,"End AA"])
+  				# seps <- params$tiles[tiles,"Start AA"][-1]
+  				seps <- params$tili(tiles)[,"Start AA"][-1]
+  				coverageSubmap(startPos,endPos,aaMarginal,seps,thresholds=c(wmThreshold/10,wmThreshold))
+  				#and plot the corresponding censi
+  				lapply(tiles, function(tile) {
+  					depths <- with(depthTable,depth[
+  						Condition==nsCond & Time.point==tp & Tile.ID==tile
+  					])
+  					plotCensus(
+  						tileCensi[as.character(tile),],
+  						lambda=tileLambdas[as.character(tile),"lambda"],
+  						d=if(length(depths)>0) min(depths,na.rm=TRUE) else NULL,
+  						main=paste0("Tile #",tile)
+  					)
+  				})
+  			})
+  			tagger$cycle()
+  		}))
+  		drawCoverageLegend(wmThreshold,aaMarginal)
+  		par(opar)
+  		invisible(dev.off())
+  
+  		
+  		# COMPLEXITY ANALYSIS ------------------------------------------------------
+  		
+  		logInfo("Running complexity analysis.")
+  		ccList <- strsplit(allCounts$codonChanges,"\\|")
+  		#count the number of combinations in which each codon change occurs (="complexity")
+  		ccComplex <- hash()
+  		for (ccs in ccList) {
+  			for (cc in ccs) {
+  				if (has.key(cc,ccComplex)) {
+  					ccComplex[[cc]] <- ccComplex[[cc]]+1
+  				} else {
+  					ccComplex[[cc]] <- 1
+  				}
+  			}
+  		}
+  		#tabulate "complexity" vs marginal frequency
+  		cplxPlot <- do.call(rbind,lapply(1:nrow(simplifiedMarginal), function(i) with(simplifiedMarginal[i,],{
+  			cplx <- ccComplex[[paste0(from,pos,to)]]
+  			c(cplx=if (is.null(cplx)) NA else cplx,freq=freq,tile=tile)
+  		})))
+  
+  		#draw the plot for each tile
+  		pdf(paste0(outDir,nsCond,"_t",tp,"_complexity.pdf"),8.5,11)
+  		opar <- par(mfrow=c(3,2),oma=c(2,2,2,2))
+  		tagger <- pdftagger(paste(pdftag,"; condition:",nsCond,"; time point:",tp),cpp=6)
+  		invisible(tapply(1:nrow(cplxPlot),cplxPlot[,"tile"],function(is) {
+  			if (length(is) > 1) {
+  				tile <- unique(cplxPlot[is,3])
+  				if (!all(cplxPlot[is,2] == 0)) {
+  					plot(cplxPlot[is,1:2],log="xy",
+  						xlab="#unique contexts in tile",ylab="marginal frequency",
+  						main=paste0("Tile #",tile)
+  					)
+  					tagger$cycle()
+  				}
+  			}
+  		}))
+  		par(opar)
+  		invisible(dev.off())
+  		
+  		
+  		# WELL-MEASUREDNESS ANALYSIS -----------------------------------------------
+  		
+  		logInfo("Running Well-measuredness analysis")
+  		reachable <- reachableChanges(params)
+  
+  		# data(trtable)
+  		#add translations to marginal table
+  		simplifiedMarginal$toaa <- sapply(simplifiedMarginal$to, function(codon){
+  			if (codon=="indel") {
+  				"fs"
+  			} else if (nchar(codon) < 3) {
+  				"del"
+  			} else if (nchar(codon) == 3) {
+  				trtable[[codon]]
+  			} else {
+  				"ins"
+  			}
+  		})
+  
+  		#filter out frameshifts and indels
+  		codonMarginal <- simplifiedMarginal[nchar(simplifiedMarginal$toaa)==1,]
+  		#add flag for SNVs
+  		codonMarginal$isSNV <- sapply(1:nrow(codonMarginal), function(i) with(codonMarginal[i,], {
+  			sum(sapply(1:3,function(j) substr(from,j,j) != substr(to,j,j)))==1
+  		}))
+  		#and collapse by aa change
+  		aaMarginal <- as.df(with(codonMarginal,tapply(1:length(pos),paste0(pos,toaa),function(is) {
+  			list(pos=unique(pos[is]),toaa=unique(toaa[is]),freq=sum(freq[is]),tile=unique(tile[is]))
+  		})))
+  		#add index for quick lookup
+  		aaMarginal$index <- with(aaMarginal,paste0(pos,toaa))
+  
+  		#list of frequency thresholds to test
+  		thresholds <- 10^seq(-7,-2,0.1)
+  
+  		#iterate over regions and analyze separately
+  		pdf(paste0(outDir,nsCond,"_t",tp,"_wellmeasured.pdf"),8.5,11)
+  		opar <- par(mfrow=c(3,2),oma=c(2,2,2,2))
+  		tagger <- pdftagger(paste(pdftag,"; condition:",nsCond,"; time point:",tp),cpp=6)
+  		coverageCurves <- lapply(names(tilesPerRegion), function(ri) {
+  
+  			tiles <- tilesPerRegion[[ri]]
+  			# rStart <- min(params$tiles[tiles,"Start AA"])
+  			rStart <- min(params$tili(tiles)[,"Start AA"])
+  			# rEnd <- max(params$tiles[tiles,"End AA"])
+  			rEnd <- max(params$tili(tiles)[,"End AA"])
+  			rLength <- rEnd-rStart+1
+  
+  			#if there's no data, return an empty plot
+  			if (!any(aaMarginal$tile %in% tiles)) {
+  				plot.new()
+  				rect(0,0,1,1,col="gray80",border="gray30",lty="dotted")
+  				text(0.5,0.5,"no data")
+  				mtext(paste0("Region #",ri))
+  				tagger$cycle()
+  				return(NULL)
+  			}
+  
+  			regionReachable <- reachable[with(reachable,pos >= rStart & pos <= rEnd),]
+  			regionReachable$index <- with(regionReachable,paste0(pos,mutaa))
+  
+  			nreachableAA <- nrow(regionReachable)
+  			npossibleAA <- rLength * 21 #includes syn + stop options
+  			npossibleSNV <- rLength * 9 # = three possible changes at three positions per codon
+  			npossibleCodon <- rLength * 63 # = 4*4*4-1
+  
+  			#calculate coverage curves
+  			coverageCurves <- as.df(lapply(thresholds, function(thr) {
+  				list(
+  					freqCutoff = thr,
+  					fracPossibleCodon = with(codonMarginal,sum(freq > thr & tile %in% tiles))/npossibleCodon,
+  					fracSNV=with(codonMarginal,sum(freq > thr & tile %in% tiles & isSNV))/npossibleSNV,
+  					fracPossibleAA = with(aaMarginal,sum(freq > thr & tile %in% tiles))/npossibleAA,
+  					fracReachableAA = with(aaMarginal,
+  						sum(freq > thr & tile %in% tiles & index %in% regionReachable$index)
+  					)/nreachableAA
+  				)
+  			}))
+  			#export coverage table
+  			outTblFile <- paste0(outDir,nsCond,"_t",tp,"_wm_region",ri,".csv")
+  			write.csv(coverageCurves,outTblFile,row.names=FALSE)
+  
+  			#draw the plot
+  			plotcolors <- c(
+  				`codon changes`="black",`SNVs`="gray50",
+  				`AA changes`="firebrick3",`SNV-reachable AA changes`="firebrick2"
+  			)
+  			linetypes <- rep(c("solid","dashed"),2)
+  			plot(NA,type="n",
+  				log="x",xlim=range(thresholds),ylim=c(0,1),
+  				xlab="Marginal read frequency cutoff",
+  				ylab="Fraction of possible variants measured",
+  				main=paste0("Region #",ri)
+  			)
+  			for (i in 1:4) {
+  				lines(coverageCurves[,c(1,i+1)],col=plotcolors[[i]],lty=linetypes[[i]],lwd=2)
+  			}
+  			grid()
+  			abline(v=wmThreshold,lty="dotted",col="gray50")
+  			text(wmThreshold,1,sprintf("legacy cutoff (%.0e)",wmThreshold),col="gray50",pos=4)
+  			legend("bottomleft",names(plotcolors),col=plotcolors,lty=linetypes,lwd=2)
+  			tagger$cycle()
+  			return(coverageCurves)
+  
+  		})
+  		par(opar)
+  		invisible(dev.off())
+  		
+  		# MUT-TYPE ANALYSIS --------------------------------------------------------
+  
+  		logInfo("Plotting mutation type breakdown per tile")
+  		#FIXME: Frameshifts have been accidentally joined into one entry
+  		simplifiedMarginal$fromaa <- sapply(simplifiedMarginal$from, 
+  			function(codon) if (is.na(codon)) "" else trtable[[codon]]
+  		)
+  		mutbreakdown <- do.call(cbind,lapply(params$tiles[,1], function(tile) {
+  			if (!any(simplifiedMarginal$tile == tile)) {
+  				return(setNames(rep(NA,5),c("fs","indel","stop","syn","mis")))
+  			}
+  			marginalSubset <- simplifiedMarginal[which(simplifiedMarginal$tile == tile),]
+  			freqsums <- with(marginalSubset,{
+  				c(
+  					fs=sum(freq[toaa=="fs"]),
+  					indel=sum(freq[which(toaa !="fs" & nchar(to) != 3)]),
+  					stop=sum(freq[toaa=="*"]),
+  					syn=sum(freq[fromaa==toaa])
+  				)
+  			})
+  			freqsums[["mis"]] <- sum(marginalSubset$freq)-sum(freqsums)
+  			return(freqsums)
+  		}))
+  		colnames(mutbreakdown) <- params$tiles[,1]
+  		
+  		plotcols <- c(
+  			frameshift="firebrick3",indel="orange",nonsense="gold",
+  			synonymous="steelblue3",missense="darkolivegreen3"
+  		)
+  		pdf(paste0(outDir,nsCond,"_t",tp,"_mutationtypes.pdf"),8.5,11)
+  		opar <- par(oma=c(2,2,2,2))
+  		tagger <- pdftagger(paste(pdftag,"; condition:",nsCond,"; time point:",tp),cpp=2)
+  		barplot(mutbreakdown,col=plotcols,border=NA,horiz=TRUE,
+  			xlab="sum of marginal frequencies",ylab="Tile",main="Mutation types"
+  		)
+  		legend("right",names(plotcols),fill=plotcols)
+  		tagger$cycle()
+  		par(opar)
+  		invisible(dev.off())
 
-			if (params$numReplicates[[wtCond]] > 1) {
-				wtMarginalMeans <- rowMeans(marginalCounts[,wtReps],na.rm=TRUE)
-			} else {
-				wtMarginalMeans <- marginalCounts[,wtReps]
-			}
-			nsMarginalMeans <- mapply(function(nsf,wtf) {
-				max(0,nsf-wtf)
-			},nsf=nsMarginalMeans,wtf=wtMarginalMeans)
-
-			if (params$numReplicates[[wtCond]] > 1) {
-				wtAllMeans <- rowMeans(allCounts[,wtReps],na.rm=TRUE)
-			} else {
-				wtAllMeans <- allCounts[,wtReps]
-			}
-			nsAllMeans <- mapply(function(nsf,wtf) {
-				max(0,nsf-wtf)
-			},nsf=nsAllMeans,wtf=wtAllMeans)
-
-		} else {
-			logWarn("No WT control defined for",nsCond,": Unable to perform error correction!")
-		}
-
-		#build a simplified marginal frequency table from the results
-		simplifiedMarginal <- cbind(marginalSplitChanges,freq=nsMarginalMeans,tile=marginalTiles)
-
-
-		# NUCL BIAS ANALYSIS -------------------------------------------
-		
-		logInfo("Checking nucleotide distribution")
-		pdf(paste0(outDir,nsCond,"_nucleotide_bias.pdf"),8.5,11)
-		opar <- par(mfrow=c(6,1),oma=c(2,2,2,2))
-		#set up pdf tagger
-		tagger <- pdftagger(paste(pdftag,"; condition:",nsCond),cpp=6)
-		nuclRates <- lapply(params$tiles[,"Tile Number"], function(tile) {
-			if (any(simplifiedMarginal$tile == tile)){
-				nucleotideBiasAnalysis(
-					simplifiedMarginal[which(simplifiedMarginal$tile == tile),],
-					tile
-				)
-			} else {
-				plot.new()
-				rect(0,0,1,1,col="gray80",border="gray30",lty="dotted")
-				text(0.5,0.5,"no data")
-				mtext(paste0("Tile #",tile),side=4)
-				return(NA)
-			}
-			#add one pdf tag per page
-			tagger$cycle()
-		})
-		par(opar)
-		invisible(dev.off())
-
-		#calculate global filters that can be combined with tile-specific filters below
-		isFrameshift <- grepl("fs$",allCounts$aaChanges)
-		isInFrameIndel <- sapply(allSplitChanges, function(changes) {
-			any(changes[,3] != "indel" & nchar(changes[,3]) != 3)
-		})
-		numChanges <- sapply(allSplitChanges, nrow)
-		maxChanges <- max(numChanges)
-		
-		
-		# CENSUS -------------------------------------------------
-
-		logInfo("Calculating variant census")
-		#Census per tile
-		tileCensi <- do.call(rbind,lapply(params$tiles[,1], function(tile) {
-			#filter for entries in given tile
-			isInTile <- sapply(allTiles,function(tiles) !any(is.na(tiles)) && tile %in% tiles)
-			if (!any(isInTile)) {
-				return(c(fs=NA,indel=NA,WT=NA,setNames(rep(NA,maxChanges),1:maxChanges)))
-			}
-			# WT frequency
-			wtFreq <- 1 - sum(nsAllMeans[isInTile])
-			#frameshift freq
-			fsFreq <- sum(nsAllMeans[isInTile & isFrameshift])
-			#indel frequency
-			indelFreq <- sum(nsAllMeans[isInTile & !isFrameshift & isInFrameIndel])
-			#substitution mutation census
-			isSubst <- which(isInTile & !isFrameshift & !isInFrameIndel)
-			census <- tapply(nsAllMeans[isSubst], numChanges[isSubst],sum)
-			census <- c(
-				fs=fsFreq,
-				indel=indelFreq,
-				WT=wtFreq,
-				sapply(as.character(1:maxChanges),function(n) if (n %in% names(census)) census[[n]] else 0)
-			)
-			return(census)
-		}))
-		rownames(tileCensi) <- params$tiles[,1]
-
-		#calculate lambda and Poisson fits for each census
-		tileLambdas <- do.call(rbind,lapply(rownames(tileCensi), function(tile) {
-			freqs <- tileCensi[tile,-c(1,2)]
-			if (any(is.na(freqs))) {
-				return(c(lambda=NA,rmsd=NA))
-			}
-			ns <- 1:length(freqs)-1
-			lambda <- sum(ns*(freqs/sum(freqs)))
-			rmsd <- sqrt(mean((freqs-dpois(ns,lambda))^2))
-			return(c(lambda=lambda,rmsd=rmsd))
-		}))
-		rownames(tileLambdas) <- params$tiles[,1]
-
-		
-	  # OVERALL CENSUS ----------------------------------------------------------
-
-		logInfo("Extrapolating variant censi for each region")
-		#determine which tiles are in which regions
-		tilesPerRegion <- tilesInRegions(params)
-		pdf(paste0(outDir,nsCond,"_census.pdf"),8.5,11)
-		opar <- par(mfrow=c(4,3),oma=c(2,2,2,2))
-		tagger <- pdftagger(paste(pdftag,"; condition:",nsCond),cpp=12)
-		regionCensi <- lapply(names(tilesPerRegion), function(ri) {
-
-			relevantTiles <- as.character(tilesPerRegion[[ri]])
-			#if there is no data for any of those tiles
-			if (all(is.na(tileCensi[relevantTiles,"WT"]))) {
-				plot.new()
-				rect(0,0,1,1,col="gray80",border="gray30",lty="dotted")
-				text(0.5,0.5,"no data")
-				mtext(paste0("Extrapolation for Region #",ri))
-				tagger$cycle()
-				return(c(fs=NA,indel=NA,WT=NA,setNames(rep(NA,maxChanges),1:maxChanges)))
-			}
-
-			#extrapolate overall frameshift and indel rates
-			overallFS <- 1-(1-mean(tileCensi[relevantTiles,"fs"],na.rm=TRUE))^length(relevantTiles)
-			overallIndel <- 1-(1-mean(tileCensi[relevantTiles,"indel"],na.rm=TRUE))^length(relevantTiles)
-			#Neat: Potential length differences between tiles cancel out, as the lambdas are not length-normalized!
-			overallLambda <- sum(tileLambdas[relevantTiles,"lambda"],na.rm=TRUE)
-			overallCensus <- c(fs=overallFS,indel=overallIndel,
-				setNames(dpois(0:maxChanges,overallLambda), 0:maxChanges)*(1-(overallIndel+overallFS))
-			)
-
-			#Plot overall census
-			plotCensus(overallCensus,overallLambda,main=paste0("Extrapolation for Region #",ri))
-			tagger$cycle()
-			return(overallCensus)
-		})
-		par(opar)
-		invisible(dev.off())
-
-
-		# COVERAGE MAP -------------------------------------------------------------
-		
-		logInfo("Building coverage map.")
-		#load translation table
-		data(trtable)
-		#translate marginals and join by translation
-		aaMarginal <- simplifiedMarginal[with(simplifiedMarginal,which(!is.na(pos) & nchar(to)==3)),]
-		aaMarginal$toaa <- sapply(aaMarginal$to,function(codon)trtable[[codon]])
-		aaMarginal <- as.df(with(aaMarginal,tapply(1:nrow(aaMarginal),paste0(pos,toaa), function(is) {
-			list(
-				from=trtable[[unique(from[is])]],
-				pos=unique(pos[is]),
-				to=unique(toaa[is]),
-				tile=unique(tile[is]),
-				freq=sum(freq[is])
-			)
-		})))
-
-		#plan PDF page layout with 3 rows, covering 4 tiles each.
-		#each row being subdivided into a top track and bottom track
-		#the top track will contain individual histograms, while the bottom track
-		#will contain a joint heatmap for the 4 tiles.
-		tpr <- 4 #tiles per row
-		rpp <- 3 #rows per page
-		ntiles <- nrow(params$tiles)
-		lastTile <- max(params$tiles[,"Tile Number"])
-		#build layout plan, which sequencing tiles go in which row/column
-		tileLayout <- lapply(seq(1,ntiles,tpr),function(i) params$tiles[i:min(ntiles,i+tpr-1),"Tile Number"])
-		nrows <- length(tileLayout)
-		#break down the layout by PDF page
-		pageLayout <- lapply(seq(1,nrows,rpp), function(i) tileLayout[i:min(nrows,i+rpp-1)])
-
-		#now do the actual plotting.
-		pdf(paste0(outDir,nsCond,"_coverage.pdf"),8.5,11)
-		opar <- par(oma=c(2,2,2,2))
-		tagger <- pdftagger(paste(pdftag,"; condition:",nsCond),cpp=1)
-		invisible(lapply(pageLayout, function(tileSets) {
-
-			#build a matrix that indicates the grid positions of plots in order of drawing
-			plotIndex <- do.call(rbind,lapply(1:rpp, function(ri) {
-				bottom <- (ri-1)*5+1
-				topRow <- bottom+1:tpr
-				bottomRow <- rep(bottom,tpr)
-				currTiles <- min(tileSets[[min(ri,length(tileSets))]])-1+1:tpr
-				bottomRow[currTiles > lastTile] <- -1
-				#position map on bottom of the row, and census plots for the corresponding tiles above
-				rbind(topRow, bottomRow)
-			}))
-			layout(plotIndex)
-
-			#For each row on the current page...
-			lapply(tileSets, function(tiles) {
-				#plot coverage map
-				# startPos <- min(params$tiles[tiles,"Start AA"])
-				startPos <- min(params$tili(tiles)[,"Start AA"])
-				# endPos <- max(params$tiles[tiles,"End AA"])
-				endPos <- max(params$tili(tiles)[,"End AA"])
-				# seps <- params$tiles[tiles,"Start AA"][-1]
-				seps <- params$tili(tiles)[,"Start AA"][-1]
-				coverageSubmap(startPos,endPos,aaMarginal,seps,thresholds=c(wmThreshold/10,wmThreshold))
-				#and plot the corresponding censi
-				lapply(tiles, function(tile) {
-					depths <- with(depthTable,depth[
-						Condition==nsCond & Time.point==params$timepoints[1,1] & Tile.ID==tile
-					])
-					plotCensus(
-						tileCensi[as.character(tile),],
-						lambda=tileLambdas[as.character(tile),"lambda"],
-						d=if(length(depths)>0) min(depths,na.rm=TRUE) else NULL,
-						main=paste0("Tile #",tile)
-					)
-				})
-			})
-			tagger$cycle()
-		}))
-		drawCoverageLegend(wmThreshold,aaMarginal)
-		par(opar)
-		invisible(dev.off())
-
-		
-		# COMPLEXITY ANALYSIS ------------------------------------------------------
-		
-		logInfo("Running complexity analysis.")
-		ccList <- strsplit(allCounts$codonChanges,"\\|")
-		#count the number of combinations in which each codon change occurs (="complexity")
-		ccComplex <- hash()
-		for (ccs in ccList) {
-			for (cc in ccs) {
-				if (has.key(cc,ccComplex)) {
-					ccComplex[[cc]] <- ccComplex[[cc]]+1
-				} else {
-					ccComplex[[cc]] <- 1
-				}
-			}
-		}
-		#tabulate "complexity" vs marginal frequency
-		cplxPlot <- do.call(rbind,lapply(1:nrow(simplifiedMarginal), function(i) with(simplifiedMarginal[i,],{
-			cplx <- ccComplex[[paste0(from,pos,to)]]
-			c(cplx=if (is.null(cplx)) NA else cplx,freq=freq,tile=tile)
-		})))
-
-		#draw the plot for each tile
-		pdf(paste0(outDir,nsCond,"_complexity.pdf"),8.5,11)
-		opar <- par(mfrow=c(3,2),oma=c(2,2,2,2))
-		tagger <- pdftagger(paste(pdftag,"; condition:",nsCond),cpp=6)
-		invisible(tapply(1:nrow(cplxPlot),cplxPlot[,"tile"],function(is) {
-			if (length(is) > 1) {
-				tile <- unique(cplxPlot[is,3])
-				if (!all(cplxPlot[is,2] == 0)) {
-					plot(cplxPlot[is,1:2],log="xy",
-						xlab="#unique contexts in tile",ylab="marginal frequency",
-						main=paste0("Tile #",tile)
-					)
-					tagger$cycle()
-				}
-			}
-		}))
-		par(opar)
-		invisible(dev.off())
-		
-		
-		# WELL-MEASUREDNESS ANALYSIS -----------------------------------------------
-		
-		logInfo("Running Well-measuredness analysis")
-		reachable <- reachableChanges(params)
-
-		# data(trtable)
-		#add translations to marginal table
-		simplifiedMarginal$toaa <- sapply(simplifiedMarginal$to, function(codon){
-			if (codon=="indel") {
-				"fs"
-			} else if (nchar(codon) < 3) {
-				"del"
-			} else if (nchar(codon) == 3) {
-				trtable[[codon]]
-			} else {
-				"ins"
-			}
-		})
-
-		#filter out frameshifts and indels
-		codonMarginal <- simplifiedMarginal[nchar(simplifiedMarginal$toaa)==1,]
-		#add flag for SNVs
-		codonMarginal$isSNV <- sapply(1:nrow(codonMarginal), function(i) with(codonMarginal[i,], {
-			sum(sapply(1:3,function(j) substr(from,j,j) != substr(to,j,j)))==1
-		}))
-		#and collapse by aa change
-		aaMarginal <- as.df(with(codonMarginal,tapply(1:length(pos),paste0(pos,toaa),function(is) {
-			list(pos=unique(pos[is]),toaa=unique(toaa[is]),freq=sum(freq[is]),tile=unique(tile[is]))
-		})))
-		#add index for quick lookup
-		aaMarginal$index <- with(aaMarginal,paste0(pos,toaa))
-
-		#list of frequency thresholds to test
-		thresholds <- 10^seq(-7,-2,0.1)
-
-		#iterate over regions and analyze separately
-		pdf(paste0(outDir,nsCond,"_wellmeasured.pdf"),8.5,11)
-		opar <- par(mfrow=c(3,2),oma=c(2,2,2,2))
-		tagger <- pdftagger(paste(pdftag,"; condition:",nsCond),cpp=6)
-		coverageCurves <- lapply(names(tilesPerRegion), function(ri) {
-
-			tiles <- tilesPerRegion[[ri]]
-			# rStart <- min(params$tiles[tiles,"Start AA"])
-			rStart <- min(params$tili(tiles)[,"Start AA"])
-			# rEnd <- max(params$tiles[tiles,"End AA"])
-			rEnd <- max(params$tili(tiles)[,"End AA"])
-			rLength <- rEnd-rStart+1
-
-			#if there's no data, return an empty plot
-			if (!any(aaMarginal$tile %in% tiles)) {
-				plot.new()
-				rect(0,0,1,1,col="gray80",border="gray30",lty="dotted")
-				text(0.5,0.5,"no data")
-				mtext(paste0("Region #",ri))
-				tagger$cycle()
-				return(NULL)
-			}
-
-			regionReachable <- reachable[with(reachable,pos >= rStart & pos <= rEnd),]
-			regionReachable$index <- with(regionReachable,paste0(pos,mutaa))
-
-			nreachableAA <- nrow(regionReachable)
-			npossibleAA <- rLength * 21 #includes syn + stop options
-			npossibleSNV <- rLength * 9 # = three possible changes at three positions per codon
-			npossibleCodon <- rLength * 63 # = 4*4*4-1
-
-			#calculate coverage curves
-			coverageCurves <- as.df(lapply(thresholds, function(thr) {
-				list(
-					freqCutoff = thr,
-					fracPossibleCodon = with(codonMarginal,sum(freq > thr & tile %in% tiles))/npossibleCodon,
-					fracSNV=with(codonMarginal,sum(freq > thr & tile %in% tiles & isSNV))/npossibleSNV,
-					fracPossibleAA = with(aaMarginal,sum(freq > thr & tile %in% tiles))/npossibleAA,
-					fracReachableAA = with(aaMarginal,
-						sum(freq > thr & tile %in% tiles & index %in% regionReachable$index)
-					)/nreachableAA
-				)
-			}))
-			#export coverage table
-			outTblFile <- paste0(outDir,nsCond,"_wm_region",ri,".csv")
-			write.csv(coverageCurves,outTblFile,row.names=FALSE)
-
-			#draw the plot
-			plotcolors <- c(
-				`codon changes`="black",`SNVs`="gray50",
-				`AA changes`="firebrick3",`SNV-reachable AA changes`="firebrick2"
-			)
-			linetypes <- rep(c("solid","dashed"),2)
-			plot(NA,type="n",
-				log="x",xlim=range(thresholds),ylim=c(0,1),
-				xlab="Marginal read frequency cutoff",
-				ylab="Fraction of possible variants measured",
-				main=paste0("Region #",ri)
-			)
-			for (i in 1:4) {
-				lines(coverageCurves[,c(1,i+1)],col=plotcolors[[i]],lty=linetypes[[i]],lwd=2)
-			}
-			grid()
-			abline(v=wmThreshold,lty="dotted",col="gray50")
-			text(wmThreshold,1,sprintf("legacy cutoff (%.0e)",wmThreshold),col="gray50",pos=4)
-			legend("bottomleft",names(plotcolors),col=plotcolors,lty=linetypes,lwd=2)
-			tagger$cycle()
-			return(coverageCurves)
-
-		})
-		par(opar)
-		invisible(dev.off())
-		
-		# MUT-TYPE ANALYSIS --------------------------------------------------------
-
-		logInfo("Plotting mutation type breakdown per tile")
-		#FIXME: Frameshifts have been accidentally joined into one entry
-		simplifiedMarginal$fromaa <- sapply(simplifiedMarginal$from, 
-			function(codon) if (is.na(codon)) "" else trtable[[codon]]
-		)
-		mutbreakdown <- do.call(cbind,lapply(params$tiles[,1], function(tile) {
-			if (!any(simplifiedMarginal$tile == tile)) {
-				return(setNames(rep(NA,5),c("fs","indel","stop","syn","mis")))
-			}
-			marginalSubset <- simplifiedMarginal[which(simplifiedMarginal$tile == tile),]
-			freqsums <- with(marginalSubset,{
-				c(
-					fs=sum(freq[toaa=="fs"]),
-					indel=sum(freq[which(toaa !="fs" & nchar(to) != 3)]),
-					stop=sum(freq[toaa=="*"]),
-					syn=sum(freq[fromaa==toaa])
-				)
-			})
-			freqsums[["mis"]] <- sum(marginalSubset$freq)-sum(freqsums)
-			return(freqsums)
-		}))
-		colnames(mutbreakdown) <- params$tiles[,1]
-		
-		plotcols <- c(
-			frameshift="firebrick3",indel="orange",nonsense="gold",
-			synonymous="steelblue3",missense="darkolivegreen3"
-		)
-		pdf(paste0(outDir,nsCond,"_mutationtypes.pdf"),8.5,11)
-		opar <- par(oma=c(2,2,2,2))
-		tagger <- pdftagger(paste(pdftag,"; condition:",nsCond),cpp=2)
-		barplot(mutbreakdown,col=plotcols,border=NA,horiz=TRUE,
-			xlab="sum of marginal frequencies",ylab="Tile",main="Mutation types"
-		)
-		legend("right",names(plotcols),fill=plotcols)
-		tagger$cycle()
-		par(opar)
-		invisible(dev.off())
-
+	  }
 	}
 
 	options(op)
