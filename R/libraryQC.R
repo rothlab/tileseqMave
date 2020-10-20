@@ -137,17 +137,39 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
 
 
 	logInfo("Interpreting variant descriptors. This may take some time...")
-
+	
 	#Extract affected positions and codon details
 	splitCodonChanges <- function(ccs) {
-		df <- as.data.frame(
-			extract.groups(ccs,"(\\D*)(\\d+)(\\D*)"),
-			stringsAsFactors=FALSE
-		)
-		colnames(df) <- c("from","pos","to")
-		df$pos <- as.integer(df$pos)
-		df
+	  #This is a faster implementation that should require less memory and runtime
+	  rawTable <- do.call(rbind,lapply(ccs,function(cc) {
+	    #convert to ASCII codes
+	    codes <- as.integer(charToRaw(cc))
+	    #codes <= 57 are numbers, above are letters.
+	    numIdx <- which(codes <= 57)
+	    numStart <- min(numIdx)
+	    numEnd <- max(numIdx)
+	    c(substr(cc,1,numStart-1),
+	         substr(cc,numStart,numEnd),
+	         substr(cc,numEnd+1,nchar(cc))
+	    )
+	  }))
+	  # as.data.frame(
+	  #   from=sapply(rawTable,`[[`,1),
+	  #   pos=sapply(rawTable,`[[`,2),
+	  #   to=sapply(rawTable,`[[`,3)
+	  # )
 	}
+
+	#Extract affected positions and codon details
+	# splitCodonChanges <- function(ccs) {
+	# 	df <- as.data.frame(
+	# 		extract.groups(ccs,"(\\D*)(\\d+)(\\D*)"),
+	# 		stringsAsFactors=FALSE
+	# 	)
+	# 	colnames(df) <- c("from","pos","to")
+	# 	df$pos <- as.integer(df$pos)
+	# 	df
+	# }
 	allSplitChanges <- pbmclapply(
 		strsplit(allCounts$codonChanges,"\\|"), 
 		splitCodonChanges, mc.cores=mc.cores
@@ -159,7 +181,8 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
 	# tileStarts <- params$tiles[,"Start AA"]
 	inferTiles <- function(cct) {
 		# sapply(cct$pos,function(pos) max(which(tileStarts <= pos)))
-		params$pos2tile(cct$pos)
+		# params$pos2tile(cct$pos)
+	  params$pos2tile(as.integer(cct[,2]))
 	}
 	allTiles <- pbmclapply(allSplitChanges,inferTiles,mc.cores=mc.cores)	
 	marginalTiles <- inferTiles(marginalSplitChanges)
@@ -239,7 +262,12 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
   		}
   
   		#build a simplified marginal frequency table from the results
-  		simplifiedMarginal <- cbind(marginalSplitChanges,freq=nsMarginalMeans,tile=marginalTiles)
+  		colnames(marginalSplitChanges) <- c("from","pos","to")
+  		simplifiedMarginal <- cbind(
+  		  as.data.frame(marginalSplitChanges),
+  		  freq=nsMarginalMeans,tile=marginalTiles
+  		)
+  		simplifiedMarginal$pos <- as.integer(simplifiedMarginal$pos)
   
   
   		# NUCL BIAS ANALYSIS -------------------------------------------
