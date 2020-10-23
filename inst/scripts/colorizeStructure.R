@@ -30,9 +30,9 @@ options(
 library(tileseqMave)
 library(yogitools)
 library(argparser)
-# library(yogilog)
 
-#process command line arguments
+# Process command line arguments------------------------------------------------
+
 p <- arg_parser(
   "Create a PyMol script for colorizing structures according to a MAVE file",
   name="colorizeStructure.R"
@@ -45,19 +45,26 @@ p <- add_argument(p, "--summary", default="median", help="Summary statistic to b
 p <- add_argument(p, "--offset", default=0, help="PDB sequence offset. (For cases where the sequence numbering is shifted)")
 args <- parse_args(p)
 
+# Validation of parameters -----------------------------------------------------
+
+#summary statistic function
 summary <- match.arg(args$summary,choices=c("median","mean","min","max"))
 fun <- switch(summary,median=median,mean=mean,min=min,max=max,default=median)
 
+#PDB chain identifier
 chain <- args$chain
 if (!is.character(chain) || !grepl("^[A-Z]{1}$",chain)) {
   stop("'chain' must be single upper case letter!")
 }
 
+#Offset parameter
 offset <- args$offset
 if (!is.numeric(offset)) {
   stop("'offset' must be integer number!")
 }
 
+#Finding the input data and figuring out whether we're working with a single file
+#or with a whole directory (and whether we are meant to find it automatically)
 dataDir <- args$workspace
 if (is.na(dataDir)) {
   dataDir <- getwd()
@@ -96,10 +103,8 @@ if (dir.exists(input)) {
 cm <- yogitools::colmap()
 
 
-#iterate over input files
+# iterate over input files------------------------------------------------------
 for (infile in infiles) {
-  
-  cat("Colorizing",infile,"\n")
   
   #if this is a single file (not from a directory)
   if (is.na(outdir)) {
@@ -115,16 +120,23 @@ for (infile in infiles) {
     outfile <- paste0(outdir,"/",sub("\\.csv$","_colorize.pml",sub(".+/","",infile)))
   }
   
+  # Core logic -----------------------------------------------------------------
   
+  cat("Colorizing",infile,"\n")
+  
+  #read input
   indata <- read.csv(infile,comment.char="#")
   #filter out syn/stop
   indata <- indata[!grepl("Ter|=$",indata$hgvs_pro),]
+  
   #extract positions
   pos <- as.integer(gsub("\\D","",indata$hgvs_pro))
-  
+  #calculate summary statistics per residue
   values <- tapply(indata$score,pos,fun)
+  #corresponding position labels
   valpos <- as.integer(names(values))
   
+  #generate script lines
   scriptLines <- sprintf("color %s , chain %s & resi %d",
     sub("#","0x",cm(values)), chain, valpos+offset
   )
