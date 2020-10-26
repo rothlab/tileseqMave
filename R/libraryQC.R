@@ -21,10 +21,17 @@
 #' @param inDir input directory, defaults to subdirectory with latest timestamp ending in _mut_count.
 #' @param outDir output directory, defaults to name of input directory with _QC tag attached.
 #' @param paramFile input parameter file. defaults to <dataDir>/parameters.json
+#' @param mc.cores the maximum number of processes to run in parallel for multi-core
+#'   processing. Warning: This also multiplies the amount of RAM used!
+#' @param srOverride override flag to allow for single-replicates
+#' @param wmThreshold 'well-measuredness' threshold. The marginal frequency threshold 
+#'   at which variants are considered well-measured. Defaults to 5e-5, which roughly 
+#'   corresponds to the outdated definition in the legacy pipeline.
+#' @param allCondOverride override flag to run on ALL conditions instead of just the nonselect
 #' @return NULL. Results are written to file.
 #' @export
 libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"parameters.json"),
-	mc.cores=6,srOverride=FALSE, wmThreshold=5e-5) {
+	mc.cores=6,srOverride=FALSE, wmThreshold=5e-5,allCondOverride=FALSE) {
 
 	op <- options(stringsAsFactors=FALSE)
 
@@ -109,6 +116,10 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
 
 	#identify nonselect conditions
 	nsConditions <- getNonselects(params)
+	#apply override if requested
+	if (allCondOverride) {
+	  nsConditions <- params$conditions$names
+	}
 
 	#if this is a pure QC run, there are no conditions declared as nonselect, so
 	# we treat *all* conditions as nonselect.
@@ -153,23 +164,8 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
 	         substr(cc,numEnd+1,nchar(cc))
 	    )
 	  }))
-	  # as.data.frame(
-	  #   from=sapply(rawTable,`[[`,1),
-	  #   pos=sapply(rawTable,`[[`,2),
-	  #   to=sapply(rawTable,`[[`,3)
-	  # )
 	}
 
-	#Extract affected positions and codon details
-	# splitCodonChanges <- function(ccs) {
-	# 	df <- as.data.frame(
-	# 		extract.groups(ccs,"(\\D*)(\\d+)(\\D*)"),
-	# 		stringsAsFactors=FALSE
-	# 	)
-	# 	colnames(df) <- c("from","pos","to")
-	# 	df$pos <- as.integer(df$pos)
-	# 	df
-	# }
 	allSplitChanges <- pbmclapply(
 		strsplit(allCounts$codonChanges,"\\|"), 
 		splitCodonChanges, mc.cores=mc.cores
@@ -186,27 +182,6 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
 	}
 	allTiles <- pbmclapply(allSplitChanges,inferTiles,mc.cores=mc.cores)	
 	marginalTiles <- inferTiles(marginalSplitChanges)
-
-	# #Quick Hack: Pull frameshift positions from initial HGVS strings
-	# hackpos <- as.integer(extract.groups(allCounts$hgvsp,"(\\d+)fs")[,1])
-	# allTiles[which(!is.na(hackpos))] <- sapply(
-	# 	hackpos[which(!is.na(hackpos))],
-	# 	function(pos) max(which(tileStarts <= pos))
-	# )
-	# hackpos <- as.integer(extract.groups(marginalCounts$hgvsp,"(\\d+)fs")[,1])
-	# marginalTiles[which(!is.na(hackpos))] <- sapply(
-	# 	hackpos[which(!is.na(hackpos))],
-	# 	function(pos) max(which(tileStarts <= pos))
-	# )
-	
-
-	#helper function to find the WT control condition for a given condition
-	# findWTCtrl <- function(params,cond) {
-	# 	defs <- params$conditions$definitions
-	# 	defs[which(defs[,3] == cond & defs[,2] == "is_wt_control_for"),1]
-	# }
-
-
 
 
 	#ITERATE OVER (POSSIBLY MULTIPLE) NONSELECT CONDITIONS AND ANALYZE SEPARATELY

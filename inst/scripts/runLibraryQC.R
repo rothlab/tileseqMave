@@ -43,6 +43,7 @@ p <- add_argument(p, "--parameters", help="parameter file. Defaults to parameter
 p <- add_argument(p, "--logfile", help="log file. Defaults to libraryQC.log in the same directory")
 p <- add_argument(p, "--cores", default=6L, help="number of CPU cores to use in parallel for multi-threading")
 p <- add_argument(p, "--srOverride", help="Manual override to allow singleton replicates. USE WITH EXTREME CAUTION!",flag=TRUE)
+p <- add_argument(p, "--allConditions", help="Run on all conditions instead of just nonselect.",flag=TRUE)
 #Workaround: Setting the default value to String type, to avoid bug. Validate manually later
 p <- add_argument(p, "--wmThreshold", default="5e-5", help="Define the marginal frequency threshold for well-measuredness.")
 args <- parse_args(p)
@@ -84,6 +85,9 @@ logVersion()
 
 #run the actual function
 invisible(
-	libraryQC(dataDir,inDir=args$input,outDir=args$output,paramfile,mc.cores,srOverride=args$srOverride,wmThreshold=args$wmThreshold)
+	libraryQC(dataDir,inDir=args$input,outDir=args$output,paramfile,mc.cores,
+	          srOverride=args$srOverride,wmThreshold=args$wmThreshold,
+	          allCondOverride=args$allConditions
+	)
 )
 

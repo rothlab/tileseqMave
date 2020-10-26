@@ -11,7 +11,8 @@ libraryQC(
   paramFile = paste0(dataDir, "parameters.json"),
   mc.cores = 6,
   srOverride = FALSE,
-  wmThreshold = 5e-05
+  wmThreshold = 5e-05,
+  allCondOverride = FALSE
 )
 }
 \arguments{
@@ -22,6 +23,17 @@ libraryQC(
 \item{outDir}{output directory, defaults to name of input directory with _QC tag attached.}
 
 \item{paramFile}{input parameter file. defaults to <dataDir>/parameters.json}
+
+\item{mc.cores}{the maximum number of processes to run in parallel for multi-core
+processing. Warning: This also multiplies the amount of RAM used!}
+
+\item{srOverride}{override flag to allow for single-replicates}
+
+\item{wmThreshold}{'well-measuredness' threshold. The marginal frequency threshold 
+at which variants are considered well-measured. Defaults to 5e-5, which roughly 
+corresponds to the outdated definition in the legacy pipeline.}
+
+\item{allCondOverride}{override flag to run on ALL conditions instead of just the nonselect}
 }
 \value{
 NULL. Results are written to file.
