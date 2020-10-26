@@ -191,6 +191,7 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
 
 	    if (!(sprintf("%s.t%s.rep1.frequency",nsCond,tp) %in% colnames(marginalCounts))) {
 	      #if this time point does not exist for nonselect, then skip 
+	      logInfo("Skipping unused time point",tp,"for condition",nsCond)
 	      next
 	    }
 	    
@@ -421,7 +422,7 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
   				endPos <- max(params$tili(tiles)[,"End AA"])
   				# seps <- params$tiles[tiles,"Start AA"][-1]
   				seps <- params$tili(tiles)[,"Start AA"][-1]
-  				coverageSubmap(startPos,endPos,aaMarginal,seps,thresholds=c(wmThreshold/10,wmThreshold))
+  				coverageSubmap(startPos,endPos,aaMarginal,seps,thresholds=c(wmThreshold/10,wmThreshold*10))
   				#and plot the corresponding censi
   				lapply(tiles, function(tile) {
   					depths <- with(depthTable,depth[
@@ -687,7 +688,7 @@ coverageSubmap <- function(startPos,endPos,aaMarginal,seps=NULL,thresholds=c(1e-
 
 #draws the legend for the coverage maps (see above)
 drawCoverageLegend <- function(wmThreshold,aaMarginal) {
-	cmap <- yogitools::colmap(log10(c(wmThreshold/10,wmThreshold,1)),c("white","orange","firebrick3"))
+	cmap <- yogitools::colmap(log10(c(wmThreshold/10,wmThreshold*10,1)),c("white","orange","firebrick3"))
 	op <- par(mar=c(5,4,0,0)+.1)
 	plot(NA,type="n",xlim=c(1e-7,1),ylim=c(0,5),log="x",axes=FALSE,ylab="",xlab="marginal frequency")
 	axis(1)
