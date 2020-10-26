@@ -41,6 +41,7 @@ p <- add_argument(p, "--input", help="input directory containing the QC document
 p <- add_argument(p, "--parameters", help="parameter file. Defaults to parameters.json in the data directory.")
 p <- add_argument(p, "--srOverride", help="Manual override to allow singleton replicates. USE WITH EXTREME CAUTION!",flag=TRUE)
 p <- add_argument(p, "--retainSingles", help="Retain individual files.",flag=TRUE)
+p <- add_argument(p, "--allConditions", help="Indicate that libraryQC was run on all conditions (not just nonselect).",flag=TRUE)
 args <- parse_args(p)
 
 if (is.na(args$workspace)) {
@@ -72,7 +73,7 @@ if (is.na(qcDir)) {
 nonSels <- getNonselects(params)
 #if there are no nonselect conditions, then treat everything as nonselect
 #(this is so we can process pure library QC runs)
-if (length(nonSels) == 0) {
+if (length(nonSels) == 0 || args$allConditions) {
   nonSels <- params$conditions$names
 }
 
