@@ -34,7 +34,7 @@ selectionQC <- function(dataDir,countDir=NA, scoreDir=NA, outDir=NA,
 	library(yogitools)
 	library(hgvsParseR)
 	library(pbmcapply)
-	library(optimization)
+	# library(optimization)
 
 	#make sure data exists and ends with a "/"
 	if (!grepl("/$",dataDir)) {
@@ -218,70 +218,99 @@ selectionQC <- function(dataDir,countDir=NA, scoreDir=NA, outDir=NA,
 #' @return NULL
 filterProgression <- function(scores,sCond,tp,params,outDir) {
 
+  regSubsets <- data.frame(
+    set=c("all", params$regions$`Region Number`),
+    start=c(2,params$regions$`Start AA`),
+    end=c(params$template$proteinLength,params$regions$`End AA`),
+    len=c(params$template$proteinLength-1,params$regions$`End AA`-params$regions$`Start AA`+1)
+  )
+  
+  
 	#get reachable AA changes
 	#(this includes stop, but not synonymous)
 	reachable <- reachableChanges(params)
-	#and extract reachable codon changes
-	reachableCCs <- do.call(c,with(reachable,mapply(function(w,p,ms){
-		paste0(w,p,ms)
-	},wtcodon,pos,strsplit(mutcodons,"\\|"))))
-
-	#make filtered subsets of the score table
-	filteredScores <- scores[is.na(scores$filter),]
-	hqScores <- filteredScores[filteredScores$se.floored < params$scoring$sdThreshold,]
-
-	#calculate filter census
-	census <- rbind(
-		possible = c(
-			AllCCs = params$template$proteinLength * (4^3-1),
-			ReachCCs = length(reachableCCs),
-			AllAACs = params$template$proteinLength * (19+1),
-			ReachAACs = nrow(reachable)
-		),
-		found = c(
-			AllCCs = nrow(scores),
-			ReachCCs = length(intersect(scores$codonChange, reachableCCs)),
-			AllAACs = length(unique(scores$hgvsp[scores$type != "synonymous"])),
-			ReachAACs = length(intersect(unique(scores$hgvsp),reachable$hgvsp))
-		),
-		filtered = c(
-			AllCCs = nrow(filteredScores),
-			ReachCCs = length(intersect(filteredScores$codonChange, reachableCCs)),
-			AllAACs = length(unique(filteredScores$hgvsp[filteredScores$type != "synonymous"])),
-			ReachAACs = length(intersect(unique(filteredScores$hgvsp),reachable$hgvsp))
-		),
-		hiQual = c(
-			AllCCs = nrow(hqScores),
-			ReachCCs = length(intersect(hqScores$codonChange, reachableCCs)),
-			AllAACs = length(unique(hqScores$hgvsp[hqScores$type != "synonymous"])),
-			ReachAACs = length(intersect(unique(hqScores$hgvsp),reachable$hgvsp))
-		)
-	)
-
-	#draw plot
+	
+	#prep plot
 	outfile <- paste0(outDir,sCond,"_t",tp,"_filtering.pdf")
 	pdf(outfile,11,8.5)
-	tagger <- pdftagger(paste(params$pdftagbase,"; selection condition:",sCond),cpp=2)
-	widths <- census/max(census)
-	percentages <- apply(census,2,function(xs)xs/xs[[1]])*100
-	plotCols <- c("steelblue2","steelblue3","gold2","gold3")
-	ylabels <- c("All possible","Detected","Passed filter","High Quality")
-	xlabels <- c("All","SNV-reachable","All","SNV-reachable")
-	toplabels <- c("Codon changes","AA changes")
-	opar <- par(oma=c(2,2,2,2),mar=c(10,1,1,1)+.1)
-	plot(NA,type="n",xlim=c(-.5,4.5),ylim=c(1,5),xlab="",ylab="",axes=FALSE)
-	abline(h=1:4,col="gray",lty="dotted")
-	text(-0.5,4:1,ylabels,pos=4)
-	text(1:4,4.4,xlabels)
-	text(c(1.5,3.5),4.8,toplabels)
-	invisible(lapply(1:4, function(cati) {
-		polygon(
-			c(cati-widths[,cati]/2,rev(cati+widths[,cati]/2)),
-			c(4:1,1:4),col=plotCols[[cati]], border=NA
-		)
-		text(cati,4:1,sprintf("%d (%.02f%%)",census[,cati],percentages[,cati]))
-	}))
-	tagger$cycle()
+	tagger <- pdftagger(paste(params$pdftagbase,"; selection condition:",sCond),cpp=4)
+	opar <- par(oma=c(2,2,2,2),mar=c(1,1,4,1)+.1,mfrow=c(2,2))
+	
+	for (ri in 1:nrow(regSubsets)) {
+	  
+	  #and extract reachable codon changes
+	  reachableCCs <- do.call(c,with(reachable,mapply(function(w,p,ms){
+	    if (p >= regSubsets$start[[ri]] && p <= regSubsets$end[[ri]]) {
+	      paste0(w,p,ms)
+	    } else NULL
+	  },wtcodon,pos,strsplit(mutcodons,"\\|"))))
+	  
+	  reachableAAs <- reachable[with(reachable,pos >= regSubsets$start[[ri]] & pos <= regSubsets$end[[ri]]),]
+	  
+	  #make filtered subsets of the score table
+	  scorePos <- as.integer(gsub("\\D","",scores$aaChange))
+	  localScores <- scores[which(scorePos >= regSubsets$start[[ri]] & 
+	                                scorePos <= regSubsets$end[[ri]]),]
+	  filteredScores <- scores[which(is.na(scores$filter) & scorePos >= regSubsets$start[[ri]] & 
+	                             scorePos <= regSubsets$end[[ri]]),]
+	  hqScores <- filteredScores[filteredScores$se.floored < params$scoring$sdThreshold,]
+	  
+  	#calculate filter census
+  	census <- rbind(
+  		possible = c(
+  		  AllCCs = regSubsets$len[[ri]] * (4^3-1),
+  			ReachCCs = length(reachableCCs),
+  			AllAACs = regSubsets$len[[ri]] * (19+1),
+  			ReachAACs = nrow(reachableAAs)
+  		),
+  		found = c(
+  			AllCCs = nrow(localScores),
+  			ReachCCs = length(intersect(localScores$codonChange, reachableCCs)),
+  			AllAACs = length(unique(localScores$hgvsp[scores$type != "synonymous"])),
+  			ReachAACs = length(intersect(unique(localScores$hgvsp),reachable$hgvsp))
+  		),
+  		filtered = c(
+  			AllCCs = nrow(filteredScores),
+  			ReachCCs = length(intersect(filteredScores$codonChange, reachableCCs)),
+  			AllAACs = length(unique(filteredScores$hgvsp[filteredScores$type != "synonymous"])),
+  			ReachAACs = length(intersect(unique(filteredScores$hgvsp),reachable$hgvsp))
+  		),
+  		hiQual = c(
+  			AllCCs = nrow(hqScores),
+  			ReachCCs = length(intersect(hqScores$codonChange, reachableCCs)),
+  			AllAACs = length(unique(hqScores$hgvsp[hqScores$type != "synonymous"])),
+  			ReachAACs = length(intersect(unique(hqScores$hgvsp),reachable$hgvsp))
+  		)
+  	)
+  
+  	#draw plot
+  	widths <- census/max(census)
+  	percentages <- apply(census,2,function(xs)xs/xs[[1]])*100
+  	
+  	plotCols <- c("steelblue2","steelblue3","gold2","gold3")
+  	ylabels <- c("All possible","Detected","Passed filter","High Quality")
+  	xlabels <- c("All","SNV-reachable","All","SNV-reachable")
+  	toplabels <- c("Codon changes","AA changes")
+  	title <- if (regSubsets$set[[ri]]=="all") "Entire Construct" else {
+  	  paste0("Region #",regSubsets$set[[ri]])
+  	}
+  	cex <- 0.8
+  	
+  	plot(NA,type="n",xlim=c(-.5,4.5),ylim=c(1,5),xlab="",ylab="",axes=FALSE,main=title)
+  	abline(h=1:4,col="gray",lty="dotted")
+  	text(-0.5,4:1,ylabels,pos=4,cex=cex)
+  	text(1:4,4.4,xlabels,cex=cex)
+  	text(c(1.5,3.5),4.8,toplabels,cex=cex)
+  	invisible(lapply(1:4, function(cati) {
+  		polygon(
+  			c(cati-widths[,cati]/2,rev(cati+widths[,cati]/2)),
+  			c(4:1,1:4),col=plotCols[[cati]], border=NA
+  		)
+  		text(cati,4:1,sprintf("%d (%.02f%%)",census[,cati],percentages[,cati]),cex=cex)
+  	}))
+  	tagger$cycle()
+	
+	}
 	par(opar)
 	invisible(dev.off())
 
