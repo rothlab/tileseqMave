@@ -161,11 +161,13 @@ validateParameters <- function(params,srOverride=FALSE) {
 	for (cond in c(getSelects(params),getNonselects(params))) {
 	  condTP <- params$numTimepoints[[cond]]
 	  wt <- getWTControlFor(cond,params)
-	  wtTP <- params$numTimepoints[[wt]]
-	  if (wtTP > 1 && wtTP != condTP) {
-	    stop("WT control condition \'",wt,"\' must either have only one time point, ",
-	         "or as many as its paired primary condition \'",cond,"\' (",condTP,")"
-	    )
+	  if (length(wt) > 0) {
+  	  wtTP <- params$numTimepoints[[wt]]
+  	  if (wtTP > 1 && wtTP != condTP) {
+  	    stop("WT control condition \'",wt,"\' must either have only one time point, ",
+  	         "or as many as its paired primary condition \'",cond,"\' (",condTP,")"
+  	    )
+  	  }
 	  }
 	}
 
