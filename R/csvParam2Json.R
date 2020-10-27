@@ -765,9 +765,11 @@ reachableChanges <- function(params) {
 #' @return the list of selective conditions
 #' @export
 getSelects <- function(params) {
-	unique(with(as.data.frame(params$conditions$definitions),{
-		`Condition 1`[which(Relationship == "is_selection_for")]
-	}))
+  if (nrow(params$conditions$definitions) > 0) {
+  	unique(with(as.data.frame(params$conditions$definitions),{
+  		`Condition 1`[which(Relationship == "is_selection_for")]
+  	}))
+  } else character(0)
 }
 
 #' Convenience function get all non-selective conditions
@@ -776,9 +778,11 @@ getSelects <- function(params) {
 #' @return the list of non-selective conditions
 #' @export
 getNonselects <- function(params) {
-	unique(with(as.data.frame(params$conditions$definitions),{
-		`Condition 2`[which(Relationship == "is_selection_for")]
-	}))
+  if (nrow(params$conditions$definitions) > 0) {
+  	unique(with(as.data.frame(params$conditions$definitions),{
+  		`Condition 2`[which(Relationship == "is_selection_for")]
+  	}))
+  } else character(0)
 }
 
 #' Convenience function get the matching non-selective condition for the given input condition
@@ -788,9 +792,11 @@ getNonselects <- function(params) {
 #' @return the list of matching non-selective conditions
 #' @export
 getNonselectFor <- function(cond,params) {
-	unique(with(as.data.frame(params$conditions$definitions),{
-		`Condition 2`[which(Relationship == "is_selection_for" & `Condition 1` == cond)]
-	}))
+  if (nrow(params$conditions$definitions) > 0) {
+  	unique(with(as.data.frame(params$conditions$definitions),{
+  		`Condition 2`[which(Relationship == "is_selection_for" & `Condition 1` == cond)]
+  	}))
+  } else character(0)
 }
 
 #' Convenience function get the matching WT control condition for the given input condition
@@ -800,9 +806,11 @@ getNonselectFor <- function(cond,params) {
 #' @return the list of matching WT control conditions
 #' @export
 getWTControlFor <- function(cond,params) {
-	unique(with(as.data.frame(params$conditions$definitions),{
-		`Condition 1`[which(Relationship == "is_wt_control_for" & `Condition 2` == cond)]
-	}))
+  if (nrow(params$conditions$definitions) > 0) {
+  	unique(with(as.data.frame(params$conditions$definitions),{
+  		`Condition 1`[which(Relationship == "is_wt_control_for" & `Condition 2` == cond)]
+  	}))
+  } else character(0)
 }
 
 #' Convenience function get the available time points for the given input condition
