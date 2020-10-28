@@ -143,13 +143,15 @@ scoring <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"paramet
 	# iterate selection conditions -----------------------------------------------
 	for (sCond in selectConds) {
 
+	  null2na <- function(x) if (length(x) == 0) NA else x
+	  
 		#pull up matching nonselect and WT controls
 		nCond <- getNonselectFor(sCond,params)
 		condQuad <- c(
 			select=sCond,
 			nonselect=nCond,
-			selWT=getWTControlFor(sCond,params),
-			nonWT=getWTControlFor(nCond,params)
+			selWT=null2na(getWTControlFor(sCond,params)),
+			nonWT=null2na(getWTControlFor(nCond,params))
 		)
 		condNames <- names(condQuad)
 
@@ -442,6 +444,16 @@ bnl <- function(pseudo.n,n,model.sd,empiric.sd) {
 #' @param tp the time point ID
 #' @param params the global parameters object
 mean.sd.count <- function(cond,regionalCounts,tp,params) {
+  
+  #detect dummy conditions (when no WT control exists)
+  if (is.na(cond)) {
+    #zeroes
+    z <- rep(0,nrow(regionalCounts))
+    return(data.frame(
+      mean=z,sd=z,cv=z,count=z
+    ))
+  }
+  
   #get the number of replicates for this condition
 	nrep <- params$numReplicates[[cond]]
 	#validate against applicable time points
