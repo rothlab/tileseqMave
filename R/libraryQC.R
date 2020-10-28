@@ -196,11 +196,34 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
 	    }
 	    
 	    logInfo("Processing",nsCond,"; time point",tp)
+	    
+	    # RAW REPLICATE CORRELATIONS PER TILE ------------------------------------
+	    
+	    nsReps <- sprintf("%s.t%s.rep%s.frequency",nsCond,tp,1:params$numReplicates[[nsCond]])
+	    
+	    if (params$numReplicates[[nsCond]] > 1) {
+	      #TODO: Make this work for more than two replicates!
+	      logInfo("Drawing per-tile replicate correlation plot")
+	      pdf(paste0(outDir,nsCond,"_t",tp,"_tileRepCorr.pdf"),8.5,11)
+	      tagger <- pdftagger(paste(pdftag,"; condition:",nsCond,"timepoint:",tp),cpp=12)
+  	    opar <- par(mfrow=c(4,3),oma=c(2,2,2,2))
+  	    for (tilei in 1:nrow(params$tiles)) {
+  	      tile <- params$tiles[tilei,"Tile Number"]
+  	      subset <- marginalCounts[which(marginalTiles == tile),]
+  	      plot(
+  	        subset[,nsReps[[1]]]+1e-7,subset[,nsReps[[2]]]+1e-7,
+  	        log="xy",pch=20,col=colAlpha(1,0.2),main=paste("Tile",tile),
+  	        xlab=paste(nsCond,"rep.1"),ylab=paste(nsCond,"rep.2")
+  	     )
+  	     tagger$cycle()
+  	    }
+  	    par(opar)
+  	    invisible(dev.off())
+	    }
   
   	  # CALC MEANS AND NORMALIZE ------------------------------------------------
   	  
   		#pull out nonselect condition and average over replicates
-  		nsReps <- sprintf("%s.t%s.rep%s.frequency",nsCond,tp,1:params$numReplicates[[nsCond]])
   		if (params$numReplicates[[nsCond]] > 1) {
   			nsMarginalMeans <- rowMeans(marginalCounts[,nsReps],na.rm=TRUE)
   			nsAllMeans <- rowMeans(allCounts[,nsReps],na.rm=TRUE)
@@ -220,6 +243,43 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
   			} else {
   				wtMarginalMeans <- marginalCounts[,wtReps]
   			}
+  			
+  			#draw WT control plot
+  			logInfo("Drawing WT control level plot")
+  			pdf(paste0(outDir,nsCond,"_t",tp,"_WTlevels.pdf"),11,8.5)
+  			tagger <- pdftagger(paste(pdftag,"; condition:",nsCond,"timepoint:",tp),cpp=1)
+  			opar <- par(oma=c(2,2,2,2),mar=c(5,5,0,1)+.1)
+  			layout(rbind(1,2,3,4),heights=c(0.1,0.9,0.1,0.9))
+  			plotcols <- sapply(1:2,colAlpha,0.5)
+  			funs <- list(mean=mean,median=median)
+  			for (i in 1:2) {
+    			posSumsNS <- tapply(nsMarginalMeans,as.integer(marginalSplitChanges[,2]),funs[[i]])
+    			posSumsWT <- tapply(wtMarginalMeans,as.integer(marginalSplitChanges[,2]),funs[[i]])
+    			possNS <- as.integer(names(posSumsNS))
+    			possWT <- as.integer(names(posSumsWT))
+    			
+    			par(mar=c(0,5.1,0,1.1))
+    			plot(NA,type="n",xlim=range(c(possNS,possWT)),ylim=c(0,1),xlab="",ylab="",axes=FALSE)
+    			rect(params$regions[,"Start AA"],0,params$regions[,"End AA"],0.49,col="gray80",border=NA)
+    			text(rowMeans(params$regions[,c("Start AA","End AA")]),0.25,params$regions[,"Region Number"])
+    			rect(params$tiles[,"Start AA"],0.51,params$tiles[,"End AA"],1,col="gray90",border=NA)
+    			text(rowMeans(params$tiles[,c("Start AA","End AA")]),0.75,params$tiles[,"Tile Number"])
+    			
+    			par(mar=c(5,5,0,1)+.1)
+    			plot(possNS,posSumsNS+1e-7,log="y",
+    			     xlim=range(c(possNS,possWT)),
+    			     ylim=c(1e-7,max(posSumsNS,posSumsWT)),
+    			     pch=20,col=plotcols[[1]],
+    			     xlab="AA position",ylab=paste(names(funs)[[i]],"marginal freq.")
+    			)
+    			points(possWT,posSumsWT+1e-7,pch=20,col=plotcols[[2]])
+    			legend("right",c(nsCond,wtCond),col=plotcols,pch=20,bg="white")
+  			}
+  			tagger$cycle()
+  			par(opar)
+  			invisible(dev.off())
+  			
+  			
   			nsMarginalMeans <- mapply(function(nsf,wtf) {
   				max(0,nsf-wtf)
   			},nsf=nsMarginalMeans,wtf=wtMarginalMeans)
@@ -244,8 +304,80 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
   		  freq=nsMarginalMeans,tile=marginalTiles
   		)
   		simplifiedMarginal$pos <- as.integer(simplifiedMarginal$pos)
+  		
+  		
+  		# JACKPOT DIAGNOSIS ---------------------------------------------
+  		
+  		logInfo("Drawing Jackpot plot")
+  		pdf(paste0(outDir,nsCond,"_t",tp,"_jackpot.pdf"),11,8.5)
+  		tagger <- pdftagger(paste(pdftag,"; condition:",nsCond,"timepoint:",tp),cpp=1)
+  		opar <- par(oma=c(2,2,2,2),mar=c(7,6,3,3)+.1)
+  		decOrder <- order(nsMarginalMeans,decreasing=TRUE)
+  		cm <- yogitools::colmap(
+  		  valStops = c(0,wmThreshold/10,wmThreshold,wmThreshold*100,1e-2),
+  		  colStops = c("firebrick3","gold","darkolivegreen3","gold","firebrick3")
+  		)
+  		plotcol <- cm(nsMarginalMeans[decOrder])
+  		plot(
+  		  seq(0,1,length.out=length(decOrder)),
+  		  nsMarginalMeans[decOrder],pch=20,col=plotcol,
+  		  ylab="marginal frequency",xlab="fraction of variants"
+  		)
+  		top10 <- decOrder[1:10]
+  		steps <- seq(0.1,0.9,length.out=5)
+  		arrows(steps,nsMarginalMeans[top10],(1:10)/length(decOrder),nsMarginalMeans[top10],length=0.05,col="gray")
+  		text(steps,nsMarginalMeans[top10],marginalCounts$hgvsp[top10],pos=4,cex=.8)
+  		tagger$cycle()
+  		par(opar)
+  		invisible(dev.off())
+  		
+  		
+  		# FRAMESHIFT HOTSPOT MAP ---------------------------------------------
+  		
+  		fsIdx <- grep("fs$|del$|ins\\w+$",marginalCounts$hgvsp)
+  		xCoords <- do.call(c,tapply(fsIdx, marginalSplitChanges[fsIdx,2], function(idx) {
+  		  as.numeric(marginalSplitChanges[idx,2]) + seq_along(idx)/(length(idx)+1)
+  		}))
+  		yCoords <- nsMarginalMeans[fsIdx]
+  		
+  		top10 <- head(fsIdx[order(yCoords,decreasing=TRUE)],10)
+  		top10X <- xCoords[sapply(top10,function(i)which(fsIdx==i))]
+  		top10Y <- nsMarginalMeans[top10]
+  		top10Labels <- marginalCounts$hgvsc[top10]
+  		
+  		# logInfo("Drawing frameshift map")
+  		pdf(paste0(outDir,nsCond,"_t",tp,"_fsMap.pdf"),11,8.5)
+  		tagger <- pdftagger(paste(pdftag,"; condition:",nsCond,"timepoint:",tp),cpp=1)
+  		opar <- par(oma=c(2,2,2,2),mar=c(5,5,0,1)+.1)
+  		layout(rbind(1,2),heights=c(0.1,0.9))
+  		# plotcols <- sapply(1:2,colAlpha,0.5)
+  		# funs <- list(mean=mean,median=median)
+  		
+  		xRange <- c(min(params$regions[,"Start AA"]),max(params$regions[,"End AA"]))
+		  
+		  par(mar=c(0,5.1,0,1.1))
+		  plot(NA,type="n",xlim=xRange, ylim=c(0,1),xlab="",ylab="",axes=FALSE)
+		  rect(params$regions[,"Start AA"],0,params$regions[,"End AA"],0.49,col="gray80",border=NA)
+		  text(rowMeans(params$regions[,c("Start AA","End AA")]),0.25,params$regions[,"Region Number"])
+		  rect(params$tiles[,"Start AA"],0.51,params$tiles[,"End AA"],1,col="gray90",border=NA)
+		  text(rowMeans(params$tiles[,c("Start AA","End AA")]),0.75,params$tiles[,"Tile Number"])
+		  
+		  par(mar=c(5,5,0,1)+.1)
+		  plot(NA,type="n",log="y",
+		       xlim=xRange,
+		       ylim=c(1e-7,1e-1),
+		       pch=20,col=plotcols[[1]],
+		       xlab="AA position",ylab=paste(names(funs)[[i]],"frameshift marginal freq.")
+		  )
+		  segments(xCoords,1e-7,xCoords,yCoords+1e-7,col=colAlpha(1,0.5))
+		  text(top10X,top10Y,top10Labels,cex=0.5,pos=3)
+  		
+  		tagger$cycle()
+  		par(opar)
+  		invisible(dev.off())
+  		
   
-  
+  		
   		# NUCL BIAS ANALYSIS -------------------------------------------
   		
   		logInfo("Checking nucleotide distribution")
@@ -595,7 +727,6 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
   		# MUT-TYPE ANALYSIS --------------------------------------------------------
   
   		logInfo("Plotting mutation type breakdown per tile")
-  		#FIXME: Frameshifts have been accidentally joined into one entry
   		simplifiedMarginal$fromaa <- sapply(simplifiedMarginal$from, 
   			function(codon) if (is.na(codon)) "" else trtable[[codon]]
   		)
@@ -739,6 +870,8 @@ nucleotideBiasAnalysis <- function(simplifiedMarginal,tile,draw=TRUE) {
 		dimnames=list(toChars("ACGT"), toChars("ACGT"), 1:3)
 	), simplify=FALSE)
 	names(counters) <- c("single","multi")
+	
+	bigCounters <- c(single=0,multi=0)
 
 	#iterate over each variant entry
 	for (i in 1:nrow(simplifiedMarginal)) {
@@ -764,6 +897,7 @@ nucleotideBiasAnalysis <- function(simplifiedMarginal,tile,draw=TRUE) {
 		}
 
 		#add to counters
+		bigCounters[type] <- bigCounters[type]+freq
 		for (j in 1:3) {
 			from <- substr(simplifiedMarginal[i,"from"],j,j)
 			to <- substr(simplifiedMarginal[i,"to"],j,j)
@@ -779,6 +913,8 @@ nucleotideBiasAnalysis <- function(simplifiedMarginal,tile,draw=TRUE) {
 		apply(counters[[type]],c(1,3),function(xs) xs/sum(xs))
 	})
 	names(rates) <- c("single","multi")
+	
+	bigRates <- bigCounters/sum(bigCounters)
 
 	if (draw) {
 		#calculate plot coordinates and colors
@@ -807,7 +943,8 @@ nucleotideBiasAnalysis <- function(simplifiedMarginal,tile,draw=TRUE) {
 			cex=0.8
 		))
 		text(c(2,7,12,18,23,28),4.33,rep(c("First","Second","Third"),2),cex=0.9)
-		text(c(7,23),4.66,c("SNV","MNV"),cex=0.9)
+		bigLabels <- sprintf("%s (%.01f%%)",c("SNV","MNV"),100*bigRates)
+		text(c(7,23),4.66,bigLabels,cex=0.9)
 		axis(2,at=(4:1)-.5,toChars("ACGT"))
 		axis(1,at=c(1:4,6:9,11:14,17:20,22:25,27:30)-.5,rep(toChars("ACGT"),6))
 		mtext(paste0("Tile #",tile),side=4)

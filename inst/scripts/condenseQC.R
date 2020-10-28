@@ -81,7 +81,8 @@ for (nsCond in nonSels) {
   for (tp in params$timepoints$`Time point name`) {
   	#list report files in order
   	reportFiles <- sprintf("%s/%s_t%s_%s.pdf",qcDir,nsCond,tp,c(
-  		"coverage","census","wellmeasured","complexity","mutationtypes","nucleotide_bias"
+  		"coverage","census","wellmeasured","tileRepCorr","WTlevels","jackpot",
+  		"complexity","mutationtypes","nucleotide_bias","fsMap"
   	))
   	#discard those that don't exist or are unreadable
   	reportFiles <- reportFiles[which(canRead(reportFiles))]
