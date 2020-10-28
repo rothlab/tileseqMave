@@ -25,7 +25,8 @@
 #' @param srOverride the single-replicate override flag
 #' @return NULL. Results are written to file.
 #' @export
-buildJointTable <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"parameters.json"),mc.cores=6,srOverride=FALSE) {
+buildJointTable <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"parameters.json"),
+                            mc.cores=6,srOverride=FALSE) {
 
 	op <- options(stringsAsFactors=FALSE)
 
@@ -223,6 +224,9 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,
 		transTable,
 		do.call(cbind,condTables)
 	)
+	#after joining we don't need the individual tables anymore, so we can remove them
+	#to save RAM
+	rm(condTables)
 
 	########################
 	# WRITE OUTPUT TO FILE #
@@ -255,6 +259,11 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,
 	codonChangeStrs <- strsplit(transTable$codonChanges,"\\|")
 	aaChangeStrs <- strsplit(transTable$aaChanges,"\\|")
 	
+	cisMerge <- function(hs) {
+	  if (length(hs) < 2) return(hs)
+	  paste0("c.[",paste(substr(hs,3,nchar(hs)),collapse=";"),"]")
+	}
+	
 	#build codon change index
 	ccIdx <- hash()
 	ccStrIdx <- hash()
@@ -268,15 +277,20 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,
 		if (length(codonChangeHGVSs[[i]]) != js) {
 			#extract positions from aaChanges and  codon changes and find the match
 			aapos <- as.integer(extract.groups(aaChangeStrs[[i]],"(\\d+)")[,1])
-			ccpos <- floor((as.integer(extract.groups(codonChangeHGVSs[[i]],"(\\d+)")[,1])-1)/3+1)
+			ncpos <- as.integer(extract.groups(codonChangeHGVSs[[i]],"(\\d+)")[,1])
+			ccpos <- floor((ncpos-1)/3+1)
 			#ks are the codon change HGVSs that match the positions for each j
-			ks <- sapply(aapos,function(ap) which.min(abs(ccpos-ap)))
+			ks <- lapply(aapos,function(ap) {
+			  ds <- abs(ccpos-ap)
+			  matches <- which(ds==min(ds))
+			  matches[order(ncpos[matches])]
+		  })
 		} else {
-			ks <- 1:js
+			ks <- as.list(1:js)
 		}
 		#now iterate over aa changes and index them
 		for (j in 1:js) {
-			cc <- codonChangeHGVSs[[i]][[ks[[j]]]]
+			cc <- cisMerge(codonChangeHGVSs[[i]][ks[[j]]])
 			if (has.key(cc,ccIdx)) {
 				ccIdx[[cc]] <- c(ccIdx[[cc]],i)
 			} else {
