@@ -608,6 +608,10 @@ fit.cv.model <- function(subscores,cond) {
 regularizeRaw <- function(msc,condNames,tiles,n,pseudo.n, modelFunctions) {
 	#index replicates so we can look them up
 	names(n) <- condNames
+	#handle missing WT conditions 
+	if (any(is.na(n))) {
+	  n[is.na(n)] <- 1
+	}
 	#iterate over conditions and join as columns
 	regul <- do.call(cbind,lapply(condNames, function(cond) {
 		sd.prior <- sapply(1:nrow(msc), function(i) {
