@@ -329,21 +329,24 @@ filterProgression <- function(scores,sCond,tp,params,outDir) {
 replicateCorrelation <- function(scores, marginalCounts, params, sCond, tp, outDir) {
 
 	# nrep <- params$numReplicates[[sCond]]
+  #this is to make up for missing WT conditions
+  null2na <- function(x) if (length(x) == 0) NA else x
 
 	#pull up matching nonselect and WT controls
 	nCond <- getNonselectFor(sCond,params)
 	condQuad <- c(
 		select=sCond,
 		nonselect=nCond,
-		selWT=getWTControlFor(sCond,params),
-		nonWT=getWTControlFor(nCond,params)
+		selWT=null2na(getWTControlFor(sCond,params)),
+		nonWT=null2na(getWTControlFor(nCond,params))
 	)
 	sRep <- params$numReplicates[[sCond]]
-	repQuad <- sapply(condQuad,function(con)params$numReplicates[[con]])
+	#if a condition is missing entirely, we give it one "pseudoreplicate with 0 scores"
+	repQuad <- sapply(condQuad,function(con) if(is.na(con)) 1 else params$numReplicates[[con]])
 	if (!all(repQuad == sRep)) {
 		logWarn(paste(
-			"Number of replicates in conditions is not balanced!",
-			" => Correlation plot will be distorted due to recycled replicates!!",
+			"Number of replicates in conditions is not balanced or WT is missing!",
+			" => Correlation plot may be distorted due to recycled replicates!!",
 			sep="\n"
 		))
 	}
@@ -363,22 +366,35 @@ replicateCorrelation <- function(scores, marginalCounts, params, sCond, tp, outD
 	#replicate column name matrix
 	repMatrix <- do.call(rbind,lapply(names(condQuad),function(con) {
 		sapply(1:repQuad[[con]], 
-			function(repi) sprintf("%s.t%s.rep%d.frequency",condQuad[[con]],tp,repi)
+			function(repi) {
+			  if (is.na(condQuad[[con]])) {
+			    NA #again, compensating for potentially missing WT condition
+			  } else {
+			    sprintf("%s.t%s.rep%d.frequency",condQuad[[con]],tp,repi)
+			  }
+			}
 		)
 	}))
 	rownames(repMatrix) <- names(condQuad)
 
 	#extract replicate values for this condition
 	repValues <- lapply(1:sRep, function(repi) {
-		selFreq <-  floor0(
-			marginalCounts[,repMatrix["select",repi]] - 
-			marginalCounts[,repMatrix["selWT",repi]]
-		)
-		nonFreq <-  floor0(
-			marginalCounts[,repMatrix["nonselect",repi]] - 
-			marginalCounts[,repMatrix["nonWT",repi]]
-		)
-		logphi <- log10(selFreq / nonFreq)
+	  selRaw <- marginalCounts[,repMatrix["select",repi]]
+	  selWTraw <- if (!is.na(repMatrix["selWT",repi])) {
+	    marginalCounts[,repMatrix["selWT",repi]]
+	  } else 0
+		selFreq <-floor0(selRaw - selWTraw)
+		
+		nonRaw <- marginalCounts[,repMatrix["nonselect",repi]]
+		nonWTraw <- if (!is.na(repMatrix["nonWT",repi])) {
+		  marginalCounts[,repMatrix["nonWT",repi]]
+		} else 0
+		nonFreq <-  floor0(nonRaw - nonWTraw)
+		
+		smallestSelect <- unique(sort(na.omit(selFreq)))[[2]]
+		pseudoCount <- 10^floor(log10(smallestSelect))
+		
+		logphi <- log10((selFreq+pseudoCount) / nonFreq)
 		data.frame(select=selFreq,nonselect=nonFreq,logphi=logphi)
 	})
 	names(repValues) <- as.character(1:sRep)

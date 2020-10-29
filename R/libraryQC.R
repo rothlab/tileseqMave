@@ -897,11 +897,11 @@ nucleotideBiasAnalysis <- function(simplifiedMarginal,tile,draw=TRUE) {
 		}
 
 		#add to counters
+		freq <- simplifiedMarginal[i,"freq"]
 		bigCounters[type] <- bigCounters[type]+freq
 		for (j in 1:3) {
 			from <- substr(simplifiedMarginal[i,"from"],j,j)
 			to <- substr(simplifiedMarginal[i,"to"],j,j)
-			freq <- simplifiedMarginal[i,"freq"]
 			if (from != to) {
 				counters[[type]][from,to,j] <- counters[[type]][from,to,j] + freq
 			}
