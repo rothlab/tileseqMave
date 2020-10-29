@@ -205,6 +205,15 @@ validateParameters <- function(params,srOverride=FALSE) {
 			"\nPlease declare them in the time point definition section!"
 		)
 	}
+	#check for duplicated sample ids
+	if (any(duplicated(params$samples$`Sample ID`))) {
+	  culprits <- params$samples[which(duplicated(params$samples$`Sample ID`)),"Sample ID"]
+	  logWarn(
+	    "Duplicated Sample IDs!!\n",
+	    "The following samples are used multiple times: ",
+	    paste(culprits,collapse = ", ")
+	 )
+	}
 
 	repCombos <- apply(params$samples[,c("Tile ID","Condition","Time point")],1,paste,collapse="\t")
 	repPerCombo <- tapply(params$samples[,"Replicate"],repCombos,function(x)length(unique(x)))
