@@ -357,12 +357,25 @@ replicateCorrelation <- function(scores, marginalCounts, params, sCond, tp, outD
 		#we add the prefix "X" to the name, just like the table parser does.
 		condQuad[culprits] <- paste0("X",condQuad[culprits])
 	}
-
+	
+	#deal with time points
+	tpQuad <- sapply(condQuad, function(con) {
+	  if (is.na(con)) {
+	    NA
+	  } else if (tp %in% getTimepointsFor(con,params)) {
+	    tp
+	  } else {
+	    #hopefully there's only one other as you are only allowed to either have 
+	    #the same timepoints everywhere or just one
+	    getTimepointsFor(con,params)[[1]]
+	  }
+	})
+	
 	#check that labels match between tables
 	if (!all(scores$hgvsp == marginalCounts$hgvsp)) {
 		stop("scores and marginal count files mismatch.")
 	}
-
+	
 	#replicate column name matrix
 	repMatrix <- do.call(rbind,lapply(names(condQuad),function(con) {
 		sapply(1:repQuad[[con]], 
@@ -370,7 +383,7 @@ replicateCorrelation <- function(scores, marginalCounts, params, sCond, tp, outD
 			  if (is.na(condQuad[[con]])) {
 			    NA #again, compensating for potentially missing WT condition
 			  } else {
-			    sprintf("%s.t%s.rep%d.frequency",condQuad[[con]],tp,repi)
+			    sprintf("%s.t%s.rep%d.frequency",condQuad[[con]],tpQuad[[con]],repi)
 			  }
 			}
 		)
@@ -880,7 +893,6 @@ synNonDelta <- function(scores,sCond,tp,params,outDir){
       tbl[idx,2:4]
     } else setNames(rep(NA,3),colnames(tbl)[2:4])
   }))
-  # joint <- cbind(pos=as.integer(allpos),syn=syns[allpos,2:4],non=stops[allpos,2:4])
   joint <- cbind(pos=as.integer(allpos),syn=pull(syns,allpos),non=pull(stops,allpos))
   runningWeights <- as.df(lapply(joint$pos,function(p) {
     idxs <- which(abs(joint$pos-p) < 5)
