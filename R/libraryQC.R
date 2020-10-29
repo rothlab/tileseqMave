@@ -335,15 +335,22 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
   		# FRAMESHIFT HOTSPOT MAP ---------------------------------------------
   		
   		fsIdx <- grep("fs$|del$|ins\\w+$",marginalCounts$hgvsp)
-  		xCoords <- do.call(c,tapply(fsIdx, marginalSplitChanges[fsIdx,2], function(idx) {
-  		  as.numeric(marginalSplitChanges[idx,2]) + seq_along(idx)/(length(idx)+1)
+  		idxPlusCoord <- do.call(rbind,tapply(fsIdx, marginalSplitChanges[fsIdx,2], function(idx) {
+  		  x <- as.numeric(marginalSplitChanges[idx,2]) + seq_along(idx)/(length(idx)+1)
+  		  cbind(idx,x)
   		}))
+  		#re-order according to x-coordinate
+  		fsIdx <- idxPlusCoord[,1]
+  		xCoords <- idxPlusCoord[,2]
   		yCoords <- nsMarginalMeans[fsIdx]
   		
   		top10 <- head(fsIdx[order(yCoords,decreasing=TRUE)],10)
   		top10X <- xCoords[sapply(top10,function(i)which(fsIdx==i))]
   		top10Y <- nsMarginalMeans[top10]
   		top10Labels <- marginalCounts$hgvsc[top10]
+  		
+  		cm <- colmap(valStops = c(0,5e-4,5e-3),colStops = c("black","gold","firebrick3"))
+  		plotcols <- sapply(cm(yCoords),colAlpha,0.5)
   		
   		# logInfo("Drawing frameshift map")
   		pdf(paste0(outDir,nsCond,"_t",tp,"_fsMap.pdf"),11,8.5)
@@ -366,10 +373,10 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
 		  plot(NA,type="n",log="y",
 		       xlim=xRange,
 		       ylim=c(1e-7,1e-1),
-		       pch=20,col=plotcols[[1]],
-		       xlab="AA position",ylab=paste(names(funs)[[i]],"frameshift marginal freq.")
+		       xlab="AA position",ylab="frameshift marginal freq."
 		  )
-		  segments(xCoords,1e-7,xCoords,yCoords+1e-7,col=colAlpha(1,0.5))
+		  segments(xCoords,1e-7,xCoords,yCoords+1e-7,col=plotcols)
+		  grid(NA,NULL)
 		  text(top10X,top10Y,top10Labels,cex=0.5,pos=3)
   		
   		tagger$cycle()
