@@ -859,11 +859,13 @@ codonAgreement <- function(scores,sCond,tp,params,outDir) {
 #' @return nothing, writes plot to output directory
 synNonDelta <- function(scores,sCond,tp,params,outDir){
   scores$pos <- as.integer(gsub("\\D+","",scores$aaChange))
+  #positional weighted averages of synonymous variants
   syns <- as.df(with(scores[scores$type=="synonymous" & is.na(scores$filter),],tapply(1:length(pos),pos,function(idxs){
     joint <- join.datapoints(logPhi[idxs],logPhi.sd[idxs],rep(2,length(idxs)))
     p <- unique(pos[idxs])
     c(pos=p,joint)
   })))
+  #positional weighted averages of nonsense (stop) variants
   stops <- as.df(with(scores[scores$type=="nonsense" & is.na(scores$filter),],tapply(1:length(pos),pos,function(idxs){
     joint <- join.datapoints(logPhi[idxs],logPhi.sd[idxs],rep(2,length(idxs)))
     p <- unique(pos[idxs])
@@ -871,7 +873,15 @@ synNonDelta <- function(scores,sCond,tp,params,outDir){
   })))
   
   allpos <- as.character(1:params$template$proteinLength)
-  joint <- cbind(pos=as.integer(allpos),syn=syns[allpos,2:4],non=stops[allpos,2:4])
+  #This is a hack to get around a bug in `[.dataframe` which pulls !approximate! matches!!
+  #see: https://stackoverflow.com/questions/34233235/r-returning-partial-matching-of-row-names
+  pull <- function(tbl,idxs) as.df(lapply(idxs, function(idx) {
+    if (idx %in% rownames(tbl)) {
+      tbl[idx,2:4]
+    } else setNames(rep(NA,3),colnames(tbl)[2:4])
+  }))
+  # joint <- cbind(pos=as.integer(allpos),syn=syns[allpos,2:4],non=stops[allpos,2:4])
+  joint <- cbind(pos=as.integer(allpos),syn=pull(syns,allpos),non=pull(stops,allpos))
   runningWeights <- as.df(lapply(joint$pos,function(p) {
     idxs <- which(abs(joint$pos-p) < 5)
     synsubset <- na.omit(joint[idxs,c("syn.mj","syn.sj","syn.dfj")])
