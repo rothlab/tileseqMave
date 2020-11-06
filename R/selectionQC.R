@@ -169,6 +169,9 @@ selectionQC <- function(dataDir,countDir=NA, scoreDir=NA, outDir=NA,
 
 			#Score distributions & syn/non medians
 			scoreDistributions(scores,sCond,tp,outDir,params)
+			
+			#plot logPhi bias vs marginal frequency
+			logPhiBias(scores,params,sCond,tp,outDir)
 
 			#filter progression graph
 			filterProgression(scores,sCond,tp,params,outDir)
@@ -317,6 +320,133 @@ filterProgression <- function(scores,sCond,tp,params,outDir) {
 }
 
 
+#' Helper function to find the quad of conditions and time points that belong 
+#' with the given selection condition
+#'
+#' @param params the parameter sheet object
+#' @param sCond the current selection condition
+#' @param tp the current time point of the selection condition
+#'
+#' @return a list containing the condition quad ('condQuad'), 
+#' replicate matrix ('repMatrix') and timepoint quad ('tpQuad')
+#' @export
+#'
+findQuads <- function(params,sCond,tp) {
+  
+  # nrep <- params$numReplicates[[sCond]]
+  #this is to make up for missing WT conditions
+  null2na <- function(x) if (length(x) == 0) NA else x
+  
+  #pull up matching nonselect and WT controls
+  nCond <- getNonselectFor(sCond,params)
+  condQuad <- c(
+    select=sCond,
+    nonselect=nCond,
+    selWT=null2na(getWTControlFor(sCond,params)),
+    nonWT=null2na(getWTControlFor(nCond,params))
+  )
+  sRep <- params$numReplicates[[sCond]]
+  #if a condition is missing entirely, we give it one "pseudoreplicate with 0 scores"
+  repQuad <- sapply(condQuad,function(con) if(is.na(con)) 1 else params$numReplicates[[con]])
+  if (!all(repQuad == sRep)) {
+    logWarn(paste(
+      "Number of replicates in conditions is not balanced or WT is missing!",
+      " => Correlation plot may be distorted due to recycled replicates!!",
+      sep="\n"
+    ))
+  }
+  #Workaround: Since R doesn't like variable names starting with numerals, 
+  # we need to adjust any of those cases
+  if (any(grepl("^\\d",condQuad))) {
+    culprits <- which(grepl("^\\d",condQuad))
+    #we add the prefix "X" to the name, just like the table parser does.
+    condQuad[culprits] <- paste0("X",condQuad[culprits])
+  }
+  
+  #deal with time points
+  tpQuad <- sapply(condQuad, function(con) {
+    if (is.na(con)) {
+      NA
+    } else if (tp %in% getTimepointsFor(con,params)) {
+      tp
+    } else {
+      #hopefully there's only one other as you are only allowed to either have 
+      #the same timepoints everywhere or just one
+      getTimepointsFor(con,params)[[1]]
+    }
+  })
+  
+  #replicate column name matrix
+  repMatrix <- do.call(rbind,lapply(names(condQuad),function(con) {
+    sapply(1:repQuad[[con]], 
+           function(repi) {
+             if (is.na(condQuad[[con]])) {
+               NA #again, compensating for potentially missing WT condition
+             } else {
+               sprintf("%s.t%s.rep%d.frequency",condQuad[[con]],tpQuad[[con]],repi)
+             }
+           }
+    )
+  }))
+  rownames(repMatrix) <- names(condQuad)
+  
+  return(list(condQuad=condQuad,repMatrix=repMatrix,tpQuad=tpQuad))
+}
+
+#' Plot the logPhi bias vs the nonselect marginal frequency
+#'
+#' @param scores the score table
+#' @param params the parameter sheet object
+#' @param sCond the active selection condition
+#' @param tp the active time point
+#' @param outDir the output directory
+#'
+#' @return nothing. writes a pdf file to the output dir
+#' @export
+logPhiBias <- function(scores,params,sCond,tp,outDir) {
+  
+  nonsense <- scores[scores$type=="nonsense",]
+  nonsenseF <- scores[scores$type=="nonsense" & is.na(scores$filter),]
+  zns <- with(nonsenseF, lm(logPhi~log10(nonselect.mean)) )
+  trns <- with(nonsenseF, yogitools::runningFunction(log10(nonselect.mean),logPhi,nbins=30))
+  
+  synonymous <- scores[scores$type=="synonymous",]
+  synonymousF <- scores[scores$type=="synonymous" & is.na(scores$filter),]
+  zsyn <- with(synonymousF, lm(logPhi~log10(nonselect.mean)) )
+  trsyn <- with(synonymousF, yogitools::runningFunction(log10(nonselect.mean),logPhi,nbins=30))
+  
+  outfile <- paste0(outDir,sCond,"_t",tp,"_logPhiBias.pdf")
+  pdf(outfile,8.5,11)
+  tagger <- pdftagger(paste(params$pdftagbase,"; selection condition:",sCond),cpp=1)
+  
+  opar <- par(oma=c(15,2,2,2))
+  plotcols <- sapply(c("gray","firebrick3"),yogitools::colAlpha,0.5)
+  with(nonsense, plot(
+    log10(nonselect.mean),logPhi,
+    col=plotcols[1+is.na(filter)],
+    pch=20
+  ))
+  # abline(h=0:1,lty="dashed",col=2:3)
+  abline(zns,col="firebrick2")
+  lines(trns,col="firebrick2",lwd=2)
+  plotcols <- sapply(c("gray","chartreuse3"),yogitools::colAlpha,0.5)
+  with(synonymous, points(
+    log10(nonselect.mean),logPhi,
+    col=plotcols[1+is.na(filter)],
+    pch=20
+  ))
+  # abline(h=0:1,lty="dashed",col=2:3)
+  abline(zsyn,col="chartreuse2")
+  lines(trsyn,col="chartreuse2",lwd=2)
+  plotcols <- sapply(c("chartreuse3","firebrick3","gray"),yogitools::colAlpha,0.5)
+  legend("bottomleft",c("synonymous","nonsense","filtered out"),col=plotcols,pch=20)
+  tagger$cycle()
+  par(opar)
+  
+  invisible(dev.off())
+  
+}
+
 #' Draw replicate correlation plots
 #' 
 #' @param scores the score table
@@ -327,69 +457,16 @@ filterProgression <- function(scores,sCond,tp,params,outDir) {
 #' @param outDir the output directory
 #' @return NULL
 replicateCorrelation <- function(scores, marginalCounts, params, sCond, tp, outDir) {
-
-	# nrep <- params$numReplicates[[sCond]]
-  #this is to make up for missing WT conditions
-  null2na <- function(x) if (length(x) == 0) NA else x
-
-	#pull up matching nonselect and WT controls
-	nCond <- getNonselectFor(sCond,params)
-	condQuad <- c(
-		select=sCond,
-		nonselect=nCond,
-		selWT=null2na(getWTControlFor(sCond,params)),
-		nonWT=null2na(getWTControlFor(nCond,params))
-	)
-	sRep <- params$numReplicates[[sCond]]
-	#if a condition is missing entirely, we give it one "pseudoreplicate with 0 scores"
-	repQuad <- sapply(condQuad,function(con) if(is.na(con)) 1 else params$numReplicates[[con]])
-	if (!all(repQuad == sRep)) {
-		logWarn(paste(
-			"Number of replicates in conditions is not balanced or WT is missing!",
-			" => Correlation plot may be distorted due to recycled replicates!!",
-			sep="\n"
-		))
-	}
-	#Workaround: Since R doesn't like variable names starting with numerals, 
-	# we need to adjust any of those cases
-	if (any(grepl("^\\d",condQuad))) {
-		culprits <- which(grepl("^\\d",condQuad))
-		#we add the prefix "X" to the name, just like the table parser does.
-		condQuad[culprits] <- paste0("X",condQuad[culprits])
-	}
-	
-	#deal with time points
-	tpQuad <- sapply(condQuad, function(con) {
-	  if (is.na(con)) {
-	    NA
-	  } else if (tp %in% getTimepointsFor(con,params)) {
-	    tp
-	  } else {
-	    #hopefully there's only one other as you are only allowed to either have 
-	    #the same timepoints everywhere or just one
-	    getTimepointsFor(con,params)[[1]]
-	  }
-	})
-	
+  
+  sRep <- params$numReplicates[[sCond]]
+  quads <- findQuads(params,sCond,tp)
+  repMatrix <- quads$repMatrix
+  
 	#check that labels match between tables
 	if (!all(scores$hgvsp == marginalCounts$hgvsp)) {
-		stop("scores and marginal count files mismatch.")
+	  stop("scores and marginal count files mismatch.")
 	}
 	
-	#replicate column name matrix
-	repMatrix <- do.call(rbind,lapply(names(condQuad),function(con) {
-		sapply(1:repQuad[[con]], 
-			function(repi) {
-			  if (is.na(condQuad[[con]])) {
-			    NA #again, compensating for potentially missing WT condition
-			  } else {
-			    sprintf("%s.t%s.rep%d.frequency",condQuad[[con]],tpQuad[[con]],repi)
-			  }
-			}
-		)
-	}))
-	rownames(repMatrix) <- names(condQuad)
-
 	#extract replicate values for this condition
 	repValues <- lapply(1:sRep, function(repi) {
 	  selRaw <- marginalCounts[,repMatrix["select",repi]]
@@ -770,20 +847,22 @@ errorProfile <- function(scores,sCond,tp,outDir,params) {
 
 	outfile <- paste0(outDir,sCond,"_t",tp,"_errorProfile.pdf")
 	pdf(outfile,8.5,11)
-	sdRange <- range(log10(scores[is.na(scores$filter),"score.sd"]),finite=TRUE)
-	scoreRange <- range(scores[is.na(scores$filter),"score"],finite=TRUE)
+	sdRange <- range(log10(scores[is.na(scores$filter),"logPhi.sd"]),finite=TRUE)
+	lphiRange <- range(scores[is.na(scores$filter),"logPhi"],finite=TRUE)
 
 	layout(rbind(c(2,4),c(1,3)),widths=c(0.8,0.2),heights=c(0.2,0.8))
 	tagger <- pdftagger(paste(params$pdftagbase,"; selection condition:",sCond),cpp=4)
 	op <- par(mar=c(5,4,0,0)+.1,oma=c(24,6,2,6)) 
-	with(scores[is.na(scores$filter),],plot(score,score.sd,log="y",pch=".",ylab=expression(sigma)))
+	with(scores[is.na(scores$filter),],plot(logPhi,logPhi.sd,log="y",pch=".",
+	    xlab=expression(log[10](phi)),ylab=expression(sigma)
+	))
 	par(mar=c(0,4,1,0)+.1) 
-	breaks <- seq(scoreRange[[1]],scoreRange[[2]],length.out=50)
-	scoreHist <- with(scores[is.na(scores$filter),], hist(score,breaks=breaks,plot=FALSE))
-	barplot(scoreHist$density,border=NA,ylab="density",space=0)
+	breaks <- seq(lphiRange[[1]],lphiRange[[2]],length.out=50)
+	lphiHist <- with(scores[is.na(scores$filter),], hist(logPhi,breaks=breaks,plot=FALSE))
+	barplot(lphiHist$density,border=NA,ylab="density",space=0)
 	par(mar=c(5,0,0,0)+.1) 
 	breaks <- seq(sdRange[[1]],sdRange[[2]],length.out=50)
-	sdHist <- with(scores[is.na(scores$filter),], hist(log10(score.sd),breaks=breaks,plot=FALSE))
+	sdHist <- with(scores[is.na(scores$filter),], hist(log10(logPhi.sd),breaks=breaks,plot=FALSE))
 	barplot(sdHist$density,border=NA,horiz=TRUE,space=0,xlab="density")
 	tagger$cycle()
 	par(op)

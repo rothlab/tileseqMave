@@ -108,7 +108,7 @@ for (sCond in getSelects(params)) {
 	for (tp in params$timepoints[,1]) {
 		#list report files in order
 		reportFiles <- sprintf("%s/%s_t%s_%s.pdf",qcDir,sCond,tp,c(
-			"ns_replicates","phi_replicates","replicates","codonCorr","filtering",
+			"ns_replicates","phi_replicates","replicates","logPhiBias","codonCorr","filtering",
 			"synNonDiff","logPhiDistribution","errorModel","errorProfile"
 		))
 		#discard those that don't exist or are unreadable
