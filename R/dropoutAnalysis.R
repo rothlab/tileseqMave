@@ -291,6 +291,7 @@ dropoutAnalysis <- function(dataDir,countDir=NA, #scoreDir=NA,
       logInfo("DROP FROM ALL:")
       n <- sum(maxCount > -6)
       logInfo(compareSets(droppedS1,droppedNS1,"max->s1:max->ns1",n=n))
+      logInfo(compareSets(droppedNS1,droppedNS2,"max->ns1:max->ns2",n=n))
       logInfo(compareSets(droppedS1,droppedS2,"max->s1:max->s2",n=n))
       logInfo(compareSets(droppedS1,droppedNS2,"max->s1:max->ns2",n=n))
       
