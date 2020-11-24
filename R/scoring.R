@@ -27,7 +27,7 @@
 #' @return NULL. Results are written to file.
 #' @export
 scoring <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"parameters.json"),
-	mc.cores=6, srOverride=FALSE, bnOverride=FALSE, nbs=1e4) {
+	mc.cores=6, srOverride=FALSE, bnOverride=FALSE, nbs=1e4, pessimistic=TRUE) {
 
 	op <- options(stringsAsFactors=FALSE)
 
@@ -69,7 +69,8 @@ scoring <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"paramet
 		warning=function(w)logWarn(conditionMessage(w))
 	)
 	
-
+	
+	regmode <- if (pessimistic) "pessimistic" else "optimistic"
 	logInfo("Scoring function uses the following parameters:")
 	logInfo("countThreshold =",params$scoring$countThreshold)
 	logInfo("WT filter quantile =",params$scoring$wtQuantile)
@@ -77,6 +78,7 @@ scoring <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"paramet
 	logInfo("sdThreshold =",params$scoring$sdThreshold)
 	logInfo("cvDeviation =",params$scoring$cvDeviation)
 	logInfo("assay direction =",params$assay[["selection"]])
+	logInfo("regularization mode: ",regmode)
 
 	if (bnOverride) {
 		logWarn(
@@ -220,7 +222,7 @@ scoring <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"paramet
 						regularizeRaw(msc, condNames, 
 							tiles=regionalCounts$tile,
 							n=params$numReplicates[condQuad], pseudo.n=params$scoring$pseudo.n, 
-							modelFunctions=modelFunctions
+							modelFunctions=modelFunctions,pessimistic=pessimistic
 						)
 					)
 				}
@@ -293,6 +295,7 @@ scoring <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"paramet
 			  "# count threshold: ",params$scoring$countThreshold,"\n",
 			  "# wt filter quantile: ",params$scoring$wtQuantile,"\n",
 			  "# pseudo-replicates: ",params$scoring$pseudo.n,"\n",
+			  "# regularization mode: ",regmode,"\n",
 			  "# syn/non sd threshold: ",params$scoring$sdThreshold,"\n",
 			  "# cv deviation threshold: ",params$scoring$cvDeviation,"\n",
 			  "# assay direction: ",params$assay[["selection"]],"\n",
@@ -486,14 +489,23 @@ mean.sd.count <- function(cond,regionalCounts,tp,params) {
 #'
 #' @param msc dataframe containing the output of the 'mean.sd.count()' function.
 #' @param countThreshold the threshold of raw counts that must be met
+#' @param wtq wild-type quantile, the quantile of the WT above which the nonselect or select
+#'  have to be to not be filtered (lest they be considered spurious), also the quantile of the 
+#'  median deviation-informed distribution around zero, at which we consider "excessive" WT levels.
+#' @param cvm coefficient of variation multiplier. Up to how much more than the 
+#'  expected CV do we accept as normal?
 #' @return a vector listing for each row in the table which (if any) filters apply, otherwise NA.
 rawFilter <- function(msc,countThreshold,wtq=0.95,cvm=10) {
 	#if no error estimates are present, pretend it's 0
 	if (all(c("nonWT.sd.bayes", "selWT.sd.bayes") %in% colnames(msc))) {
 		sd.sWT <- msc$selWT.sd.bayes
 		sd.nWT <- msc$nonWT.sd.bayes
+	} else if (!all(is.na(msc$nonWT.sd))) {
+	  sd.sWT <- msc$selWT.sd
+	  sd.nWT <- msc$nonWT.sd
 	} else {
-		sd.sWT <- sd.nWT <- 0
+	  #last fallback for when there are no replicates
+	  sd.sWT <- sd.nWT <- 0
 	}
   sQuant <- qnorm(wtq,msc$selWT.mean,sd.sWT)
   nQuant <- qnorm(wtq,msc$nonWT.mean,sd.nWT)
@@ -509,6 +521,17 @@ rawFilter <- function(msc,countThreshold,wtq=0.95,cvm=10) {
 		# select.mean <= selWT.mean + 3*sd.sWT
 	)
 	
+	#aberrant WT count filter
+	medianDeviation <- function(xs) {
+	  m <- median(xs,na.rm=TRUE)
+	  mean(abs(xs-m),na.rm=TRUE)
+	}
+	nonwtCutoff <- qnorm(wtq,0,medianDeviation(msc$nonWT.mean))
+	selwtCutoff <- qnorm(wtq,0,medianDeviation(msc$selWT.mean))
+	wFilter <- with(msc,
+	  nonWT.mean > nonwtCutoff | selWT.mean > selwtCutoff
+	)
+	
 	#determine replicate bottlenecks
 	non.cv.poisson <- 1/sqrt(msc[,"nonselect.count"])
 	sel.cv.poisson <- 1/sqrt(msc[,"select.count"]+.1)
@@ -519,12 +542,13 @@ rawFilter <- function(msc,countThreshold,wtq=0.95,cvm=10) {
 	rFilter <- non.cv > cvm*non.cv.poisson | sel.cv > cvm*sel.cv.poisson
 	
 	
-	mapply(function(ns,s,rf) {
-		if (ns) "frequency" 
+	mapply(function(ns,s,rf,w) {
+	  if (w) "wt_excess"
+	  else if (ns) "frequency" 
 	  else if (s) "bottleneck:select" 
 	  else if (rf) "bottleneck:rep"
 	  else NA
-	},nsFilter,sFilter,rFilter)
+	},nsFilter,sFilter,rFilter,wFilter)
 }
 
 #' Run model fitting on all tiles in all given conditions
@@ -605,7 +629,7 @@ fit.cv.model <- function(subscores,cond) {
 #'    in the regularization
 #' @return a data.frame containing for each condition the possion prior, bayesian regularized, and
 #'    pessimistic (maximum) standard deviation.
-regularizeRaw <- function(msc,condNames,tiles,n,pseudo.n, modelFunctions) {
+regularizeRaw <- function(msc,condNames,tiles,n,pseudo.n, modelFunctions,pessimistic=TRUE) {
 	#index replicates so we can look them up
 	names(n) <- condNames
 	#handle missing WT conditions 
@@ -614,8 +638,15 @@ regularizeRaw <- function(msc,condNames,tiles,n,pseudo.n, modelFunctions) {
 	}
 	#iterate over conditions and join as columns
 	regul <- do.call(cbind,lapply(condNames, function(cond) {
+	  #determine pseudocount
+	  smallestSelect <- unique(sort(na.omit(msc[,paste0(cond,".mean")])))[[2]]
+	  pseudoCount <- 10^floor(log10(smallestSelect))
+	  #determine prior expectation
 		sd.prior <- sapply(1:nrow(msc), function(i) {
-			count <- msc[i,paste0(cond,".count")]
+		  #add pseudocounts to get valid priors for zeroes
+			count <- msc[i,paste0(cond,".count")]+0.1
+			freq <- msc[i,paste0(cond,".mean")]+pseudoCount
+			#extract correct model funciton and use it to calculate the prior
 			tile <- as.character(tiles[[i]])
 			modelfun <- modelFunctions[[cond]][[tile]]
 			if (is.function(modelfun)) {
@@ -624,12 +655,16 @@ regularizeRaw <- function(msc,condNames,tiles,n,pseudo.n, modelFunctions) {
 				#if model fitting failed, use simple poisson model
 				cv.prior <- 1/sqrt(count)
 			}
-			return(cv.prior * msc[i,paste0(cond,".mean")])
+			return(cv.prior * freq)
 		})
-		sd.prior[which(msc[,paste0(cond,".mean")] == 0)] <- 0
+		# sd.prior[which(msc[,paste0(cond,".mean")] == 0)] <- 0
 
 		sd.empiric <- msc[,paste0(cond,".sd")]
-		sd.bayes <- bnl(pseudo.n,n[[cond]],sd.prior,sd.empiric)
+		if (pessimistic) {
+		  sd.bayes <- mapply(max,sd.prior,sd.empiric,na.rm=TRUE)
+		} else {
+		  sd.bayes <- bnl(pseudo.n,n[[cond]],sd.prior,sd.empiric)
+		}
 		out <- cbind(sd.prior=sd.prior,sd.bayes=sd.bayes)
 		colnames(out) <- paste0(cond,c(".sd.prior",".sd.bayes"))
 		out

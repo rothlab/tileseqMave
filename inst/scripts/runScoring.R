@@ -46,6 +46,7 @@ p <- add_argument(p, "--cores", default=6L, help="number of CPU cores to use in 
 p <- add_argument(p, "--srOverride", help="Manual override to allow singleton replicates. USE WITH EXTREME CAUTION!",flag=TRUE)
 p <- add_argument(p, "--bnOverride", help="Manual override to disable bottleneck filtering.",flag=TRUE)
 p <- add_argument(p, "--bootstrap", default=1e4, help="Number of bootstrap samples to use. NA uses heuristics instead.")
+p <- add_argument(p, "--optimistic", help="Uses bayesian regularization instead of maximizing between prior and empiric SD",flag=TRUE)
 args <- parse_args(p)
 
 #Workaround for bug in future package, that re-uses command line arguments:
@@ -83,7 +84,8 @@ invisible(
 		mc.cores=args$cores,
 		srOverride=args$srOverride,
 		bnOverride=args$bnOverride,
-		nbs=args$bootstrap
+		nbs=args$bootstrap,
+		pessimistic=!args$optimistic
 	)
 )
 

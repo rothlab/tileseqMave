@@ -4,7 +4,15 @@
 \alias{regularizeRaw}
 \title{Function to perform Baldi & Long's error regularization}
 \usage{
-regularizeRaw(msc, condNames, tiles, n, pseudo.n, modelFunctions)
+regularizeRaw(
+  msc,
+  condNames,
+  tiles,
+  n,
+  pseudo.n,
+  modelFunctions,
+  pessimistic = TRUE
+)
 }
 \arguments{
 \item{msc}{dataframe containing the output of the 'mean.sd.count()' function}

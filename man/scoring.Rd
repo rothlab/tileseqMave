@@ -12,7 +12,8 @@ scoring(
   mc.cores = 6,
   srOverride = FALSE,
   bnOverride = FALSE,
-  nbs = 10000
+  nbs = 10000,
+  pessimistic = TRUE
 )
 }
 \arguments{

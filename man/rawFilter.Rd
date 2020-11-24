@@ -10,6 +10,13 @@ rawFilter(msc, countThreshold, wtq = 0.95, cvm = 10)
 \item{msc}{dataframe containing the output of the 'mean.sd.count()' function.}
 
 \item{countThreshold}{the threshold of raw counts that must be met}
+
+\item{wtq}{wild-type quantile, the quantile of the WT above which the nonselect or select
+have to be to not be filtered (lest they be considered spurious), also the quantile of the 
+median deviation-informed distribution around zero, at which we consider "excessive" WT levels.}
+
+\item{cvm}{coefficient of variation multiplier. Up to how much more than the 
+expected CV do we accept as normal?}
 }
 \value{
 a vector listing for each row in the table which (if any) filters apply, otherwise NA.
