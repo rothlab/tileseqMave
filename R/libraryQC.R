@@ -244,40 +244,66 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
   				wtMarginalMeans <- marginalCounts[,wtReps]
   			}
   			
-  			#draw WT control plot
+  			#new WT ctrl plot
   			logInfo("Drawing WT control level plot")
-  			pdf(paste0(outDir,nsCond,"_t",tp,"_WTlevels.pdf"),11,8.5)
-  			tagger <- pdftagger(paste(pdftag,"; condition:",nsCond,"timepoint:",tp),cpp=1)
-  			opar <- par(oma=c(2,2,2,2),mar=c(5,5,0,1)+.1)
-  			layout(rbind(1,2,3,4),heights=c(0.1,0.9,0.1,0.9))
-  			plotcols <- sapply(1:2,colAlpha,0.5)
-  			funs <- list(mean=mean,median=median)
-  			for (i in 1:2) {
-    			posSumsNS <- tapply(nsMarginalMeans,as.integer(marginalSplitChanges[,2]),funs[[i]])
-    			posSumsWT <- tapply(wtMarginalMeans,as.integer(marginalSplitChanges[,2]),funs[[i]])
-    			possNS <- as.integer(names(posSumsNS))
-    			possWT <- as.integer(names(posSumsWT))
-    			
-    			par(mar=c(0,5.1,0,1.1))
-    			plot(NA,type="n",xlim=range(c(possNS,possWT)),ylim=c(0,1),xlab="",ylab="",axes=FALSE)
-    			rect(params$regions[,"Start AA"],0,params$regions[,"End AA"],0.49,col="gray80",border=NA)
-    			text(rowMeans(params$regions[,c("Start AA","End AA")]),0.25,params$regions[,"Region Number"])
-    			rect(params$tiles[,"Start AA"],0.51,params$tiles[,"End AA"],1,col="gray90",border=NA)
-    			text(rowMeans(params$tiles[,c("Start AA","End AA")]),0.75,params$tiles[,"Tile Number"])
-    			
-    			par(mar=c(5,5,0,1)+.1)
-    			plot(possNS,posSumsNS+1e-7,log="y",
-    			     xlim=range(c(possNS,possWT)),
-    			     ylim=c(1e-7,max(posSumsNS,posSumsWT)),
-    			     pch=20,col=plotcols[[1]],
-    			     xlab="AA position",ylab=paste(names(funs)[[i]],"marginal freq.")
+  			pdf(paste0(outDir,nsCond,"_t",tp,"_WTlevels.pdf"),8.5,11)
+  			tagger <- pdftagger(paste(pdftag,"; condition:",nsCond,"timepoint:",tp),cpp=6)
+  			opar <- par(mfrow=c(3,2),oma=c(2,2,2,2))
+  			for (tile in params$tiles[,1]) {
+    			rows <- which(marginalTiles == tile)
+    			breaks <- seq(-7,0,.1)
+    			wtHist <- hist(log10(wtMarginalMeans[rows]+1e-7),breaks=breaks,plot=FALSE)
+    			nsHist <- hist(log10(nsMarginalMeans[rows]+1e-7),breaks=breaks,plot=FALSE)
+    			maxDens <- max(c(wtHist$density,nsHist$density),na.rm=TRUE)
+    			plot(NA,type="n",xlim=c(-7,0),ylim=c(-maxDens,maxDens),axes=FALSE,
+    			     ylab="wildtype density : nonselect density",xlab="mean marginal frequency",
+    			     main=sprintf("Tile #%i",tile)
     			)
-    			points(possWT,posSumsWT+1e-7,pch=20,col=plotcols[[2]])
-    			legend("right",c(nsCond,wtCond),col=plotcols,pch=20,bg="white")
+    			axis(1,at=seq(-7,0),c(0,10^-(6:1),1))
+    			axis(2,at=-round(maxDens):round(maxDens),c(round(maxDens):0,1:round(maxDens)))
+    			with(nsHist,rect(breaks[-length(breaks)],0,breaks[-1],density,col="steelblue3",border=NA))
+    			with(wtHist,rect(breaks[-length(breaks)],0,breaks[-1],-density,col="firebrick3",border=NA))
+    			grid(NULL,NULL)
+    			abline(h=0)
+    			tagger$cycle()
   			}
-  			tagger$cycle()
   			par(opar)
   			invisible(dev.off())
+  			
+  # 			#draw WT control plot
+  # 			logInfo("Drawing WT control level plot")
+  # 			pdf(paste0(outDir,nsCond,"_t",tp,"_WTlevels.pdf"),11,8.5)
+  # 			tagger <- pdftagger(paste(pdftag,"; condition:",nsCond,"timepoint:",tp),cpp=1)
+  # 			opar <- par(oma=c(2,2,2,2),mar=c(5,5,0,1)+.1)
+  # 			layout(rbind(1,2,3,4),heights=c(0.1,0.9,0.1,0.9))
+  # 			plotcols <- sapply(1:2,colAlpha,0.5)
+  # 			funs <- list(mean=mean,median=median)
+  # 			for (i in 1:2) {
+  #   			posSumsNS <- tapply(nsMarginalMeans,as.integer(marginalSplitChanges[,2]),funs[[i]])
+  #   			posSumsWT <- tapply(wtMarginalMeans,as.integer(marginalSplitChanges[,2]),funs[[i]])
+  #   			possNS <- as.integer(names(posSumsNS))
+  #   			possWT <- as.integer(names(posSumsWT))
+  #   			
+  #   			par(mar=c(0,5.1,0,1.1))
+  #   			plot(NA,type="n",xlim=range(c(possNS,possWT)),ylim=c(0,1),xlab="",ylab="",axes=FALSE)
+  #   			rect(params$regions[,"Start AA"],0,params$regions[,"End AA"],0.49,col="gray80",border=NA)
+  #   			text(rowMeans(params$regions[,c("Start AA","End AA")]),0.25,params$regions[,"Region Number"])
+  #   			rect(params$tiles[,"Start AA"],0.51,params$tiles[,"End AA"],1,col="gray90",border=NA)
+  #   			text(rowMeans(params$tiles[,c("Start AA","End AA")]),0.75,params$tiles[,"Tile Number"])
+  #   			
+  #   			par(mar=c(5,5,0,1)+.1)
+  #   			plot(possNS,posSumsNS+1e-7,log="y",
+  #   			     xlim=range(c(possNS,possWT)),
+  #   			     ylim=c(1e-7,max(posSumsNS,posSumsWT)),
+  #   			     pch=20,col=plotcols[[1]],
+  #   			     xlab="AA position",ylab=paste(names(funs)[[i]],"marginal freq.")
+  #   			)
+  #   			points(possWT,posSumsWT+1e-7,pch=20,col=plotcols[[2]])
+  #   			legend("right",c(nsCond,wtCond),col=plotcols,pch=20,bg="white")
+  # 			}
+  # 			tagger$cycle()
+  # 			par(opar)
+  # 			invisible(dev.off())
   			
   			
   			nsMarginalMeans <- mapply(function(nsf,wtf) {
