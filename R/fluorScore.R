@@ -25,6 +25,7 @@
 fluorScore <- function(dataDir,conditionOrder,paramFile=paste0(dataDir,"parameters.json"),srOverride=FALSE) {
 
 	# conditionOrder <- c("lowest","lowmid","mid","midhigh","highest")
+  conditionOrder <- c("F1","F2","F3","F4","F5")
 
 	op <- options(stringsAsFactors=FALSE)
 
@@ -107,12 +108,12 @@ fluorScore <- function(dataDir,conditionOrder,paramFile=paste0(dataDir,"paramete
 
 	scoreTables <- lapply(names(conditionOrder), function(bini) {
 		sCond <- conditionOrder[[bini]]
-		scoreFile <- paste0(latestScore[["dir"]],"/",sCond,"_t",tp,"_complete.csv")
+		scoreFile <- paste0(latestScore[["dir"]],"/",sCond,"_t",tp,"_enrichment.csv")
 		if (!file.exists(scoreFile)) {
 			logWarn("No scores found for",sCond)
 			return(NA)
 		}
-		scores <- read.csv(scoreFile)
+		scores <- read.csv(scoreFile,comment.char="#")
 		#delete filtered values
 		scores[!is.na(scores$filter),c("logPhi","logPhi.sd")] <- NA
 		#extract relevant columns
@@ -156,7 +157,7 @@ fluorScore <- function(dataDir,conditionOrder,paramFile=paste0(dataDir,"paramete
 	opar <- par(mfrow=c(3,3),mar=c(5,4,1,0))
 	invisible(lapply(names(clsizes), function(cli){
 		cli <- as.integer(cli)
-		subsample <- finlphis[mcfinlphis$classification==cli,][sample(clsizes[[cli]],50),]
+		subsample <- finlphis[mcfinlphis$classification==cli,][sample(clsizes[[cli]],min(50,clsizes[[cli]])),]
 		plot(NA,type="n",xlim=c(1,5),ylim=c(-2.5,1.5),axes=FALSE,
 			xlab="bin",ylab="logPhi",
 			main=sprintf("Cluster #%d (%d variants)",cli,clsizes[[cli]])

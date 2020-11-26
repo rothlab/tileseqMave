@@ -155,7 +155,7 @@ selectionQC <- function(dataDir,countDir=NA, scoreDir=NA, outDir=NA,
 			logInfo("Processing condition",sCond, "; time",tp)
 
 			#load score table for this condition
-			scoreFile <- paste0(scoreDir,"/",sCond,"_t",tp,"_complete.csv")
+			scoreFile <- paste0(scoreDir,"/",sCond,"_t",tp,"_enrichment.csv")
 			if (!file.exists(scoreFile)) {
 				logWarn("No score file found! Skipping...")
 				next
@@ -201,11 +201,11 @@ selectionQC <- function(dataDir,countDir=NA, scoreDir=NA, outDir=NA,
 			
 				#If scores could not be assigned due to synonymous-nonsense median failure
 				#then we can't run an error profile analysis
-				if (!all(is.na(scores$score)) && !any(scores$score.sd < 0,na.rm=TRUE)) {
+				if (!all(is.na(scores$logPhi)) && !any(scores$logPhi.sd < 0,na.rm=TRUE)) {
 					#Error profile
 					errorProfile(scores,sCond,tp,outDir,params)
 				} else {
-					logWarn("Cannot plot error profiles: Scores are not available!")
+					logWarn("Cannot plot error profiles: logPhi values are not available!")
 				}
 			}
 
