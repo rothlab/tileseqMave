@@ -18,7 +18,7 @@
 # along with tileseqMave.  If not, see <https://www.gnu.org/licenses/>.
 
 #####################################################
-# This is a command line wrapper for scoring
+# This is a command line wrapper for calcEnrichment
 #####################################################
 
 options(
@@ -34,14 +34,14 @@ library(yogilog)
 
 #process command line arguments
 p <- arg_parser(
-	"Runs the main scoring function on the output of joinCounts.R",
-	name="runScoring.R"
+	"Calculates logPhi enrichments based on the output of joinCounts.R",
+	name="calcEnrichment.R"
 )
 p <- add_argument(p, "--workspace", help="workspace data directory. Defaults to current working directory")
 p <- add_argument(p, "--input", help="input directory containing the count data. Defaults to subdirectory with latest timestamp ending in _mut_count")
 p <- add_argument(p, "--output", help="output directory. Defaults to name of input directory with _scores tag")
 p <- add_argument(p, "--parameters", help="parameter file. Defaults to parameters.json in the data directory.")
-p <- add_argument(p, "--logfile", help="log file. Defaults to 'scoring.log' in the same directory")
+p <- add_argument(p, "--logfile", help="log file. Defaults to 'enrichment.log' in the same directory")
 p <- add_argument(p, "--cores", default=6L, help="number of CPU cores to use in parallel for multi-threading")
 p <- add_argument(p, "--srOverride", help="Manual override to allow singleton replicates. USE WITH EXTREME CAUTION!",flag=TRUE)
 p <- add_argument(p, "--bnOverride", help="Manual override to disable bottleneck filtering.",flag=TRUE)
@@ -69,7 +69,7 @@ if (!dir.exists(dataDir)) {
 	stop("Workspace folder ",dataDir," folder does not exist!")
 }
 paramFile <- if (is.na(args$parameters)) paste0(dataDir,"parameters.json") else args$parameters
-logfile <- if (is.na(args$logfile)) paste0(dataDir,"scoring.log") else args$logfile
+logfile <- if (is.na(args$logfile)) paste0(dataDir,"enrichment.log") else args$logfile
 
 #set up logger and shunt it into the error handler
 logger <- new.logger(logfile)
@@ -79,7 +79,7 @@ logVersion()
 
 #run the actual function
 invisible(
-	scoring(
+  calcEnrichment(
 		dataDir, inDir=args$input, outDir=args$output, paramFile=paramFile,
 		mc.cores=args$cores,
 		srOverride=args$srOverride,
