@@ -236,7 +236,11 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
   		wtCond <- getWTControlFor(nsCond,params)
   		# wtCond <- findWTCtrl(params,nsCond)
   		if (length(wtCond) > 0) {
-  			wtReps <- sprintf("%s.t%s.rep%s.frequency",wtCond,tp,1:params$numReplicates[[wtCond]])
+  		  #Find the appropriate time point for the matched WT control
+  		  wtTps <- getTimepointsFor(wtCond,params)
+  		  wtTp <- if (tp %in% wtTps) tp else wtTps[[1]]
+  		  #extract WT reps
+  			wtReps <- sprintf("%s.t%s.rep%s.frequency",wtCond,wtTp,1:params$numReplicates[[wtCond]])
   
   			if (params$numReplicates[[wtCond]] > 1) {
   				wtMarginalMeans <- rowMeans(marginalCounts[,wtReps],na.rm=TRUE)
