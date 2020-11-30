@@ -255,20 +255,27 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
   			opar <- par(mfrow=c(3,2),oma=c(2,2,2,2))
   			for (tile in params$tiles[,1]) {
     			rows <- which(marginalTiles == tile)
-    			breaks <- seq(-7,0,.1)
-    			wtHist <- hist(log10(wtMarginalMeans[rows]+1e-7),breaks=breaks,plot=FALSE)
-    			nsHist <- hist(log10(nsMarginalMeans[rows]+1e-7),breaks=breaks,plot=FALSE)
-    			maxDens <- max(c(wtHist$density,nsHist$density),na.rm=TRUE)
-    			plot(NA,type="n",xlim=c(-7,0),ylim=c(-maxDens,maxDens),axes=FALSE,
-    			     ylab="wildtype density : nonselect density",xlab="mean marginal frequency",
-    			     main=sprintf("Tile #%i",tile)
-    			)
-    			axis(1,at=seq(-7,0),c(0,10^-(6:1),1))
-    			axis(2,at=-round(maxDens):round(maxDens),c(round(maxDens):0,1:round(maxDens)))
-    			with(nsHist,rect(breaks[-length(breaks)],0,breaks[-1],density,col="steelblue3",border=NA))
-    			with(wtHist,rect(breaks[-length(breaks)],0,breaks[-1],-density,col="firebrick3",border=NA))
-    			grid(NULL,NULL)
-    			abline(h=0)
+    			if (length(rows) == 0) {
+    			  plot.new()
+    			  rect(0,0,1,1,col="gray80",border="gray30",lty="dotted")
+    			  text(0.5,0.5,"no data")
+    			  mtext(paste0("Tile #",tile),side=4)
+    			} else {
+      			breaks <- seq(-7,0,.1)
+      			wtHist <- hist(log10(wtMarginalMeans[rows]+1e-7),breaks=breaks,plot=FALSE)
+      			nsHist <- hist(log10(nsMarginalMeans[rows]+1e-7),breaks=breaks,plot=FALSE)
+      			maxDens <- max(c(wtHist$density,nsHist$density),na.rm=TRUE)
+      			plot(NA,type="n",xlim=c(-7,0),ylim=c(-maxDens,maxDens),axes=FALSE,
+      			     ylab="wildtype density : nonselect density",xlab="mean marginal frequency",
+      			     main=sprintf("Tile #%i",tile)
+      			)
+      			axis(1,at=seq(-7,0),c(0,10^-(6:1),1))
+      			axis(2,at=-round(maxDens):round(maxDens),c(round(maxDens):0,1:round(maxDens)))
+      			with(nsHist,rect(breaks[-length(breaks)],0,breaks[-1],density,col="steelblue3",border=NA))
+      			with(wtHist,rect(breaks[-length(breaks)],0,breaks[-1],-density,col="firebrick3",border=NA))
+      			grid(NULL,NULL)
+      			abline(h=0)
+    			}
     			tagger$cycle()
   			}
   			par(opar)
