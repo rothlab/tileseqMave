@@ -109,7 +109,7 @@ scaleScores <- function(dataDir, scoreDir=NA, outDir=NA,
       
       logInfo("Processing condition",sCond, "; time",tp)
       
-      #load logPhi table for this condition
+      #load enrichment table for this condition
       inFile <- paste0(scoreDir,"/",sCond,"_t",tp,"_enrichment.csv")
       if (!file.exists(inFile)) {
         logWarn("No score file found! Skipping...")
@@ -127,11 +127,11 @@ scaleScores <- function(dataDir, scoreDir=NA, outDir=NA,
         msc <-  enrichments[which(enrichments$region == region),]
         
         # Scaling to synonymous and nonsense medians -----------------------------
-        logInfo("Normalizing...")
+        logInfo("Scaling...")
         #check if overrides were provided for the distribution modes
         normOvr <- getNormOverrides(params,sCond,tp,region)
         #and apply
-        msc <- cbind(msc,normalizeScores(msc,msc$aaChange,params$scoring$sdThreshold,normOvr))
+        msc <- cbind(msc,enactScale(msc,msc$aaChange,params$scoring$sdThreshold,normOvr))
         
         # flooring and stderr calculation only where more than one replicate exists ----
         if (params$numReplicates[[sCond]] > 1) {
@@ -146,7 +146,10 @@ scaleScores <- function(dataDir, scoreDir=NA, outDir=NA,
         
       }))
       
-      
+      #delete unnecessary columns
+      scoreTable$position <- NULL
+      scoreTable$region <- NULL
+      scoreTable$tile <- NULL
       
       # export to file --------------------------------------------------------
       timeStamp <- if (exists("timeStamp")) timeStamp else "?"
@@ -227,6 +230,24 @@ scaleScores <- function(dataDir, scoreDir=NA, outDir=NA,
   
 }
 
+residualError <- function(values, errors) {
+  #calculate running median error
+  runningMedian <- as.df(lapply(sort(values), function(mid) {
+    grp <- which(abs(values-mid) < 0.1)
+    c(value=mid,medErr=median(errors[grp],na.rm=TRUE))
+  }))
+  #fit a smooth polynomial line to the median trail
+  x <- runningMedian$value
+  z <- lm(y~.,data=fin(data.frame(y=log10(runningMedian$medErr),x1=x,x2=x^2,x3=x^3)))
+  #build a function to derive the expected error based on the fit above
+  expect.error <- function(xs) {
+    10^predict.lm(z,newdata=data.frame(x1=xs,x2=xs^2,x3=xs^3))
+  }
+  #calculate residual error
+  residual.error <- errors-expect.error(values)
+  return(residual.error)
+}
+
 
 #' Helper function to extract normalization override values from the parameter sheet
 #' if they exist
@@ -250,13 +271,13 @@ getNormOverrides <- function(params,sCond,tp,region) {
   }
 }
 
-#' Calculate scores by normalizing logPhi values to syn/nonsense medians
+#' Calculate scores by scaling bce values to syn/nonsense medians
 #' @param msc data.frame containing the enrichment ratios (phi) and log(phi)
 #' @param aac the vector of corresponding amino acid changes
 #' @param sdThreshold stdev threshold for finding the syn/stop means
 #' @return data.frame with variant type, score and stdev
 #' @export
-normalizeScores <- function(msc,aac,sdThreshold,overrides=c(syn=NA,non=NA)) {
+enactScale <- function(msc,aac,sdThreshold,overrides=c(syn=NA,non=NA)) {
   
   # #determine mutation types
   # fromAA <- substr(aac,1,1)
@@ -265,29 +286,32 @@ normalizeScores <- function(msc,aac,sdThreshold,overrides=c(syn=NA,non=NA)) {
   #   if (from==to) "synonymous" else if (to=="*") "nonsense" else "missense"
   # },fromAA,toAA))
   # 
+  
   #apply filter
-  mscFiltered <- if (!all(is.na(msc$logPhi.sd))) {
-    numNsSurvive <- with(msc,sum(is.na(filter) & logPhi.sd < sdThreshold & type == "nonsense",na.rm=TRUE))
+  mscFiltered <- msc[is.na(msc$filter),]
+  if (!all(is.na(mscFiltered$bce.sd))) {
+    resErr <- residualError(mscFiltered$bce,mscFiltered$bce.sd)
+    mscFiltered$resErr <- resErr+min(resErr,na.rm=TRUE)
+    numNsSurvive <- with(mscFiltered,sum(is.na(filter) & resErr < sdThreshold & type == "nonsense",na.rm=TRUE))
     if (numNsSurvive >= 10) {
-      with(msc,msc[which(is.na(filter) & logPhi.sd < sdThreshold),])
+      with(mscFiltered,mscFiltered[which(is.na(filter) & resErr < sdThreshold),])
     } else {
-      nonsenseSDs <- with(msc,logPhi.sd[is.na(filter) & type=="nonsense"])
-      # q10Threshold <- quantile(with(msc,logPhi.sd[is.na(filter) & type=="nonsense"]),0.1)
+      nonsenseSDs <- with(mscFiltered,resErr[is.na(filter) & type=="nonsense"])
+      # q10Threshold <- quantile(with(msc,bce.sd[is.na(filter) & type=="nonsense"]),0.1)
       r10Threshold <- sort(nonsenseSDs)[[min(10,length(nonsenseSDs))]]
       logWarn(sprintf("sdThreshold %.03f is too restrictive! Using sd < %.03f instead.",sdThreshold,r10Threshold))
-      with(msc,msc[which(is.na(filter) & logPhi.sd < r10Threshold),])
+      mscFiltered <- with(mscFiltered,mscFiltered[which(is.na(filter) & resErr < r10Threshold),])
     }
   } else {
     logWarn("No SD-filter applied to mode finder, as no error estimates are available.")
-    with(msc,msc[which(is.na(filter)),])
   }
   
   #calculate medians
   synonymousMedian <- with(mscFiltered,median(
-    logPhi[which(type == "synonymous")]
+    bce[which(type == "synonymous" & bce > 0)]
     ,na.rm=TRUE))
   nonsenseMedian <- with(mscFiltered,median(
-    logPhi[which(type == "nonsense")]
+    bce[which(type == "nonsense" & bce < 1)]
     ,na.rm=TRUE))
   
   logInfo(sprintf("Auto-detected nonsense median: %.03f",nonsenseMedian))
@@ -320,8 +344,8 @@ normalizeScores <- function(msc,aac,sdThreshold,overrides=c(syn=NA,non=NA)) {
   #safety check, that the medians are in the right orientation
   if (synonymousMedian > nonsenseMedian) {
     #use medians to normalize
-    score <- (msc$logPhi - nonsenseMedian) / (synonymousMedian - nonsenseMedian)
-    score.sd <- msc$logPhi.sd / (synonymousMedian - nonsenseMedian)
+    score <- (msc$bce - nonsenseMedian) / (synonymousMedian - nonsenseMedian)
+    score.sd <- msc$bce.sd / (synonymousMedian - nonsenseMedian)
   } else {
     #otherwise, we CANNOT assign a correct score!
     logWarn(paste(
@@ -380,11 +404,10 @@ flooring <- function(msc,params) {
 #' join multiple datapoints weighted by stdev
 #' @param ms data means
 #' @param sds data stdevs
-#' @param degrees of freedom for each data point
+#' @param dfs degrees of freedom for each data point
+#' @param ws datapoint weights. By default these get auto-calculated from sds
 #' @return a vector containing the joint mean and joint stdev
-join.datapoints <- function(ms,sds,dfs) {
-  #weights
-  ws <- (1/sds)/sum(1/sds)
+join.datapoints <- function(ms,sds,dfs,ws=(1/sds)/sum(1/sds)) {
   #weighted mean
   mj <- sum(ws*ms)
   #weighted joint variance
@@ -416,11 +439,14 @@ collapseByAA <- function(scoreTable,params,sCond,scoreCol="score",sdCol="score.s
   filteredTable <- scoreTable[exportFilter,]
   
   if (!srOverride) {
+    resErr <- residualError(filteredTable[,scoreCol],filteredTable[,sdCol])
+    nerr <- resErr - min(resErr,na.rm=TRUE) + min(abs(resErr),na.rm=TRUE)
     aaTable <- as.df(tapply(1:nrow(filteredTable),filteredTable$hgvsp, function(is) {
       joint <- join.datapoints(
-        filteredTable[is,scoreCol],
-        filteredTable[is,sdCol],
-        rep(params$numReplicates[[sCond]],length(is))
+        ms=filteredTable[is,scoreCol],
+        sds=filteredTable[is,sdCol],
+        dfs=rep(params$numReplicates[[sCond]],length(is)),
+        ws=(1/nerr[is])/sum(1/nerr[is])
       )
       list(
         hgvs_pro=unique(filteredTable[is,"hgvsp"]),

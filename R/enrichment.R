@@ -261,6 +261,11 @@ calcEnrichment <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"
 					msc$logPhi <- -msc$logPhi
 				}
 
+				# Bias correction -----------------------------
+				logInfo("Performing bias correction...")
+				msc <- cbind(msc,biasCorrection(msc))
+				
+				
 				# # Scaling to synonymous and nonsense medians -----------------------------
 				# logInfo("Normalizing...")
 				# #check if overrides were provided for the distribution modes
@@ -754,6 +759,36 @@ calcPhi <- function(msc) {
 	logPhi.sd[logPhi.sd > lpsCap] <- lpsCap
 
 	return(data.frame(phi=phi,phi.sd=phi.sd,logPhi=logPhi,logPhi.sd=logPhi.sd))
+}
+
+#' Run read-frequecy bias correction on logPhi
+#'
+#' @param msc the enrichment table
+#'
+#' @return the bias-corrected enrichment (bce) and its stddev
+#' @export
+biasCorrection <- function(msc) {
+  
+  #exclude non-depleted nonsense variants
+  nonsenseF <- msc[with(msc,type=="nonsense" & is.na(filter) & logPhi < 0),]
+  synonymousF <- msc[with(msc,type=="synonymous" & is.na(filter)),]
+  #simple linear regression
+  zns <- with(nonsenseF, lm(logPhi~log10(nonselect.mean)) )
+  zsyn <- with(synonymousF, lm(logPhi~log10(nonselect.mean)) )
+  
+  #calculate pivot points for each variant based on their read frequency (=nonselect.mean)
+  nsmean <- msc[,"nonselect.mean",drop=FALSE]
+  msc$esyn <- predict.lm(zsyn,nsmean)
+  msc$enon <- predict.lm(zns,nsmean)
+  msc$ediff <- with(msc,floor0(esyn-enon))
+  
+  bces <- as.df(lapply(1:nrow(msc), function(i) with(msc[i,],{
+    c(
+      bce=(logPhi-enon)/ediff,
+      bce.sd=logPhi.sd/abs(ediff)
+    )
+  })))
+  return(bces)
 }
 
 # 

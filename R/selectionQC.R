@@ -405,44 +405,79 @@ findQuads <- function(params,sCond,tp) {
 #' @export
 logPhiBias <- function(scores,params,sCond,tp,outDir) {
   
-  nonsense <- scores[scores$type=="nonsense",]
-  nonsenseF <- scores[scores$type=="nonsense" & is.na(scores$filter),]
-  zns <- with(nonsenseF, lm(logPhi~log10(nonselect.mean)) )
-  trns <- with(nonsenseF, yogitools::runningFunction(log10(nonselect.mean),logPhi,nbins=30))
-  
-  synonymous <- scores[scores$type=="synonymous",]
-  synonymousF <- scores[scores$type=="synonymous" & is.na(scores$filter),]
-  zsyn <- with(synonymousF, lm(logPhi~log10(nonselect.mean)) )
-  trsyn <- with(synonymousF, yogitools::runningFunction(log10(nonselect.mean),logPhi,nbins=30))
-  
+  scores$position <- as.integer(extract.groups(scores$codonChange,"(\\d+)"))
+  scores$region <- params$pos2reg(scores$position)
+  # scores$tile <- params$pos2tile(scores$position)
+  # 
+  # nonsense <- scores[scores$type=="nonsense",]
+  # nonsenseF <- scores[scores$type=="nonsense" & is.na(scores$filter),]
+  # zns <- with(nonsenseF, lm(logPhi~log10(nonselect.mean)) )
+  # trns <- with(nonsenseF, yogitools::runningFunction(log10(nonselect.mean),logPhi,nbins=30))
+  # 
+  # synonymous <- scores[scores$type=="synonymous",]
+  # synonymousF <- scores[scores$type=="synonymous" & is.na(scores$filter),]
+  # zsyn <- with(synonymousF, lm(logPhi~log10(nonselect.mean)) )
+  # trsyn <- with(synonymousF, yogitools::runningFunction(log10(nonselect.mean),logPhi,nbins=30))
+  # 
   outfile <- paste0(outDir,sCond,"_t",tp,"_logPhiBias.pdf")
   pdf(outfile,8.5,11)
-  tagger <- pdftagger(paste(params$pdftagbase,"; selection condition:",sCond),cpp=1)
+  tagger <- pdftagger(paste(params$pdftagbase,"; selection condition:",sCond),cpp=6)
+  opar <- par(oma=c(15,2,2,2),mfrow=c(3,2))
   
-  opar <- par(oma=c(15,2,2,2))
-  plotcols <- sapply(c("gray","firebrick3"),yogitools::colAlpha,0.5)
-  with(nonsense, plot(
-    log10(nonselect.mean),logPhi,
-    col=plotcols[1+is.na(filter)],
-    pch=20
-  ))
-  # abline(h=0:1,lty="dashed",col=2:3)
-  abline(zns,col="firebrick2")
-  lines(trns,col="firebrick2",lwd=2)
-  plotcols <- sapply(c("gray","chartreuse3"),yogitools::colAlpha,0.5)
-  with(synonymous, points(
-    log10(nonselect.mean),logPhi,
-    col=plotcols[1+is.na(filter)],
-    pch=20
-  ))
-  # abline(h=0:1,lty="dashed",col=2:3)
-  abline(zsyn,col="chartreuse2")
-  lines(trsyn,col="chartreuse2",lwd=2)
-  plotcols <- sapply(c("chartreuse3","firebrick3","gray"),yogitools::colAlpha,0.5)
-  legend("bottomleft",c("synonymous","nonsense","filtered out"),col=plotcols,pch=20)
-  tagger$cycle()
+  for (currRegion in params$regions[,1]) {
+    
+    nonsenseF <- scores[with(scores,type=="nonsense" & is.na(filter) & logPhi < 0 & region==currRegion),]
+    synonymousF <- scores[with(scores,type=="synonymous" & is.na(filter) & region==currRegion),]
+    
+    zns <- with(nonsenseF, lm(logPhi~log10(nonselect.mean)) )
+    zsyn <- with(synonymousF, lm(logPhi~log10(nonselect.mean)) )
+    
+    trns <- with(nonsenseF, yogitools::runningFunction(log10(nonselect.mean),logPhi,nbins=20))
+    trsyn <- with(synonymousF, yogitools::runningFunction(log10(nonselect.mean),logPhi,nbins=20))
+    with(rbind(nonsenseF,synonymousF), plot(
+      log10(nonselect.mean),logPhi, type="n", main=paste("Region",currRegion)
+    ))
+    with(nonsenseF, {
+      points(log10(nonselect.mean),logPhi,col="firebrick3",pch=20)
+      yogitools::errorBars(log10(nonselect.mean),logPhi,logPhi.sd,col="firebrick3")
+    })
+    abline(zns,col="firebrick2",lty="dashed")
+    # abline(a=thetaNon[[1]],b=thetaNon[[2]],col="firebrick2")
+    lines(trns,col="firebrick2",lwd=2)
+    
+    with(synonymousF, {
+      points(log10(nonselect.mean),logPhi,col="chartreuse3",pch=20)
+      yogitools::errorBars(log10(nonselect.mean),logPhi,logPhi.sd,col="chartreuse3")
+    })
+    abline(zsyn,col="chartreuse2",lty="dashed")
+    # abline(a=thetaSyn[[1]],b=thetaSyn[[2]],col="chartreuse2")
+    lines(trsyn,col="chartreuse2",lwd=2)
+    
+    
+    # plotcols <- sapply(c("gray","firebrick3"),yogitools::colAlpha,0.5)
+    # with(nonsense, plot(
+    #   log10(nonselect.mean),logPhi,
+    #   col=plotcols[1+is.na(filter)],
+    #   pch=20
+    # ))
+    # # abline(h=0:1,lty="dashed",col=2:3)
+    # abline(zns,col="firebrick2")
+    # lines(trns,col="firebrick2",lwd=2)
+    # plotcols <- sapply(c("gray","chartreuse3"),yogitools::colAlpha,0.5)
+    # with(synonymous, points(
+    #   log10(nonselect.mean),logPhi,
+    #   col=plotcols[1+is.na(filter)],
+    #   pch=20
+    # ))
+    # # abline(h=0:1,lty="dashed",col=2:3)
+    # abline(zsyn,col="chartreuse2")
+    # lines(trsyn,col="chartreuse2",lwd=2)
+    # plotcols <- sapply(c("chartreuse3","firebrick3","gray"),yogitools::colAlpha,0.5)
+    # legend("bottomleft",c("synonymous","nonsense","filtered out"),col=plotcols,pch=20)
+    tagger$cycle()
+  }
+  
   par(opar)
-  
   invisible(dev.off())
   
 }
@@ -672,17 +707,18 @@ scoreDistributions <- function(scores,sCond,tp,outDir,params) {
 	
 	#collapse by amino acid consequence and associate with regions
 	aaScores <- as.df(with(scores[is.na(scores$filter),],tapply(1:length(hgvsp),hgvsp, function(is) {
-		if (!any(is.na(logPhi.sd[is]))) {
+		if (!any(is.na(bce.sd[is]))) {
+		  #FIXME: Use residual error as weights
 			joint <- join.datapoints(
-				logPhi[is],
-				logPhi.sd[is],
+			  bce[is],
+			  bce.sd[is],
 				rep(params$numReplicates[[sCond]],length(is))
 			)
 		} else {
 			#this is the case if srOverride is turned on and only
 			#one replicate was available
 			joint <- c(
-				mj=mean(logPhi[is],na.rm=TRUE),sj=NA,
+				mj=mean(bce[is],na.rm=TRUE),sj=NA,
 				dfj=params$numReplicates[[sCond]]*length(is)
 			)
 		}
@@ -691,7 +727,7 @@ scoreDistributions <- function(scores,sCond,tp,outDir,params) {
 		mutregion <- params$pos2reg(p)
 		list(
 			hgvsp=unique(hgvsp[is]),
-			logPhi=joint[["mj"]],
+			bce=joint[["mj"]],
 			sd=joint[["sj"]],
 			df=joint[["dfj"]],
 			se=joint[["sj"]]/sqrt(joint[["dfj"]]),
@@ -754,13 +790,13 @@ drawDistributions <- function(aaScores,seCutoff=Inf,reg=NA) {
 
 	#extract filtered scores
 	if (!all(is.na(aaScores$se))) {
-		synScores <- with(aaScores,logPhi[grepl("=$",hgvsp) & se < seCutoff ])
-		stopScores <- with(aaScores,logPhi[grepl("Ter$",hgvsp) & se < seCutoff])
-		misScores <- with(aaScores,logPhi[!grepl("Ter$|=$",hgvsp) & se < seCutoff])
+		synScores <- with(aaScores,bce[grepl("=$",hgvsp) & se < seCutoff ])
+		stopScores <- with(aaScores,bce[grepl("Ter$",hgvsp) & se < seCutoff])
+		misScores <- with(aaScores,bce[!grepl("Ter$|=$",hgvsp) & se < seCutoff])
 	} else {
-		synScores <- with(aaScores,logPhi[grepl("=$",hgvsp)])
-		stopScores <- with(aaScores,logPhi[grepl("Ter$",hgvsp)])
-		misScores <- with(aaScores,logPhi[!grepl("Ter$|=$",hgvsp)])
+		synScores <- with(aaScores,bce[grepl("=$",hgvsp)])
+		stopScores <- with(aaScores,bce[grepl("Ter$",hgvsp)])
+		misScores <- with(aaScores,bce[!grepl("Ter$|=$",hgvsp)])
 	}
 	allScores <- c(synScores,stopScores,misScores)
 
@@ -844,32 +880,45 @@ drawDistributions <- function(aaScores,seCutoff=Inf,reg=NA) {
 #' @param outDir the output directory
 #' @return NULL
 errorProfile <- function(scores,sCond,tp,outDir,params) {
-
+  
+  plotEP <- function(scores,varname,xlab) {
+    sdname <- paste0(varname,".sd")
+    sdRange <- range(log10(scores[is.na(scores$filter),sdname]),finite=TRUE)
+    lphiRange <- range(scores[is.na(scores$filter),varname],finite=TRUE)
+    runningMedian <- with(scores[is.na(scores$filter),],yogitools::runningFunction(
+      get(varname),log10(get(sdname)),fun=median,nbins=20
+    ))
+    runningMedian[,2] <- 10^runningMedian[,2]
+    par(mar=c(5,4,0,0)+.1)
+    with(scores[is.na(scores$filter),],plot(
+      get(varname),get(sdname),log="y",pch=".",
+      xlab=xlab,ylab=expression(sigma)
+    ))
+    lines(runningMedian,col="steelblue3",lwd=2)
+    par(mar=c(0,4,1,0)+.1) 
+    breaks <- seq(lphiRange[[1]],lphiRange[[2]],length.out=50)
+    lphiHist <- with(scores[is.na(scores$filter),], hist(get(varname),breaks=breaks,plot=FALSE))
+    barplot(lphiHist$density,border=NA,ylab="density",space=0)
+    par(mar=c(5,0,0,0)+.1) 
+    breaks <- seq(sdRange[[1]],sdRange[[2]],length.out=50)
+    sdHist <- with(scores[is.na(scores$filter),], hist(log10(get(sdname)),breaks=breaks,plot=FALSE))
+    barplot(sdHist$density,border=NA,horiz=TRUE,space=0,xlab="density")
+    tagger$cycle()
+  }
+  
 	outfile <- paste0(outDir,sCond,"_t",tp,"_errorProfile.pdf")
 	pdf(outfile,8.5,11)
-	sdRange <- range(log10(scores[is.na(scores$filter),"logPhi.sd"]),finite=TRUE)
-	lphiRange <- range(scores[is.na(scores$filter),"logPhi"],finite=TRUE)
-
-	layout(rbind(c(2,4),c(1,3)),widths=c(0.8,0.2),heights=c(0.2,0.8))
+	layout(rbind(c(2,0),c(1,3)),widths=c(0.8,0.2),heights=c(0.2,0.8))
 	tagger <- pdftagger(paste(params$pdftagbase,"; selection condition:",sCond),cpp=4)
-	op <- par(mar=c(5,4,0,0)+.1,oma=c(24,6,2,6)) 
-	with(scores[is.na(scores$filter),],plot(logPhi,logPhi.sd,log="y",pch=".",
-	    xlab=expression(log[10](phi)),ylab=expression(sigma)
-	))
-	par(mar=c(0,4,1,0)+.1) 
-	breaks <- seq(lphiRange[[1]],lphiRange[[2]],length.out=50)
-	lphiHist <- with(scores[is.na(scores$filter),], hist(logPhi,breaks=breaks,plot=FALSE))
-	barplot(lphiHist$density,border=NA,ylab="density",space=0)
-	par(mar=c(5,0,0,0)+.1) 
-	breaks <- seq(sdRange[[1]],sdRange[[2]],length.out=50)
-	sdHist <- with(scores[is.na(scores$filter),], hist(log10(logPhi.sd),breaks=breaks,plot=FALSE))
-	barplot(sdHist$density,border=NA,horiz=TRUE,space=0,xlab="density")
-	tagger$cycle()
-	par(op)
+	opar <- par(oma=c(24,6,2,6)) 
+	plotEP(scores,"logPhi",expression(log[10](phi)))
+	plotEP(scores,"bce","bias-corrected enrichment")
+	par(opar)
 
 	invisible(dev.off())
 	
 }
+
 
 
 #' Draw plots to analyze agreement between equivalent codons
@@ -952,6 +1001,7 @@ codonAgreement <- function(scores,sCond,tp,params,outDir) {
 synNonDelta <- function(scores,sCond,tp,params,outDir){
   scores$pos <- as.integer(gsub("\\D+","",scores$aaChange))
   #positional weighted averages of synonymous variants
+  #FIXME: Use residual error as weights
   syns <- as.df(with(scores[scores$type=="synonymous" & is.na(scores$filter),],tapply(1:length(pos),pos,function(idxs){
     joint <- join.datapoints(logPhi[idxs],logPhi.sd[idxs],rep(2,length(idxs)))
     p <- unique(pos[idxs])

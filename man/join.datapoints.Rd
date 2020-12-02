@@ -4,14 +4,16 @@
 \alias{join.datapoints}
 \title{join multiple datapoints weighted by stdev}
 \usage{
-join.datapoints(ms, sds, dfs)
+join.datapoints(ms, sds, dfs, ws = (1/sds)/sum(1/sds))
 }
 \arguments{
 \item{ms}{data means}
 
 \item{sds}{data stdevs}
 
-\item{degrees}{of freedom for each data point}
+\item{dfs}{degrees of freedom for each data point}
+
+\item{ws}{datapoint weights. By default these get auto-calculated from sds}
 }
 \value{
 a vector containing the joint mean and joint stdev
