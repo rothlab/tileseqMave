@@ -10,7 +10,8 @@ scaleScores(
   outDir = NA,
   paramFile = paste0(dataDir, "parameters.json"),
   srOverride = FALSE,
-  bnOverride = FALSE
+  bnOverride = FALSE,
+  autoPivot = FALSE
 )
 }
 \arguments{

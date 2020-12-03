@@ -705,14 +705,18 @@ regularizationQC <- function(scores,modelParams,params,sCond,tp,outDir) {
 #' @return NULL
 scoreDistributions <- function(scores,sCond,tp,outDir,params) {
 	
+  filteredScores <- scores[is.na(scores$filter),]
+  resErr <- residualError(filteredScores$bce,filteredScores$bce.sd)
+  nerr <- resErr - min(resErr,na.rm=TRUE) + min(abs(resErr),na.rm=TRUE)
+  
 	#collapse by amino acid consequence and associate with regions
-	aaScores <- as.df(with(scores[is.na(scores$filter),],tapply(1:length(hgvsp),hgvsp, function(is) {
+	aaScores <- as.df(with(filteredScores,tapply(1:length(hgvsp),hgvsp, function(is) {
 		if (!any(is.na(bce.sd[is]))) {
-		  #FIXME: Use residual error as weights
 			joint <- join.datapoints(
-			  bce[is],
-			  bce.sd[is],
-				rep(params$numReplicates[[sCond]],length(is))
+			  ms=bce[is],
+			  sds=bce.sd[is],
+				dfs=rep(params$numReplicates[[sCond]],length(is)),
+				ws=(1/nerr[is])/sum(1/nerr[is])
 			)
 		} else {
 			#this is the case if srOverride is turned on and only
@@ -722,8 +726,8 @@ scoreDistributions <- function(scores,sCond,tp,outDir,params) {
 				dfj=params$numReplicates[[sCond]]*length(is)
 			)
 		}
+	  #extract AA position and derive region assignment
 		p <- unique(as.integer(extract.groups(aaChange[is],"(\\d+)")[,1]))
-		# mutregion <- with(as.data.frame(params$regions),which(p >= `Start AA` & p <= `End AA`))
 		mutregion <- params$pos2reg(p)
 		list(
 			hgvsp=unique(hgvsp[is]),

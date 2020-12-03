@@ -284,22 +284,22 @@ validateParameters <- function(params,srOverride=FALSE) {
 	  stop("Replicate disagreement factor (cvDevation) must be greater than 1!")
 	}
 
-	#validate normalization table
-	if (length(params$normalization) > 0 && nrow(params$normalization) > 0) {
-		if (!all(params$normalization$Condition %in% getSelects(params))) {
-			stop("Normalization overrides can only be defined for selection conditions.")
+	#validate pivots table
+	if (length(params$pivots) > 0 && nrow(params$pivots) > 0) {
+		if (!all(params$pivots$Condition %in% getSelects(params))) {
+			stop("Score scaling pivots can only be defined for selection conditions.")
 		}
-		if (!all(params$normalization$`Time point` %in% params$timepoints$`Time point name`)) {
-			stop("Invalid time-point in normalization override table!")
+		if (!all(params$pivots$`Time point` %in% params$timepoints$`Time point name`)) {
+			stop("Invalid time-point in pivots table!")
 		}
-		if (!all(params$normalization$Region %in% params$regions$`Region Number`)) {
-			stop("Invalid region(s) in normalization override table!")
+		if (!all(params$pivots$Region %in% params$regions$`Region Number`)) {
+			stop("Invalid region(s) in pivots table!")
 		}
-		if (!all(params$normalization$Type %in% c("synonymous","nonsense"))) {
-			stop("Invalid entries in normalization override table: Type must be 'synonymous' or 'nonsense'!")
+		if (!all(params$pivots$Type %in% c("synonymous","nonsense"))) {
+			stop("Invalid entries in pivots table: Type must be 'synonymous' or 'nonsense'!")
 		}
-		if (any(is.na(params$normalization$Value))) {
-			stop("Invalid entries in normalization override table: Value must be numeric!")
+		if (any(is.na(params$pivots$Value))) {
+			stop("Invalid entries in pivots table: Value must be numeric!")
 		}
 	}
 
@@ -503,13 +503,14 @@ csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",infile),
 	  output$scoring$cvDeviation <- 10
 	}
 	
-	#Extract normalization overrides
-	output$normalization <- list()
-	if (hasRow("Score normalization overrides") && hasRow("Condition")) {
+	#Extract scale pivots
+	output$pivots <- list()
+	#Pivots table used to be called "Score normalization override", so we provide backwards compatibility here
+	if ((hasRow("Score normalization overrides") || hasRow("Score scaling pivots")) && hasRow("Condition")) {
 		overrideTable <- as.data.frame(extractTable(firstField="Condition",nextSection=""))
 		overrideTable$`Region` <- as.numeric(overrideTable$`Region`)
 		overrideTable$`Value` <- as.numeric(overrideTable$`Value`)
-		output$normalization <- overrideTable
+		output$pivots <- overrideTable
 	}
 
 
@@ -578,12 +579,12 @@ parseParameters <- function(filename,srOverride=FALSE) {
 	params$samples <- as.data.frame(params$samples)
 	colnames(params$samples) <- sampleCols
 
-	if (length(params$normalization) > 0 && length(params$normalization[[1]]) > 0) {
-		normCols <- names(params$normalization)
-		params$normalization <- as.data.frame(params$normalization)
-		colnames(params$normalization) <- normCols
+	if (length(params$pivots) > 0 && length(params$pivots[[1]]) > 0) {
+		pCols <- names(params$pivots)
+		params$pivots <- as.data.frame(params$pivots)
+		colnames(params$pivots) <- pCols
 	} else {
-		params$normalization <- NULL
+		params$pivots <- NULL
 	}
 
 	#make sure lists remain lists

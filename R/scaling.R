@@ -27,7 +27,7 @@
 #' @export
 scaleScores <- function(dataDir, scoreDir=NA, outDir=NA, 
                         paramFile=paste0(dataDir,"parameters.json"),
-                        srOverride=FALSE, bnOverride=FALSE) {
+                        srOverride=FALSE, bnOverride=FALSE,autoPivot=FALSE) {
   
   
   op <- options(stringsAsFactors=FALSE)
@@ -56,6 +56,10 @@ scaleScores <- function(dataDir, scoreDir=NA, outDir=NA,
     parseParameters(paramFile,srOverride=srOverride),
     warning=function(w)logWarn(conditionMessage(w))
   )
+  
+  if (!autoPivot) {
+    checkPivots(params)
+  }
   
   #find counts folder
   if (is.na(scoreDir)) {
@@ -124,12 +128,14 @@ scaleScores <- function(dataDir, scoreDir=NA, outDir=NA,
       regions <- params$regions[,"Region Number"]
       scoreTable <- do.call(rbind,lapply(regions, function(region) {
         
+        logInfo("Processing region",region)
+        
         msc <-  enrichments[which(enrichments$region == region),]
         
         # Scaling to synonymous and nonsense medians -----------------------------
         logInfo("Scaling...")
         #check if overrides were provided for the distribution modes
-        normOvr <- getNormOverrides(params,sCond,tp,region)
+        normOvr <- getPivotOverrides(params,sCond,tp,region)
         #and apply
         msc <- cbind(msc,enactScale(msc,msc$aaChange,params$scoring$sdThreshold,normOvr))
         
@@ -249,7 +255,7 @@ residualError <- function(values, errors) {
 }
 
 
-#' Helper function to extract normalization override values from the parameter sheet
+#' Helper function to extract scaling pivot point override values from the parameter sheet
 #' if they exist
 #' @param params the parameter sheet
 #' @param sCond the current selective condition ID
@@ -257,17 +263,39 @@ residualError <- function(values, errors) {
 #' @param region the region ID
 #' @return a vector with syn and stop overrides, or \code{NA} if they weren't defined.
 #' @export
-getNormOverrides <- function(params,sCond,tp,region) {
+getPivotOverrides <- function(params,sCond,tp,region) {
   pullValue <- function(type) {
-    with(params$normalization,{
+    with(params$pivots,{
       row <- which(Condition == sCond & `Time point` == tp & Region == region & Type == type)
       if (length(row)==0) NA else Value[row]
     })
   }
-  if (length(params$normalization) == 0 || nrow(params$normalization) == 0) {
+  if (length(params$pivots) == 0 || nrow(params$pivots) == 0) {
     return(c(syn=NA,non=NA))
   } else {
     return(c(syn=pullValue("synonymous"),non=pullValue("nonsense")))
+  }
+}
+
+checkPivots <- function(params) {
+  helpMsg <- "==>Please either define pivots or use the autoPivot flag.<=="
+  if (is.null(params$pivots)) {
+    stop("No scale pivots defined in parameter sheet!\n",helpMsg)
+  }
+  errors <- do.call(c,lapply(getSelects(params), function(sCond) {
+    do.call(c,lapply(getTimepointsFor(sCond,params),function(tp) {
+      missing <- sapply(params$regions$`Region Number`, function(regi) {
+        any(is.na(getPivotOverrides(params,sCond,tp,regi)))
+      })
+      if (any(missing)) {
+        sprintf("No scale pivots defined for region %i in %s time-point %s",
+                regi,sCond,tp
+        )
+      } else NULL
+    }))
+  }))
+  if (length(errors) > 0){
+    stop(paste(c(errors,helpMsg),collapse="\n"))
   }
 }
 
@@ -317,25 +345,26 @@ enactScale <- function(msc,aac,sdThreshold,overrides=c(syn=NA,non=NA)) {
   logInfo(sprintf("Auto-detected nonsense median: %.03f",nonsenseMedian))
   logInfo(sprintf("Auto-detected synonymous median: %.03f",synonymousMedian))
   
+  #FIXME: If manual pivot points are provided, this check is moot!
   if (is.na(nonsenseMedian) || is.na(synonymousMedian)) {
     logWarn(
       "No nonsense or no synonymous variants of sufficient quality were found!\n",
-      "!!Scaling/normalization is impossible! Most downstream analyses will not work!!"
+      "!!Scaling is impossible! Most downstream analyses will not work!!"
     )
     return(data.frame(type=msc$type,score=NA,score.sd=NA))
   }
   
   #apply any potential overrides
   if (!is.na(overrides[["syn"]])) {
-    logWarn(sprintf(
-      "Applying synonymous mode override: %.03f -> %.03f",
+    logInfo(sprintf(
+      "Applying manual synonymous pivot: %.03f -> %.03f",
       synonymousMedian, overrides[["syn"]]
     ))
     synonymousMedian <- overrides[["syn"]]
   }
   if (!is.na(overrides[["non"]])) {
-    logWarn(sprintf(
-      "Applying nonsense mode override: %.03f -> %.03f",
+    logInfo(sprintf(
+      "Applying manual nonsense pivot: %.03f -> %.03f",
       nonsenseMedian, overrides[["non"]]
     ))
     nonsenseMedian <- overrides[["non"]]
