@@ -352,7 +352,7 @@ csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",infile),
 	#helper function to locate a named row
 	getRow <- function(rowname) {
 		if (!hasRow(rowname)) {
-			stop("Missing section: ",rowname)
+			stop("Parameter sheet is missing mandatory entry: ",rowname)
 		}
 		i <- which (col1==rowname)
 		if (is.null(i))  stop("Missing field: ",rowname)
@@ -436,6 +436,9 @@ csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",infile),
 	output$tiles <- tileTable
 
 	#extract condition definitions
+	if (!hasRow("Condition 1") || !hasRow("Condition definitions")) {
+	  stop("Parameter sheet is missing the mandatory table 'Condition definitions'!")
+	}
 	conditionTable <- extractTable(firstField="Condition 1",nextSection="Time point definitions")
 	output$conditions$definitions <- conditionTable
 
