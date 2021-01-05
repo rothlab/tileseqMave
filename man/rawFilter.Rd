@@ -4,7 +4,7 @@
 \alias{rawFilter}
 \title{Function to apply filtering based on raw counts / frequency}
 \usage{
-rawFilter(msc, countThreshold, wtq = 0.95, cvm = 10)
+rawFilter(msc, countThreshold, wtq = 0.95, cvm = 10, srOverride = FALSE)
 }
 \arguments{
 \item{msc}{dataframe containing the output of the 'mean.sd.count()' function.}
