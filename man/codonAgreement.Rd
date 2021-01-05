@@ -4,7 +4,7 @@
 \alias{codonAgreement}
 \title{Draw plots to analyze agreement between equivalent codons}
 \usage{
-codonAgreement(scores, sCond, tp, params, outDir)
+codonAgreement(scores, sCond, tp, params, outDir, srOverride)
 }
 \arguments{
 \item{scores}{the score table}

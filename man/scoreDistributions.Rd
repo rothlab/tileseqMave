@@ -4,7 +4,7 @@
 \alias{scoreDistributions}
 \title{Draw score distribution plots}
 \usage{
-scoreDistributions(scores, sCond, tp, outDir, params)
+scoreDistributions(scores, sCond, tp, outDir, params, srOverride)
 }
 \arguments{
 \item{scores}{the score table}

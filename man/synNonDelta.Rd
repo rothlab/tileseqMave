@@ -5,7 +5,7 @@
 \title{Draws a plot showing running means of synonymous and nonsense variant scores
 across the length of the protein, as well as difference track between the two.}
 \usage{
-synNonDelta(scores, sCond, tp, params, outDir)
+synNonDelta(scores, sCond, tp, params, outDir, srOverride)
 }
 \arguments{
 \item{scores}{data.frame of the scores}

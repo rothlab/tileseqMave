@@ -168,7 +168,7 @@ selectionQC <- function(dataDir,countDir=NA, scoreDir=NA, outDir=NA,
 			marginalSubset <- marginalCounts[scores$hgvsc,]
 
 			#Score distributions & syn/non medians
-			scoreDistributions(scores,sCond,tp,outDir,params)
+			scoreDistributions(scores,sCond,tp,outDir,params,srOverride)
 			
 			#plot logPhi bias vs marginal frequency
 			logPhiBias(scores,params,sCond,tp,outDir)
@@ -177,10 +177,10 @@ selectionQC <- function(dataDir,countDir=NA, scoreDir=NA, outDir=NA,
 			filterProgression(scores,sCond,tp,params,outDir)
 			
 			#examine codon agreement for same amino acids
-			codonAgreement(scores,sCond,tp,params,outDir)
+			codonAgreement(scores,sCond,tp,params,outDir,srOverride)
 			
 			#running mean of synonymous, stop and their difference
-			synNonDelta(scores,sCond,tp,params,outDir)
+			synNonDelta(scores,sCond,tp,params,outDir,srOverride)
 
 			#all of these analyses require more than one replicate
 			# if (params$numReplicates[[sCond]] > 1) {
@@ -703,15 +703,17 @@ regularizationQC <- function(scores,modelParams,params,sCond,tp,outDir) {
 #' @param tp the time point
 #' @param outDir the output directory
 #' @return NULL
-scoreDistributions <- function(scores,sCond,tp,outDir,params) {
-	
+scoreDistributions <- function(scores,sCond,tp,outDir,params,srOverride) {
+  
   filteredScores <- scores[is.na(scores$filter),]
-  resErr <- residualError(filteredScores$bce,filteredScores$bce.sd)
-  nerr <- resErr - min(resErr,na.rm=TRUE) + min(abs(resErr),na.rm=TRUE)
+  if (!srOverride) {
+    resErr <- residualError(filteredScores$bce,filteredScores$bce.sd)
+    nerr <- resErr - min(resErr,na.rm=TRUE) + min(abs(resErr),na.rm=TRUE)
+  }
   
 	#collapse by amino acid consequence and associate with regions
 	aaScores <- as.df(with(filteredScores,tapply(1:length(hgvsp),hgvsp, function(is) {
-		if (!any(is.na(bce.sd[is]))) {
+		if (!srOverride && !any(is.na(bce.sd[is]))) {
 			joint <- join.datapoints(
 			  ms=bce[is],
 			  sds=bce.sd[is],
@@ -757,9 +759,15 @@ scoreDistributions <- function(scores,sCond,tp,outDir,params) {
 		reg <- unique(aaScores$region[is])
 		drawDistributions(aaScores[is,],Inf,reg)
 		tagger$cycle()
-		if (!any(is.na(aaScores[is,"se"]))) {
+		if (!srOverride && !any(is.na(aaScores[is,"se"]))) {
 			drawDistributions(aaScores[is,],sdCutoff,reg)
 			tagger$cycle()
+		} else {
+		  plot.new()
+		  rect(0,0,1,1,col="gray80",border="gray30",lty="dotted")
+		  text(0.5,0.5,"unable to perform\nquality filtering")
+		  plot.new()
+		  tagger$cycle()
 		}
 		return(NULL)
 	}))
@@ -893,12 +901,14 @@ errorProfile <- function(scores,sCond,tp,outDir,params) {
       get(varname),log10(get(sdname)),fun=median,nbins=20
     ))
     runningMedian[,2] <- 10^runningMedian[,2]
+    expectation <- with(scores[is.na(scores$filter),],expectedError(get(varname),get(sdname)))
     par(mar=c(5,4,0,0)+.1)
     with(scores[is.na(scores$filter),],plot(
       get(varname),get(sdname),log="y",pch=".",
       xlab=xlab,ylab=expression(sigma)
     ))
     lines(runningMedian,col="steelblue3",lwd=2)
+    curve(expectation,add=TRUE,col="firebrick3",lwd=2)
     par(mar=c(0,4,1,0)+.1) 
     breaks <- seq(lphiRange[[1]],lphiRange[[2]],length.out=50)
     lphiHist <- with(scores[is.na(scores$filter),], hist(get(varname),breaks=breaks,plot=FALSE))
@@ -933,7 +943,7 @@ errorProfile <- function(scores,sCond,tp,outDir,params) {
 #' @param params parameter sheet object
 #' @param outdir output directory
 #' @return nothing. writes plots to output directory
-codonAgreement <- function(scores,sCond,tp,params,outDir) {
+codonAgreement <- function(scores,sCond,tp,params,outDir,srOverride) {
   codonGroups <- tapply(1:nrow(scores),scores$hgvsp,c)
   nCodons <- sapply(codonGroups,length)
   
@@ -980,11 +990,17 @@ codonAgreement <- function(scores,sCond,tp,params,outDir) {
    
     #plot score difference against max(sd)
     par(mar=c(5,4,2,1))
-    plot(
-      abs(logPhi1-logPhi2),mapply(max,sd1,sd2),log="y",
-      pch=20,col=alphaCol,
-      xlab=expression(Delta~log(phi)),ylab=expression(max(sigma))
-    )
+    if (!srOverride) {
+      plot(
+        abs(logPhi1-logPhi2),mapply(max,sd1,sd2),log="y",
+        pch=20,col=alphaCol,
+        xlab=expression(Delta~log(phi)),ylab=expression(max(sigma))
+      )
+    } else {
+      plot.new()
+      rect(0,0,1,1,col="gray80",border="gray30",lty="dotted")
+      text(0.5,0.5,"no replicate data")
+    }
   })
   tagger$cycle()
   par(op)
@@ -1002,18 +1018,20 @@ codonAgreement <- function(scores,sCond,tp,params,outDir) {
 #' @param params the parameter sheet object
 #' @param outDir the output directory
 #' @return nothing, writes plot to output directory
-synNonDelta <- function(scores,sCond,tp,params,outDir){
+synNonDelta <- function(scores,sCond,tp,params,outDir,srOverride){
   scores$pos <- as.integer(gsub("\\D+","",scores$aaChange))
   #positional weighted averages of synonymous variants
   #FIXME: Use residual error as weights
   syns <- as.df(with(scores[scores$type=="synonymous" & is.na(scores$filter),],tapply(1:length(pos),pos,function(idxs){
-    joint <- join.datapoints(logPhi[idxs],logPhi.sd[idxs],rep(2,length(idxs)))
+    sds <- if (!srOverride) logPhi.sd[idxs] else rep(1,length(idxs))
+    joint <- join.datapoints(logPhi[idxs],sds,rep(2,length(idxs)))
     p <- unique(pos[idxs])
     c(pos=p,joint)
   })))
   #positional weighted averages of nonsense (stop) variants
   stops <- as.df(with(scores[scores$type=="nonsense" & is.na(scores$filter),],tapply(1:length(pos),pos,function(idxs){
-    joint <- join.datapoints(logPhi[idxs],logPhi.sd[idxs],rep(2,length(idxs)))
+    sds <- if (!srOverride) logPhi.sd[idxs] else rep(1,length(idxs))
+    joint <- join.datapoints(logPhi[idxs],sds,rep(2,length(idxs)))
     p <- unique(pos[idxs])
     c(pos=p,joint)
   })))
