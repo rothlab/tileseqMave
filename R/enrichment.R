@@ -243,13 +243,14 @@ calcEnrichment <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"
 				msc$filter <- rawFilter(msc,
           params$scoring$countThreshold,
           params$scoring$wtQuantile,
-          params$scoring$cvDeviation
+          params$scoring$cvDeviation,
+          srOverride
 				)
 
 				
 				# log(phi) calculation and error propagation ---------------------------
 				logInfo("Calculating logPhi values...")
-				if (nbs < 10) {
+				if (nbs < 10 || srOverride) {
 				  logInfo("Bootstrapping disabled. Defaulting to heuristic error propagation.")
 				  msc <- cbind(msc,calcPhi(msc))
 				} else {
@@ -516,7 +517,7 @@ mean.sd.count <- function(cond,regionalCounts,tp,params) {
 #' @param cvm coefficient of variation multiplier. Up to how much more than the 
 #'  expected CV do we accept as normal?
 #' @return a vector listing for each row in the table which (if any) filters apply, otherwise NA.
-rawFilter <- function(msc,countThreshold,wtq=0.95,cvm=10) {
+rawFilter <- function(msc,countThreshold,wtq=0.95,cvm=10,srOverride=FALSE) {
 	#if no error estimates are present, pretend it's 0
 	if (all(c("nonWT.sd.bayes", "selWT.sd.bayes") %in% colnames(msc))) {
 		sd.sWT <- msc$selWT.sd.bayes
@@ -554,13 +555,18 @@ rawFilter <- function(msc,countThreshold,wtq=0.95,cvm=10) {
 	)
 	
 	#determine replicate bottlenecks
-	non.cv.poisson <- 1/sqrt(msc[,"nonselect.count"])
-	sel.cv.poisson <- 1/sqrt(msc[,"select.count"]+.1)
-	non.cv <- msc$nonselect.cv
-	sel.cv <- msc$select.cv
-	#remove NAs caused by mean = 0 (their sd is also zero)
-	sel.cv[is.na(sel.cv)] <- 0
-	rFilter <- non.cv > cvm*non.cv.poisson | sel.cv > cvm*sel.cv.poisson
+	if (!srOverride) {
+  	non.cv.poisson <- 1/sqrt(msc[,"nonselect.count"])
+  	sel.cv.poisson <- 1/sqrt(msc[,"select.count"]+.1)
+  	non.cv <- msc$nonselect.cv
+  	sel.cv <- msc$select.cv
+  	#remove NAs caused by mean = 0 (their sd is also zero)
+  	sel.cv[is.na(sel.cv)] <- 0
+	  rFilter <- non.cv > cvm*non.cv.poisson | sel.cv > cvm*sel.cv.poisson
+	} else {
+	  #if single-replicate override is enabled, we can't use the replicate filter
+	  rFilter <- rep(FALSE,length(wFilter))
+	}
 	
 	
 	mapply(function(ns,s,rf,w) {
