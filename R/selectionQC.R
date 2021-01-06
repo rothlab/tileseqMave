@@ -859,23 +859,23 @@ drawDistributions <- function(aaScores,seCutoff=Inf,reg=NA) {
 	x1 <- xs[which(breaks==1),1]
 	uCoord <- function(x)  x0 + x*(x1-x0)
 	#draw medians and percentile
-	abline(v=uCoord(median(synScores)),col="darkolivegreen4",lwd=2,lty="dotted")
-	abline(v=uCoord(median(stopScores)),col="firebrick3",lwd=2,lty="dotted")
-	abline(v=uCoord(quantile(misScores,0.1)),col="gray30",lwd=2,lty="dotted")
+	abline(v=uCoord(median(synScores,na.rm=TRUE)),col="darkolivegreen4",lwd=2,lty="dotted")
+	abline(v=uCoord(median(stopScores,na.rm=TRUE)),col="firebrick3",lwd=2,lty="dotted")
+	abline(v=uCoord(quantile(misScores,0.1,na.rm=TRUE)),col="gray30",lwd=2,lty="dotted")
 	text(
-		uCoord(median(synScores)),
+		uCoord(median(synScores,na.rm=TRUE)),
 		-max(misHist$density)/3,
 		sprintf("Synonymous median\n%.03f",median(synScores)),
 		col="darkolivegreen4"
 	)
 	text(
-		uCoord(median(stopScores)),
+		uCoord(median(stopScores,na.rm=TRUE)),
 		-2*max(misHist$density)/3,
 		sprintf("Nonsense median\n%.03f",median(stopScores)),
 		col="firebrick3"
 	)
 	text(
-		uCoord(quantile(misScores,0.1)),
+		uCoord(quantile(misScores,0.1,na.rm=TRUE)),
 		-max(misHist$density)/2,
 		sprintf("10th percentile\n%.03f",quantile(misScores,0.1)),
 		col="gray30"
