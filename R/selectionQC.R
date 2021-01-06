@@ -802,15 +802,15 @@ drawDistributions <- function(aaScores,seCutoff=Inf,reg=NA) {
 
 	#extract filtered scores
 	if (!all(is.na(aaScores$se))) {
-		synScores <- with(aaScores,bce[grepl("=$",hgvsp) & se < seCutoff ])
-		stopScores <- with(aaScores,bce[grepl("Ter$",hgvsp) & se < seCutoff])
-		misScores <- with(aaScores,bce[!grepl("Ter$|=$",hgvsp) & se < seCutoff])
+		synScores <- fin(with(aaScores,bce[grepl("=$",hgvsp) & se < seCutoff ]))
+		stopScores <- fin(with(aaScores,bce[grepl("Ter$",hgvsp) & se < seCutoff]))
+		misScores <- fin(with(aaScores,bce[!grepl("Ter$|=$",hgvsp) & se < seCutoff]))
 	} else {
-		synScores <- with(aaScores,bce[grepl("=$",hgvsp)])
-		stopScores <- with(aaScores,bce[grepl("Ter$",hgvsp)])
-		misScores <- with(aaScores,bce[!grepl("Ter$|=$",hgvsp)])
+		synScores <- fin(with(aaScores,bce[grepl("=$",hgvsp)]))
+		stopScores <- fin(with(aaScores,bce[grepl("Ter$",hgvsp)]))
+		misScores <- fin(with(aaScores,bce[!grepl("Ter$|=$",hgvsp)]))
 	}
-	allScores <- c(synScores,stopScores,misScores)
+	allScores <- fin(c(synScores,stopScores,misScores))
 
 	#calculate plot ranges to nearest integers
 	left <- floor(quantile(allScores,0.01,na.rm=TRUE))
