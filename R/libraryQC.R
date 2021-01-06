@@ -231,6 +231,9 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
   			nsMarginalMeans <- marginalCounts[,nsReps]
   			nsAllMeans <- allCounts[,nsReps]
   		}
+	    
+	    smallestFreq <- unique(sort(fin(nsMarginalMeans)))[[2]]
+	    pseudoCount <- 10^floor(log10(smallestFreq))
   
   		#if WT controls are present, average over them as well and subtract from nonselect
   		wtCond <- getWTControlFor(nsCond,params)
@@ -248,6 +251,11 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
   				wtMarginalMeans <- marginalCounts[,wtReps]
   			}
   			
+  			#adjust pseudocount if necessary
+  			smallestFreq <- unique(sort(fin(wtMarginalMeans)))[[2]]
+  			wtPC <- 10^floor(log10(smallestFreq))
+  			if (wtPC < pseudoCount) pseudoCount <- wtPC
+  			
   			#new WT ctrl plot
   			logInfo("Drawing WT control level plot")
   			pdf(paste0(outDir,nsCond,"_t",tp,"_WTlevels.pdf"),8.5,11)
@@ -261,15 +269,17 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
     			  text(0.5,0.5,"no data")
     			  mtext(paste0("Tile #",tile),side=4)
     			} else {
-      			breaks <- seq(-7,0,.1)
-      			wtHist <- hist(log10(wtMarginalMeans[rows]+1e-7),breaks=breaks,plot=FALSE)
-      			nsHist <- hist(log10(nsMarginalMeans[rows]+1e-7),breaks=breaks,plot=FALSE)
+    			  #FIXME: This breaks when sequencing depth allows for lower freqs!
+    			  
+      			breaks <- seq(log10(pseudoCount),0,.1)
+      			wtHist <- hist(log10(wtMarginalMeans[rows]+pseudoCount),breaks=breaks,plot=FALSE)
+      			nsHist <- hist(log10(nsMarginalMeans[rows]+pseudoCount),breaks=breaks,plot=FALSE)
       			maxDens <- max(c(wtHist$density,nsHist$density),na.rm=TRUE)
-      			plot(NA,type="n",xlim=c(-7,0),ylim=c(-maxDens,maxDens),axes=FALSE,
+      			plot(NA,type="n",xlim=c(log10(pseudoCount),0),ylim=c(-maxDens,maxDens),axes=FALSE,
       			     ylab="wildtype density : nonselect density",xlab="mean marginal frequency",
       			     main=sprintf("Tile #%i",tile)
       			)
-      			axis(1,at=seq(-7,0),c(0,10^-(6:1),1))
+      			axis(1,at=seq(log10(pseudoCount),0),c(0,10^((log10(pseudoCount)+1):-1),1))
       			axis(2,at=-round(maxDens):round(maxDens),c(round(maxDens):0,1:round(maxDens)))
       			with(nsHist,rect(breaks[-length(breaks)],0,breaks[-1],density,col="steelblue3",border=NA))
       			with(wtHist,rect(breaks[-length(breaks)],0,breaks[-1],-density,col="firebrick3",border=NA))
@@ -693,6 +703,7 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
   		aaMarginal$index <- with(aaMarginal,paste0(pos,toaa))
   
   		#list of frequency thresholds to test
+  		#TODO: Make this dynamic based on pseudocount value (which indicates lowest magnitude)
   		thresholds <- 10^seq(-7,-2,0.1)
   
   		#iterate over regions and analyze separately
