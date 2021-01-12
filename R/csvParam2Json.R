@@ -903,7 +903,7 @@ latestSubDir <- function(parentDir,pattern="_mut_call$|mut_count$") {
 	#extract time stamp
 	labelsAndTimes <- extract.groups(subDirs,"([^/]+_)?(\\d{4}-\\d{2}-\\d{2}-\\d{2}-\\d{2}-\\d{2})")
 	#select the newest dataset
-	latestIdx <- which.max(order(labelsAndTimes[,2]))
+	latestIdx <- order(labelsAndTimes[,2])[[nrow(labelsAndTimes)]]
 	return(c(
 		dir=subDirs[[latestIdx]],
 		timeStamp=labelsAndTimes[latestIdx,2],
