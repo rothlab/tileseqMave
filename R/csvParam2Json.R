@@ -171,7 +171,57 @@ validateParameters <- function(params,srOverride=FALSE) {
 	  }
 	}
 
-
+	#validate tiles
+	if (nrow(params$tiles) < 1) {
+	  stop("Must define at least one tile!")
+	}
+	if (!all(params$tiles%%1==0)) {
+	  stop("Tile numbers, starts and ends must be integer numbers!")
+	}
+	if (any(params$tiles[,"Start AA"] < 2)) {
+	  offender <- params$tiles[which(params$tiles[,"Start AA"] < 2),1]
+	  logWarn("Tile",paste(offender,collapse=", "),"includes start codon!!")
+	}
+	if (nrow(params$tiles) > 1) {
+	  for (i in 2:nrow(params$tiles)) {
+	    for (j in 1:(i-1)) {
+	      ji <- params$tiles[i,"Start AA"] > params$tiles[j,"End AA"]
+	      ij <- params$tiles[j,"Start AA"] > params$tiles[i,"End AA"]
+	      if (!(ji || ij)) {
+	        stop(
+	          "Tiles ",params$tiles[i,1]," and ",params$tiles[j,1]," are overlapping!\n",
+	          "Tiles must not overlap!"
+	        )
+	      }
+	    }
+	  }
+	}
+	
+	#validate regions
+	if (nrow(params$regions) < 1) {
+	  stop("Must define at least one tile!")
+	}
+	if (!all(params$regions%%1==0)) {
+	  stop("Tile numbers, starts and ends must be integer numbers!")
+	}
+	if (any(params$regions[,"Start AA"] < 2)) {
+	  offender <- params$regions[which(params$regions[,"Start AA"] < 2),1]
+	  logWarn("Region",paste(offender,collapse=", "),"includes start codon!!")
+	}
+	if (nrow(params$regions) > 1) {
+	  for (i in 2:nrow(params$regions)) {
+	    for (j in 1:(i-1)) {
+	      ji <- params$regions[i,"Start AA"] > params$regions[j,"End AA"]
+	      ij <- params$regions[j,"Start AA"] > params$regions[i,"End AA"]
+	      if (!(ji || ij)) {
+	        stop(
+	          "Regions ",params$regions[i,1]," and ",params$regions[j,1]," are overlapping!\n",
+	          "Regions must not overlap!"
+	        )
+	      }
+	    }
+	  }
+	}
 
 	#validate the sample sheet
 	if (!all(params$samples[,"Tile ID"] %in% params$tiles[,"Tile Number"])) {

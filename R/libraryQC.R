@@ -269,8 +269,6 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
     			  text(0.5,0.5,"no data")
     			  mtext(paste0("Tile #",tile),side=4)
     			} else {
-    			  #FIXME: This breaks when sequencing depth allows for lower freqs!
-    			  
       			breaks <- seq(log10(pseudoCount),0,.1)
       			wtHist <- hist(log10(wtMarginalMeans[rows]+pseudoCount),breaks=breaks,plot=FALSE)
       			nsHist <- hist(log10(nsMarginalMeans[rows]+pseudoCount),breaks=breaks,plot=FALSE)
