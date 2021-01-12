@@ -359,6 +359,40 @@ validateParameters <- function(params,srOverride=FALSE) {
 }
 
 
+#' Get a contingency table of characters in a file
+#'
+#' @param filename the file to analyze
+#'
+#' @return a contingency table of the characters in the file
+#' @export
+charProfile <- function(filename) {
+  chars <- yogitools::toChars(readChar(filename,file.info(filename)$size))
+  sort(table(chars),decreasing=TRUE)
+}
+
+#' Checks if a file is a CSV file or throws errors
+#'
+#' @param filename the file to check
+#'
+#' @return nothing
+#' @export
+checkCSV <- function(filename) {
+  if (!grepl("\\.csv$",filename)) {
+    stop(filename," is not a CSV file!")
+  }
+  tryCatch({
+    chars <- charProfile(filename)
+  },error=function(e) {
+    stop(filename, " is not a CSV file!\n",
+         "(It may have been corrupted or accidentally saved in a binary format.) \n",
+         "Details:",conditionMessage(e))
+  })
+  if (!("," %in% head(names(chars))) || chars[["\n"]] < 10) {
+    stop(filename, " is not following proper CSV format specifications!")
+  }
+}
+
+
 #' convert CSV input parameter file to JSON format
 #'
 #' @param infile the input CSV file
@@ -376,12 +410,10 @@ csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",infile),
 
 
 	#check that the file is indeed a csv file and can be read
-	if(!grepl("\\.csv$",infile)) {
-		stop("Input file must be CSV file!")
-	}
 	if (!canRead(infile)) {
 		stop("Input file cannot be read!")
 	}
+	checkCSV(infile)
 
 	#read the file into a list of lists
 	csv <- strsplit(scan(infile,what="character",sep="\n",quiet=TRUE),",")
