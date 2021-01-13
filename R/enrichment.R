@@ -301,7 +301,7 @@ calcEnrichment <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"
 			scoreTable <- scoreTable[,new.order]
 
 			logInfo("Writing full table to file.")
-			timestamp <- if (exists(latest)) latest[["timeStamp"]] else "?"
+			timestamp <- if (exists("latest")) latest[["timeStamp"]] else "?"
 			#export to file
 			paramHeader <- paste0(
 			  "# project name: ", params$project,"\n",
