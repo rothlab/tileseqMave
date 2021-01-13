@@ -236,21 +236,73 @@ scaleScores <- function(dataDir, scoreDir=NA, outDir=NA,
   
 }
 
-residualError <- function(values, errors) {
+#' Infer a function that models expected error relative to data point magnitutes
+#'
+#' @param values underlying datapoints
+#' @param errors the error associated with each datapoint
+#'
+#' @return a function that maps data point magnitude to expected error
+#' @export
+expectedError <- function(values,errors) {
   #calculate running median error
   runningMedian <- as.df(lapply(sort(values), function(mid) {
     grp <- which(abs(values-mid) < 0.1)
     c(value=mid,medErr=median(errors[grp],na.rm=TRUE))
   }))
   #fit a smooth polynomial line to the median trail
-  x <- runningMedian$value
-  z <- lm(y~.,data=fin(data.frame(y=log10(runningMedian$medErr),x1=x,x2=x^2,x3=x^3)))
+  # x <- runningMedian$value
+  # z <- lm(y~.,data=fin(data.frame(y=log10(runningMedian$medErr),x1=x,x2=x^2,x3=x^3)))
+  
+  #fit a mirrored logarithm function to the median trail
+  theta0 <- c(.5,.1,1,0)
+  modelFun <- function(x,theta=theta0) {
+    mirror <- theta[[1]]
+    i <- theta[[2]]
+    m1 <- theta[[3]]
+    a1 <- theta[[4]]
+    m1*log10(abs(x-mirror)+i)+a1
+  }
+  # curve(modelFun)
+  objFun <- function(theta) {
+    pred <- modelFun(runningMedian$value,theta)
+    out <- mean(abs(pred-log10(runningMedian$medErr)),na.rm=TRUE)
+    if (is.na(out)) 1e12 else out
+  }
+  opt <- optimization::optim_nm(fun = objFun,start = theta0)
+  
   #build a function to derive the expected error based on the fit above
   expect.error <- function(xs) {
-    10^predict.lm(z,newdata=data.frame(x1=xs,x2=xs^2,x3=xs^3))
+    # 10^predict.lm(z,newdata=data.frame(x1=xs,x2=xs^2,x3=xs^3))
+    10^modelFun(xs,theta=opt$par)
   }
+  # plot(values,errors,pch=".",log="y")
+  # lines(runningMedian,col=2)
+  # curve(expect.error,add=TRUE)
+  return(expect.error)
+}
+
+#' Calculate the residual error
+#' 
+#' Models expected error relative to data point magnitudes and then uses the model
+#' to calculate the residual error, i.e. how much greater or lesser the error is
+#' compared to expectation.
+#'
+#' @param values vector of underlying datapoints
+#' @param errors the error associated with each datapoint
+#'
+#' @return the residual error vector
+#' @export
+residualError <- function(values, errors) {
+  
+  #build a function to derive the expected error based on the fit above
+  expect.error <- expectedError(values, errors)
+  
   #calculate residual error
   residual.error <- errors-expect.error(values)
+  #remove excessive negative outliers
+  q01 <- quantile(residual.error,0.01,na.rm=TRUE)
+  residual.error <- sapply(residual.error,max,q01)
+  
   return(residual.error)
 }
 

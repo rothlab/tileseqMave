@@ -168,18 +168,23 @@ selectionQC <- function(dataDir,countDir=NA, scoreDir=NA, outDir=NA,
 			marginalSubset <- marginalCounts[scores$hgvsc,]
 
 			#Score distributions & syn/non medians
+			logInfo("Plotting score distributions")
 			scoreDistributions(scores,sCond,tp,outDir,params,srOverride)
 			
 			#plot logPhi bias vs marginal frequency
+			logInfo("Plotting log(phi) bias")
 			logPhiBias(scores,params,sCond,tp,outDir)
 
 			#filter progression graph
+			logInfo("Plotting filter progression")
 			filterProgression(scores,sCond,tp,params,outDir)
 			
 			#examine codon agreement for same amino acids
+			logInfo("Plotting codon agreement")
 			codonAgreement(scores,sCond,tp,params,outDir,srOverride)
 			
 			#running mean of synonymous, stop and their difference
+			logInfo("Plotting synonymous-nonsense deltas")
 			synNonDelta(scores,sCond,tp,params,outDir,srOverride)
 
 			#all of these analyses require more than one replicate
@@ -187,6 +192,7 @@ selectionQC <- function(dataDir,countDir=NA, scoreDir=NA, outDir=NA,
 			if (!srOverride) {
 
 				#run replicate correlation analysis
+			  logInfo("Plotting replicate correlations")
 				replicateCorrelation(scores, marginalSubset, params, sCond, tp, outDir)
 
 				#load error model file
@@ -195,6 +201,7 @@ selectionQC <- function(dataDir,countDir=NA, scoreDir=NA, outDir=NA,
 					logWarn("No error model file found. Skipping regularization QC.")
 				} else {
 					#Regularization analysis
+				  logInfo("Visualizing regularization model fits")
 					modelParams <- read.csv(modelFile,row.names=1)
 					regularizationQC(scores,modelParams,params,sCond,tp,outDir)
 				}
@@ -203,6 +210,7 @@ selectionQC <- function(dataDir,countDir=NA, scoreDir=NA, outDir=NA,
 				#then we can't run an error profile analysis
 				if (!all(is.na(scores$logPhi)) && !any(scores$logPhi.sd < 0,na.rm=TRUE)) {
 					#Error profile
+				  logInfo("Plotting error profile")
 					errorProfile(scores,sCond,tp,outDir,params)
 				} else {
 					logWarn("Cannot plot error profiles: logPhi values are not available!")
