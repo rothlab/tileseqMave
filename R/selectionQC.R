@@ -144,7 +144,8 @@ selectionQC <- function(dataDir,countDir=NA, scoreDir=NA, outDir=NA,
 	#filter out frameshifts and indels
 	toAA <- extract.groups(marginalCounts$aaChange,"\\d+(.*)$")
 	indelIdx <- which(toAA=="-" | nchar(toAA) > 1)
-	marginalCounts <- marginalCounts[-indelIdx,]
+	silentIdx <- which(marginalCounts$aaChange=="silent")
+	marginalCounts <- marginalCounts[-union(indelIdx,silentIdx),]
 
 	#iterate over conditions
 	for (sCond in getSelects(params)) {

@@ -138,7 +138,8 @@ calcEnrichment <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"
 	#filter out frameshifts and indels
 	toAA <- extract.groups(marginalCounts$aaChange,"\\d+(.*)$")
 	indelIdx <- which(toAA=="-" | nchar(toAA) > 1)
-	marginalCounts <- marginalCounts[-indelIdx,]
+	silentIdx <- which(marginalCounts$aaChange=="silent")
+	marginalCounts <- marginalCounts[-union(indelIdx,silentIdx),]
 
 	#extract variant positions and assign to regions and tiles
 	marginalCounts$position <- as.integer(extract.groups(marginalCounts$codonChange,"(\\d+)"))

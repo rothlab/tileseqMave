@@ -145,6 +145,11 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
 	allCounts <- read.csv(allCountFile,comment.char="#")
 	marginalCounts <- read.csv(marginalCountFile,comment.char="#")
 	depthTable <- read.csv(depthTableFile)
+	
+	#TODO: Maybe at a later point we will want to report on silent mutations too
+	#but for now we remove them
+	allCounts <- allCounts[which(allCounts$aaChanges != "silent"),]
+	marginalCounts <- marginalCounts[which(marginalCounts$aaChange != "silent"),]
 
 
 	logInfo("Interpreting variant descriptors. This may take some time...")

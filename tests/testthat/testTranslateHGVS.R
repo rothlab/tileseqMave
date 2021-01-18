@@ -81,6 +81,18 @@ test_that("translation works", {
 		translateHGVS("c.5_8delinsA",parameters,builder)[[1]],
 		"p.Pro2_Ser3delinsHis"
 	)
+	
+	expect_equal(
+	  translateHGVS("c.0_1insA",parameters,builder)[[2]],
+	  "silent"
+	)
+	
+	expect_equal(
+	  translateHGVS("c.[0_1insA;3_5delinsAAA]",parameters,builder)[[1]],
+	  "p.Met1_Pro2delinsIleAsn"
+	)
+	
+	
 
 })
 

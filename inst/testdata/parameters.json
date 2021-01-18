@@ -8,7 +8,8 @@
 "uniprot": "P35520" 
 },
 "assay": {
- "selection": "Positive" 
+ "name": "Yeast complementation",
+"selection": "Positive" 
 },
 "conditions": {
  "names": [ "nonselect", "select", "wtSelect", "wtNonselect" ],
@@ -67,7 +68,7 @@
   },
 {
    "Tile Number": 5,
-  "Start AA": 146,
+  "Start AA": 147,
   "End AA": 184 
   },
 {
@@ -140,9 +141,11 @@
 "scoring": {
  "countThreshold": 10,
 "pseudo.n": 8,
-"sdThreshold":      0.3 
+"sdThreshold":      0.3,
+"wtQuantile":     0.95,
+"cvDeviation":       10 
 },
-"normalization": {
+"pivots": {
  "Condition": [ "select", "select" ],
 "Time point": [ "1", "1" ],
 "Region": [        1,        1 ],

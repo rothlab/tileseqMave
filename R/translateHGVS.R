@@ -120,13 +120,22 @@ translateHGVS <- function(hgvs, params,
 			breakdown[culprit,"start"] <- newStart
 		}
 	}
+	
+	#################################
+	# CHECK FOR 5'/3'-UTR MUTATIONS #
+	#################################
+	
+	plen <- params$template$proteinLength
+	isUTR <- sapply(1:nrow(breakdown), function(i) with(breakdown[i,],{
+	  start >= plen || (!is.na(end) && end <= 1) || (is.na(end) && start < 1)
+	}))
+	utrVars <- which(isUTR)
 
 	#########################
 	# CHECK FOR FRAMESHIFTS #
 	#########################
-
-	#First, check for frameshifts. 
-	fsCandidates <- which(breakdown$type %in% c("singledeletion","deletion","insertion","delins"))
+  fsTypes <- c("singledeletion","deletion","insertion","delins")
+	fsCandidates <- which((breakdown$type %in% fsTypes) & !isUTR)
 	if (length(fsCandidates) > 0) {
 		inFrame <- sapply(fsCandidates,function(i) {
 			switch(
@@ -175,6 +184,9 @@ translateHGVS <- function(hgvs, params,
 
 	#list affected codons of each mutation to identify potential overlap
 	affectedCodons <- lapply(1:nrow(breakdown),function(i) {
+	  if (isUTR[[i]]) {
+	    return(integer(0))
+	  }
 		ncs <- if (!is.na(breakdown[i,"end"])) {   
 			seq(breakdown[i,"start"],breakdown[i,"end"])
 		} else {
@@ -204,7 +216,7 @@ translateHGVS <- function(hgvs, params,
 	########################################
 
 	#calculate cumulative AA changes by iterating over each codon affected at least once
-	aaChanges <- as.df(lapply(Reduce(union,affectedCodons), function(codonIdx) {
+	aaChanges <- lapply(Reduce(union,affectedCodons), function(codonIdx) {
 		#extract relevant codon sequence
 		codon <- codons[[codonIdx]]
 		#make a copy of the unchanged codon for reference matching purposes
@@ -317,10 +329,21 @@ translateHGVS <- function(hgvs, params,
 			trtable[[codon]]
 		}
 		list(pos=codonIdx,wtaa=wtaa,mutaa=mutaa,wtcodon=wtcodon,mutcodon=codon)
-	}))
+	})
 	
-	#sort aa changes by position
-	aaChanges <- aaChanges[order(aaChanges$pos),]
+	#due to all UTR mutations (see above), the list may be empty
+	if (length(aaChanges) == 0) {
+	  return(c(
+	    hgvsp="p.=",
+	    codonChanges="silent",codonHGVS="c.=",
+	    aaChanges="silent",aaChangeHGVS="p.="
+	  ))
+	}
+	
+  #turn into data.frame
+  aaChanges <- as.df(aaChanges)
+  #sort aa changes by position
+  aaChanges <- aaChanges[order(aaChanges$pos),]
 
 	#Some in-frame indels can result in codons being re-constituted into equivalents of themselves.
 	# e.g deleting 'CCA' from TCCACC results in TCC--- . While these are technically correct calls, 
@@ -349,7 +372,7 @@ translateHGVS <- function(hgvs, params,
 			return(cbuilder$delins(cstart,cstart+nchar(mut)-1,mut))
 		}
 	}
-	#Helper function to single-AA specific HGVS
+	#Helper function to build single-AA specific HGVS
 	aaWiseHGVS <- function(wt,pos,mut) {
 		if(mut=="-") {
 			return(builder$deletion(pos,wt,pos,wt))
