@@ -125,9 +125,9 @@ translateHGVS <- function(hgvs, params,
 	# CHECK FOR 5'/3'-UTR MUTATIONS #
 	#################################
 	
-	plen <- params$template$proteinLength
+	cdsLen <- params$template$cdsLength
 	isUTR <- sapply(1:nrow(breakdown), function(i) with(breakdown[i,],{
-	  start >= plen || (!is.na(end) && end <= 1) || (is.na(end) && start < 1)
+	  start >= cdsLen || (!is.na(end) && end <= 1) || (is.na(end) && start < 1)
 	}))
 	utrVars <- which(isUTR)
 

@@ -240,7 +240,9 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,
 	    "\n# parameter sheet:",normalizePath(paramFile),"\n",
 	    file=outfile
 	)
-	write.table(jointTable,outfile,sep=",",append=TRUE,row.names=FALSE,qmethod="double")
+	suppressWarnings(
+	  write.table(jointTable,outfile,sep=",",append=TRUE,row.names=FALSE,qmethod="double")
+	)
 	
 	##################################
 	# CALCULATE MARGINAL FREQUENCIES #
@@ -321,7 +323,9 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,
 	    "\n# parameter sheet:",normalizePath(paramFile),"\n",
 	    file=outfile
 	)
-	write.table(marginalCounts,outfile,sep=",",append=TRUE,row.names=FALSE,qmethod="double")
+	suppressWarnings(
+	  write.table(marginalCounts,outfile,sep=",",append=TRUE,row.names=FALSE,qmethod="double")
+	)
 
 	logInfo("Done.")
 
