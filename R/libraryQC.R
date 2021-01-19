@@ -215,11 +215,18 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
   	    for (tilei in 1:nrow(params$tiles)) {
   	      tile <- params$tiles[tilei,"Tile Number"]
   	      subset <- marginalCounts[which(marginalTiles == tile),]
-  	      plot(
-  	        subset[,nsReps[[1]]]+1e-7,subset[,nsReps[[2]]]+1e-7,
-  	        log="xy",pch=20,col=colAlpha(1,0.2),main=paste("Tile",tile),
-  	        xlab=paste(nsCond,"rep.1"),ylab=paste(nsCond,"rep.2")
-  	     )
+  	      if (nrow(subset) > 0) {
+    	      plot(
+    	        subset[,nsReps[[1]]]+1e-7,subset[,nsReps[[2]]]+1e-7,
+    	        log="xy",pch=20,col=colAlpha(1,0.2),main=paste("Tile",tile),
+    	        xlab=paste(nsCond,"rep.1"),ylab=paste(nsCond,"rep.2")
+    	      )
+  	      } else {
+  	        plot.new()
+  	        rect(0,0,1,1,col="gray80",border="gray30",lty="dotted")
+  	        text(0.5,0.5,"no data")
+  	        mtext(paste("Tile",tile),side=3)
+  	      }
   	     tagger$cycle()
   	    }
   	    par(opar)
