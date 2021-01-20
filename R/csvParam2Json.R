@@ -682,9 +682,13 @@ parseParameters <- function(filename,srOverride=FALSE) {
 	#calculate CDS and protein sequence
 	cdsLength <- params$template$cds_end - params$template$cds_start + 1
 	cdsSeq <- substr(params$template$seq,params$template$cds_start,params$template$cds_end)
-
+	#calculate individual codons
+	codons <- sapply(seq(1,cdsLength,3),function(i) substr(cdsSeq,i,i+2))
+	
+  #translate to protein sequence
 	data(trtable)
-	proteinSeq <- sapply(seq(1,cdsLength,3),function(pos) trtable[[substr(cdsSeq,pos,pos+2)]])
+	# proteinSeq <- sapply(seq(1,cdsLength,3),function(pos) trtable[[substr(cdsSeq,pos,pos+2)]])
+	proteinSeq <- sapply(codons,function(cd) trtable[[cd]])
 	proteinLength <- length(proteinSeq)
 	if (proteinSeq[[proteinLength]] == "*") {
 		proteinSeq <- proteinSeq[-proteinLength]	
@@ -693,6 +697,7 @@ parseParameters <- function(filename,srOverride=FALSE) {
 
 	params$template$cdsSeq <- cdsSeq
 	params$template$cdsLength <- cdsLength
+	params$template$cdsCodons <- codons
 	params$template$proteinSeq <- paste(proteinSeq,collapse="")
 	params$template$proteinLength <- proteinLength
 

@@ -91,7 +91,8 @@ translateHGVS <- function(hgvs, params,
 	cdsSeq <- params$template$cdsSeq
 	codonStarts <- seq(1,nchar(cdsSeq),3)
 	# codonIndices <- sapply(codonStarts, function(i) c(i,i+1,i+2))
-	codons <- sapply(codonStarts,function(i) substr(cdsSeq,i,i+2))
+	# codons <- sapply(codonStarts,function(i) substr(cdsSeq,i,i+2))
+	codons <- params$template$cdsCodons
 
 	#load DNA translation table
 	data(trtable)
