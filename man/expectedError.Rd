@@ -4,7 +4,7 @@
 \alias{expectedError}
 \title{Infer a function that models expected error relative to data point magnitutes}
 \usage{
-expectedError(values, errors)
+expectedError(values, errors, mirror = FALSE, wtX = 0, intervalWidth = 0.1)
 }
 \arguments{
 \item{values}{underlying datapoints}
@@ -12,7 +12,9 @@ expectedError(values, errors)
 \item{errors}{the error associated with each datapoint}
 }
 \value{
-a function that maps data point magnitude to expected error
+a list containing (i) a model function that maps data point magnitude to 
+  expected error; (ii) the model parameters; and (iii) the a running median error across 
+  the provided value range.
 }
 \description{
 Infer a function that models expected error relative to data point magnitutes

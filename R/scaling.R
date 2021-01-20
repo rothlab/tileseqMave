@@ -236,49 +236,80 @@ scaleScores <- function(dataDir, scoreDir=NA, outDir=NA,
   
 }
 
+
+#' Underlying function for error profile model
+#' 
+#' Creates a function that slides smoothly from one constant level to another
+#'
+#' @param xs the input x-values
+#' @param x0 the starting x of the slide
+#' @param y0 the starting y value of the slide (the constant level on the left)
+#' @param x1 the end x of the slide
+#' @param y1 the end y of the slide (i.e. the constant level on the right)
+#' @param s0 the amount of smoothing on the left
+#' @param s1 the amount of smoothing on the right
+#'
+#' @return the y values corresponding to the input x
+#' @export
+slide <- function(xs,x0,y0,x1,y1,s0,s1) {
+  sapply(xs,function(x) {
+    if (x <= x0) return(y0)
+    if (x >= x1) return(y1)
+    pr <- (x-x0)/(x1-x0)
+    w0 <- 1-((10^s1)*pr)/((10^s1)*pr+1-pr)
+    w1 <- ((10^-s0)*pr)/((10^-s0)*pr+1-pr)
+    y <- (y0*w0 + y1*w1)/(w0+w1)
+    return(y)
+  })
+}
+
 #' Infer a function that models expected error relative to data point magnitutes
 #'
 #' @param values underlying datapoints
 #' @param errors the error associated with each datapoint
 #'
-#' @return a function that maps data point magnitude to expected error
+#' @return a list containing (i) a model function that maps data point magnitude to 
+#'   expected error; (ii) the model parameters; and (iii) the a running median error across 
+#'   the provided value range.
 #' @export
-expectedError <- function(values,errors) {
-  #calculate running median error
-  runningMedian <- as.df(lapply(sort(values), function(mid) {
-    grp <- which(abs(values-mid) < 0.1)
+expectedError <- function(values,errors,mirror=FALSE,wtX=0,intervalWidth=0.1) {
+  
+  #calculate running median
+  valRange <- seq(min(fin(values)),max(fin(values)),length.out=100)
+  runningMedian <- as.df(lapply(valRange, function(mid) {
+    grp <- which(abs(values-mid) < intervalWidth)
     c(value=mid,medErr=median(errors[grp],na.rm=TRUE))
   }))
-  #fit a smooth polynomial line to the median trail
-  # x <- runningMedian$value
-  # z <- lm(y~.,data=fin(data.frame(y=log10(runningMedian$medErr),x1=x,x2=x^2,x3=x^3)))
   
-  #fit a mirrored logarithm function to the median trail
-  theta0 <- c(.5,.1,1,0)
-  modelFun <- function(x,theta=theta0) {
-    mirror <- theta[[1]]
-    i <- theta[[2]]
-    m1 <- theta[[3]]
-    a1 <- theta[[4]]
-    m1*log10(abs(x-mirror)+i)+a1
+  #the underlying model function
+  model <- function(x, xOff=-1, maxLogErr=.5, minLogErr=0.05,s0=1,s1=1) {
+    if (xOff >= wtX) xOff <- wtX
+    #mirror function at y-axis
+    if (mirror && any(x > wtX)) {
+      pos <- which(x>wtX)
+      x[pos] <- 2*wtX-x[pos]
+    }
+    10^(slide(x,xOff,maxLogErr,wtX,minLogErr,s0,s1))
   }
-  # curve(modelFun)
-  objFun <- function(theta) {
-    pred <- modelFun(runningMedian$value,theta)
-    out <- mean(abs(pred-log10(runningMedian$medErr)),na.rm=TRUE)
-    if (is.na(out)) 1e12 else out
-  }
-  opt <- optimization::optim_nm(fun = objFun,start = theta0)
   
-  #build a function to derive the expected error based on the fit above
-  expect.error <- function(xs) {
-    # 10^predict.lm(z,newdata=data.frame(x1=xs,x2=xs^2,x3=xs^3))
-    10^modelFun(xs,theta=opt$par)
+  #the initial parameters serving as a starting point for optimization
+  theta0 <- c(xOff=-2,maxLogErr=log10(.5),minLogErr=log10(0.05),s0=1,s1=1)
+  
+  #the objective function calculates MSD given parameter set theta
+  objfun <- function(theta) {
+    fitdata <- runningMedian[runningMedian[,1]<=wtX,]
+    pred <- log10(model(fitdata[,1],theta[[1]],theta[[2]],theta[[3]],theta[[4]],theta[[5]]))
+    if (!all(is.finite(pred))) return(1e10)
+    mean((pred-log10(fitdata[,2]))^2,na.rm=TRUE)
   }
-  # plot(values,errors,pch=".",log="y")
-  # lines(runningMedian,col=2)
-  # curve(expect.error,add=TRUE)
-  return(expect.error)
+  
+  #run optimization
+  opt <- optimization::optim_nm(objfun,k=5,theta0,maximum=FALSE)
+  #extract optimized parameters and use to construct model function
+  thetaOpt <- setNames(opt$par,names(theta0))
+  modelOpt <- function(x) do.call(model,c(list(x=x),thetaOpt))
+  
+  return(list(model=modelOpt,par=thetaOpt,running=runningMedian))
 }
 
 #' Calculate the residual error
@@ -292,10 +323,10 @@ expectedError <- function(values,errors) {
 #'
 #' @return the residual error vector
 #' @export
-residualError <- function(values, errors) {
+residualError <- function(values, errors, mirror=FALSE, wtX=0) {
   
-  #build a function to derive the expected error based on the fit above
-  expect.error <- expectedError(values, errors)
+  #model expected error based on the fit above
+  expect.error <- expectedError(values, errors,mirror=mirror, wtX=wtX)$model
   
   #calculate residual error
   residual.error <- errors-expect.error(values)
@@ -370,7 +401,7 @@ enactScale <- function(msc,aac,sdThreshold,overrides=c(syn=NA,non=NA)) {
   #apply filter
   mscFiltered <- msc[is.na(msc$filter),]
   if (!all(is.na(mscFiltered$bce.sd))) {
-    resErr <- residualError(mscFiltered$bce,mscFiltered$bce.sd)
+    resErr <- residualError(mscFiltered$bce,mscFiltered$bce.sd,mirror=TRUE,wtX=1)
     mscFiltered$resErr <- resErr+min(resErr,na.rm=TRUE)
     numNsSurvive <- with(mscFiltered,sum(is.na(filter) & resErr < sdThreshold & type == "nonsense",na.rm=TRUE))
     if (numNsSurvive >= 10) {
@@ -520,7 +551,7 @@ collapseByAA <- function(scoreTable,params,sCond,scoreCol="score",sdCol="score.s
   filteredTable <- scoreTable[exportFilter,]
   
   if (!srOverride) {
-    resErr <- residualError(filteredTable[,scoreCol],filteredTable[,sdCol])
+    resErr <- residualError(filteredTable[,scoreCol],filteredTable[,sdCol],mirror=TRUE,wtX=1)
     nerr <- resErr - min(resErr,na.rm=TRUE) + min(abs(resErr),na.rm=TRUE)
     aaTable <- as.df(tapply(1:nrow(filteredTable),filteredTable$hgvsp, function(is) {
       joint <- join.datapoints(

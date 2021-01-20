@@ -4,7 +4,7 @@
 \alias{residualError}
 \title{Calculate the residual error}
 \usage{
-residualError(values, errors)
+residualError(values, errors, mirror = FALSE, wtX = 0)
 }
 \arguments{
 \item{values}{vector of underlying datapoints}

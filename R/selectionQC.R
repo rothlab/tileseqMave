@@ -716,7 +716,7 @@ scoreDistributions <- function(scores,sCond,tp,outDir,params,srOverride) {
   
   filteredScores <- scores[is.na(scores$filter),]
   if (!srOverride) {
-    resErr <- residualError(filteredScores$bce,filteredScores$bce.sd)
+    resErr <- residualError(filteredScores$bce,filteredScores$bce.sd,mirror=TRUE,wtX=1)
     nerr <- resErr - min(resErr,na.rm=TRUE) + min(abs(resErr),na.rm=TRUE)
   }
   
@@ -903,21 +903,27 @@ drawDistributions <- function(aaScores,seCutoff=Inf,reg=NA) {
 errorProfile <- function(scores,sCond,tp,outDir,params) {
   
   plotEP <- function(scores,varname,xlab) {
+    
     sdname <- paste0(varname,".sd")
     sdRange <- range(log10(scores[is.na(scores$filter),sdname]),finite=TRUE)
     lphiRange <- range(scores[is.na(scores$filter),varname],finite=TRUE)
-    runningMedian <- with(scores[is.na(scores$filter),],yogitools::runningFunction(
-      get(varname),log10(get(sdname)),fun=median,nbins=20
-    ))
-    runningMedian[,2] <- 10^runningMedian[,2]
-    expectation <- with(scores[is.na(scores$filter),],expectedError(get(varname),get(sdname)))
+    # runningMedian <- with(scores[is.na(scores$filter),],yogitools::runningFunction(
+    #   get(varname),log10(get(sdname)),fun=median,nbins=20
+    # ))
+    # runningMedian[,2] <- 10^runningMedian[,2]
+    errModel <- with(scores[is.na(scores$filter),],
+      expectedError(get(varname),get(sdname),
+        mirror=(varname=="bce"),wtX=as.numeric(varname=="bce")
+      )
+    )
+    
     par(mar=c(5,4,0,0)+.1)
     with(scores[is.na(scores$filter),],plot(
       get(varname),get(sdname),log="y",pch=".",
       xlab=xlab,ylab=expression(sigma)
     ))
-    lines(runningMedian,col="steelblue3",lwd=2)
-    curve(expectation,add=TRUE,col="firebrick3",lwd=2)
+    lines(errModel$running,col="steelblue3",lwd=2)
+    curve(errModel$model(x),add=TRUE,col="firebrick3",lwd=2)
     par(mar=c(0,4,1,0)+.1) 
     breaks <- seq(lphiRange[[1]],lphiRange[[2]],length.out=50)
     lphiHist <- with(scores[is.na(scores$filter),], hist(get(varname),breaks=breaks,plot=FALSE))
