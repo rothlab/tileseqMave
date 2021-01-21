@@ -779,6 +779,12 @@ biasCorrection <- function(msc) {
   #exclude non-depleted nonsense variants
   nonsenseF <- msc[with(msc,type=="nonsense" & is.na(filter) & logPhi < 0),]
   synonymousF <- msc[with(msc,type=="synonymous" & is.na(filter)),]
+  
+  if (nrow(nonsenseF) == 0 || nrow(synonymousF)==0) {
+    logWarn("Unable to perform bias correction, due to insufficient reference data!")
+    return(data.frame(bce=rep(NA,nrow(msc)),bce.se=rep(NA,nrow(msc))))
+  }
+  
   #simple linear regression
   zns <- with(nonsenseF, lm(logPhi~log10(nonselect.mean)) )
   zsyn <- with(synonymousF, lm(logPhi~log10(nonselect.mean)) )
