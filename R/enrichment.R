@@ -490,6 +490,7 @@ mean.sd.count <- function(cond,regionalCounts,tp,params) {
 	         "This was not declared in the parameter sheet!")
 	  } else {
 	    #if this is a nonselect or WT condition, only one time point may exist here, so we default to that one
+	    logWarn("Timepoints do not match between conditions! Defaulting to using first timepoint instead!")
 	    tp <- tps[[1]]
 	  }
 	}

@@ -271,7 +271,7 @@ validateParameters <- function(params,srOverride=FALSE) {
 	if (any(repPerCombo != params$numReplicates[comboCondition])) {
 	  culprits <- which(repPerCombo != params$numReplicates[comboCondition])
 	  stop("The following tile-condition-time combination(s) do(es) not have ",
-	       "the correct set of replicates: ",paste(names(repPerCombo)[culprits],collapse=", "))
+	       "the correct set of replicates:\n",paste(names(repPerCombo)[culprits],collapse="\n"))
 	}
 	
 	tpCombos <- apply(params$samples[,c("Tile ID","Condition","Replicate")],1,paste,collapse="\t")
@@ -280,7 +280,7 @@ validateParameters <- function(params,srOverride=FALSE) {
 	if (any(tpPerCombo != params$numTimepoints[comboCondition])) {
 	  culprits <- which(tpPerCombo != params$numTimepoints[comboCondition])
 	  stop("The following tile-condition-replicate combination(s) do(es) not have ",
-	       "the correct set of time points: ",paste(names(tpPerCombo)[culprits],collapse=", "))
+	       "the correct set of time points:\n",paste(names(tpPerCombo)[culprits],collapse="\n"))
 	}
 	
 	#validate metaparameters

@@ -193,7 +193,7 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,
 	#join all samples together into one comprehensive table
 	condTables <- lapply(conditions, function(cond) {
 		#get the timepoints that are valid for the current condition
-		timepoints <- params$timepoints$`Time point name`[1:params$numTimepoints[[cond]]]
+	  timepoints <- getTimepointsFor(cond,params)
 		tpTables <- lapply(timepoints, function(tp) {
 			logInfo("Processing condition",cond,"timepoint",tp)
 			#get the replicates for this condition
