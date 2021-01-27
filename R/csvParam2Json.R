@@ -176,7 +176,7 @@ validateParameters <- function(params,srOverride=FALSE) {
 	  stop("Must define at least one tile!")
 	}
 	if (!all(params$tiles%%1==0)) {
-	  stop("Tile numbers, starts and ends must be integer numbers!")
+	  stop("All Tile IDs must be integer numbers, as well as their starts and ends positions!")
 	}
 	if (any(params$tiles[,"Start AA"] < 2)) {
 	  offender <- params$tiles[which(params$tiles[,"Start AA"] < 2),1]
@@ -199,10 +199,10 @@ validateParameters <- function(params,srOverride=FALSE) {
 	
 	#validate regions
 	if (nrow(params$regions) < 1) {
-	  stop("Must define at least one tile!")
+	  stop("Must define at least one region!")
 	}
 	if (!all(params$regions%%1==0)) {
-	  stop("Tile numbers, starts and ends must be integer numbers!")
+	  stop("Region IDs must be integer numbers, as well as their starts and ends!")
 	}
 	if (any(params$regions[,"Start AA"] < 2)) {
 	  offender <- params$regions[which(params$regions[,"Start AA"] < 2),1]

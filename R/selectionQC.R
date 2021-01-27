@@ -265,7 +265,7 @@ filterProgression <- function(scores,sCond,tp,params,outDir) {
 	                                scorePos <= regSubsets$end[[ri]]),]
 	  filteredScores <- scores[which(is.na(scores$filter) & scorePos >= regSubsets$start[[ri]] & 
 	                             scorePos <= regSubsets$end[[ri]]),]
-	  hqScores <- filteredScores[filteredScores$bce.sd < params$scoring$sdThreshold,]
+	  hqScores <- filteredScores[which(filteredScores$bce.sd < params$scoring$sdThreshold),]
 	  
   	#calculate filter census
   	census <- rbind(

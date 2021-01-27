@@ -485,12 +485,14 @@ mean.sd.count <- function(cond,regionalCounts,tp,params) {
 	#validate against applicable time points
 	tps <- getTimepointsFor(cond,params)
 	if (!(tp %in% tps)) {
-	  if (cond %in% getSelects(cond)) {
+	  if (cond %in% getSelects(params)) {
 	    stop("Unrecognized time point ",tp," for selection condition ",cond,"! ",
 	         "This was not declared in the parameter sheet!")
 	  } else {
 	    #if this is a nonselect or WT condition, only one time point may exist here, so we default to that one
-	    logWarn("Timepoints do not match between conditions! Defaulting to using first timepoint instead!")
+	    logWarn("No matching timepoint",tp,"found for condition",cond,
+	            "! Using timepoint", tps[[1]], "instead! This could lead to incorrect results!"
+	    )
 	    tp <- tps[[1]]
 	  }
 	}
