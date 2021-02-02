@@ -32,7 +32,7 @@ if (is.na(df)) {
 
 #Read input file
 cat("Reading input file...")
-indata <- read.csv(infile)
+indata <- read.csv(infile,comment.char="#")
 cat("done\n")
 
 #Check that all required columns are present
