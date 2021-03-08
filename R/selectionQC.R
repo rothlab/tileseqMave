@@ -723,8 +723,10 @@ scoreDistributions <- function(scores,sCond,tp,outDir,params,srOverride) {
   
   filteredScores <- scores[is.na(scores$filter),]
   if (!srOverride) {
-    resErr <- residualError(filteredScores$bce,filteredScores$bce.sd,mirror=TRUE,wtX=1)
-    nerr <- resErr - min(resErr,na.rm=TRUE) + min(abs(resErr),na.rm=TRUE)
+    # #residual error isn't really reliable yet, so this will just have to be total error for now.
+    # resErr <- residualError(filteredScores$bce,filteredScores$bce.sd,mirror=TRUE,wtX=1)
+    # nerr <- resErr - min(resErr,na.rm=TRUE) + min(abs(resErr),na.rm=TRUE)
+    nerr <- filteredScores$bce.sd
   }
   
 	#collapse by amino acid consequence and associate with regions
@@ -918,19 +920,25 @@ errorProfile <- function(scores,sCond,tp,outDir,params) {
     #   get(varname),log10(get(sdname)),fun=median,nbins=20
     # ))
     # runningMedian[,2] <- 10^runningMedian[,2]
-    errModel <- with(scores[is.na(scores$filter),],
-      expectedError(get(varname),get(sdname),
-        mirror=(varname=="bce"),wtX=as.numeric(varname=="bce")
+    tryCatch({
+      errModel <- with(scores[is.na(scores$filter),],
+        expectedError(get(varname),get(sdname),
+          mirror=(varname=="bce"),wtX=as.numeric(varname=="bce")
+        )
       )
-    )
+    }, error=function(e) {
+      logWarn("Error profile modeling failed!\n",conditionMessage(e))
+    })
     
     par(mar=c(5,4,0,0)+.1)
     with(scores[is.na(scores$filter),],plot(
       get(varname),get(sdname),log="y",pch=".",
       xlab=xlab,ylab=expression(sigma)
     ))
-    lines(errModel$running,col="steelblue3",lwd=2)
-    curve(errModel$model(x),add=TRUE,col="firebrick3",lwd=2)
+    if (exists("errModel")) {
+      lines(errModel$running,col="steelblue3",lwd=2)
+      curve(errModel$model(x),add=TRUE,col="firebrick3",lwd=2)
+    }
     par(mar=c(0,4,1,0)+.1) 
     breaks <- seq(lphiRange[[1]],lphiRange[[2]],length.out=50)
     lphiHist <- with(scores[is.na(scores$filter),], hist(get(varname),breaks=breaks,plot=FALSE))

@@ -401,8 +401,11 @@ enactScale <- function(msc,aac,sdThreshold,overrides=c(syn=NA,non=NA)) {
   #apply filter
   mscFiltered <- msc[is.na(msc$filter),]
   if (!all(is.na(mscFiltered$bce.sd))) {
-    resErr <- residualError(mscFiltered$bce,mscFiltered$bce.sd,mirror=TRUE,wtX=1)
-    mscFiltered$resErr <- resErr+min(resErr,na.rm=TRUE)
+    # #here we use residual error to decide which variants to use to calculate the syn/non medians as pivots
+    # resErr <- residualError(mscFiltered$bce,mscFiltered$bce.sd,mirror=TRUE,wtX=1)
+    # mscFiltered$resErr <- resErr+min(resErr,na.rm=TRUE)
+    # #but since that isn't reliable yet, we'll default to the total error
+    mscFiltered$resErr <- mscFiltered$bce.sd
     numNsSurvive <- with(mscFiltered,sum(is.na(filter) & resErr < sdThreshold & type == "nonsense",na.rm=TRUE))
     if (numNsSurvive >= 10) {
       with(mscFiltered,mscFiltered[which(is.na(filter) & resErr < sdThreshold),])
@@ -551,8 +554,11 @@ collapseByAA <- function(scoreTable,params,sCond,scoreCol="score",sdCol="score.s
   filteredTable <- scoreTable[exportFilter,]
   
   if (!srOverride) {
-    resErr <- residualError(filteredTable[,scoreCol],filteredTable[,sdCol],mirror=TRUE,wtX=1)
-    nerr <- resErr - min(resErr,na.rm=TRUE) + min(abs(resErr),na.rm=TRUE)
+    ## here we will be using the residual error instead of total error (once estimating it works properly)
+    # resErr <- residualError(filteredTable[,scoreCol],filteredTable[,sdCol],mirror=TRUE,wtX=1)
+    # nerr <- resErr - min(resErr,na.rm=TRUE) + min(abs(resErr),na.rm=TRUE)
+    ## but for now we use the total error (even though that biases against low scores)
+    nerr <- filteredTable[,sdCol]
     aaTable <- as.df(tapply(1:nrow(filteredTable),filteredTable$hgvsp, function(is) {
       joint <- join.datapoints(
         ms=filteredTable[is,scoreCol],
