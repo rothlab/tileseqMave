@@ -4,7 +4,7 @@
 \alias{fit.cv.model}
 \title{Create a model of the error in for a subset of marginal frequencies}
 \usage{
-fit.cv.model(subscores, cond)
+fit.cv.model(subscores, cond, noTryCutoff = 10)
 }
 \arguments{
 \item{subcores}{a subset of the count table (for a given tile)}

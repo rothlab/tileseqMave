@@ -392,54 +392,55 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
   		# FRAMESHIFT HOTSPOT MAP ---------------------------------------------
   		
   		fsIdx <- grep("fs$|del$|ins\\w+$",marginalCounts$hgvsp)
-  		idxPlusCoord <- do.call(rbind,tapply(fsIdx, marginalSplitChanges[fsIdx,2], function(idx) {
-  		  x <- as.numeric(marginalSplitChanges[idx,2]) + seq_along(idx)/(length(idx)+1)
-  		  cbind(idx,x)
-  		}))
-  		#re-order according to x-coordinate
-  		fsIdx <- idxPlusCoord[,1]
-  		xCoords <- idxPlusCoord[,2]
-  		yCoords <- nsMarginalMeans[fsIdx]
-  		
-  		top10 <- head(fsIdx[order(yCoords,decreasing=TRUE)],10)
-  		top10X <- xCoords[sapply(top10,function(i)which(fsIdx==i))]
-  		top10Y <- nsMarginalMeans[top10]
-  		top10Labels <- marginalCounts$hgvsc[top10]
-  		
-  		cm <- colmap(valStops = c(0,5e-4,5e-3),colStops = c("black","gold","firebrick3"))
-  		plotcols <- sapply(cm(yCoords),colAlpha,0.5)
-  		
-  		# logInfo("Drawing frameshift map")
-  		pdf(paste0(outDir,nsCond,"_t",tp,"_fsMap.pdf"),11,8.5)
-  		tagger <- pdftagger(paste(pdftag,"; condition:",nsCond,"timepoint:",tp),cpp=1)
-  		opar <- par(oma=c(2,2,2,2),mar=c(5,5,0,1)+.1)
-  		layout(rbind(1,2),heights=c(0.1,0.9))
-  		# plotcols <- sapply(1:2,colAlpha,0.5)
-  		# funs <- list(mean=mean,median=median)
-  		
-  		xRange <- c(min(params$regions[,"Start AA"]),max(params$regions[,"End AA"]))
-		  
-		  par(mar=c(0,5.1,0,1.1))
-		  plot(NA,type="n",xlim=xRange, ylim=c(0,1),xlab="",ylab="",axes=FALSE)
-		  rect(params$regions[,"Start AA"],0,params$regions[,"End AA"],0.49,col="gray80",border=NA)
-		  text(rowMeans(params$regions[,c("Start AA","End AA")]),0.25,params$regions[,"Region Number"])
-		  rect(params$tiles[,"Start AA"],0.51,params$tiles[,"End AA"],1,col="gray90",border=NA)
-		  text(rowMeans(params$tiles[,c("Start AA","End AA")]),0.75,params$tiles[,"Tile Number"])
-		  
-		  par(mar=c(5,5,0,1)+.1)
-		  plot(NA,type="n",log="y",
-		       xlim=xRange,
-		       ylim=c(1e-7,1e-1),
-		       xlab="AA position",ylab="frameshift marginal freq."
-		  )
-		  segments(xCoords,1e-7,xCoords,yCoords+1e-7,col=plotcols)
-		  grid(NA,NULL)
-		  text(top10X,top10Y,top10Labels,cex=0.5,pos=3)
-  		
-  		tagger$cycle()
-  		par(opar)
-  		invisible(dev.off())
-  		
+  		if (length(fsIdx) != 0) {
+    		idxPlusCoord <- do.call(rbind,tapply(fsIdx, marginalSplitChanges[fsIdx,2], function(idx) {
+    		  x <- as.numeric(marginalSplitChanges[idx,2]) + seq_along(idx)/(length(idx)+1)
+    		  cbind(idx,x)
+    		}))
+    		#re-order according to x-coordinate
+    		fsIdx <- idxPlusCoord[,1]
+    		xCoords <- idxPlusCoord[,2]
+    		yCoords <- nsMarginalMeans[fsIdx]
+    		
+    		top10 <- head(fsIdx[order(yCoords,decreasing=TRUE)],10)
+    		top10X <- xCoords[sapply(top10,function(i)which(fsIdx==i))]
+    		top10Y <- nsMarginalMeans[top10]
+    		top10Labels <- marginalCounts$hgvsc[top10]
+    		
+    		cm <- colmap(valStops = c(0,5e-4,5e-3),colStops = c("black","gold","firebrick3"))
+    		plotcols <- sapply(cm(yCoords),colAlpha,0.5)
+    		
+    		# logInfo("Drawing frameshift map")
+    		pdf(paste0(outDir,nsCond,"_t",tp,"_fsMap.pdf"),11,8.5)
+    		tagger <- pdftagger(paste(pdftag,"; condition:",nsCond,"timepoint:",tp),cpp=1)
+    		opar <- par(oma=c(2,2,2,2),mar=c(5,5,0,1)+.1)
+    		layout(rbind(1,2),heights=c(0.1,0.9))
+    		# plotcols <- sapply(1:2,colAlpha,0.5)
+    		# funs <- list(mean=mean,median=median)
+    		
+    		xRange <- c(min(params$regions[,"Start AA"]),max(params$regions[,"End AA"]))
+  		  
+  		  par(mar=c(0,5.1,0,1.1))
+  		  plot(NA,type="n",xlim=xRange, ylim=c(0,1),xlab="",ylab="",axes=FALSE)
+  		  rect(params$regions[,"Start AA"],0,params$regions[,"End AA"],0.49,col="gray80",border=NA)
+  		  text(rowMeans(params$regions[,c("Start AA","End AA")]),0.25,params$regions[,"Region Number"])
+  		  rect(params$tiles[,"Start AA"],0.51,params$tiles[,"End AA"],1,col="gray90",border=NA)
+  		  text(rowMeans(params$tiles[,c("Start AA","End AA")]),0.75,params$tiles[,"Tile Number"])
+  		  
+  		  par(mar=c(5,5,0,1)+.1)
+  		  plot(NA,type="n",log="y",
+  		       xlim=xRange,
+  		       ylim=c(1e-7,1e-1),
+  		       xlab="AA position",ylab="frameshift marginal freq."
+  		  )
+  		  segments(xCoords,1e-7,xCoords,yCoords+1e-7,col=plotcols)
+  		  grid(NA,NULL)
+  		  text(top10X,top10Y,top10Labels,cex=0.5,pos=3)
+    		
+    		tagger$cycle()
+    		par(opar)
+    		invisible(dev.off())
+  		}
   
   		
   		# NUCL BIAS ANALYSIS -------------------------------------------

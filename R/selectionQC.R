@@ -145,7 +145,9 @@ selectionQC <- function(dataDir,countDir=NA, scoreDir=NA, outDir=NA,
 	toAA <- extract.groups(marginalCounts$aaChange,"\\d+(.*)$")
 	indelIdx <- which(toAA=="-" | nchar(toAA) > 1)
 	silentIdx <- which(marginalCounts$aaChange=="silent")
-	marginalCounts <- marginalCounts[-union(indelIdx,silentIdx),]
+	if (length(union(indelIdx,silentIdx)) > 0) {
+	  marginalCounts <- marginalCounts[-union(indelIdx,silentIdx),]
+	}
 
 	#iterate over conditions
 	for (sCond in getSelects(params)) {
@@ -162,6 +164,11 @@ selectionQC <- function(dataDir,countDir=NA, scoreDir=NA, outDir=NA,
 				next
 			}
 			scores <- read.csv(scoreFile,comment.char="#")
+			
+			if (all(is.na(scores$bce))) {
+			  scores$bce <- scores$logPhi
+			  scores$bce.se <- scores$logPhi.sd
+			}
 
 			#ordering should match scores
 			rownames(scores) <- scores$hgvsc

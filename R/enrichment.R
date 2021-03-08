@@ -139,7 +139,9 @@ calcEnrichment <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"
 	toAA <- extract.groups(marginalCounts$aaChange,"\\d+(.*)$")
 	indelIdx <- which(toAA=="-" | nchar(toAA) > 1)
 	silentIdx <- which(marginalCounts$aaChange=="silent")
-	marginalCounts <- marginalCounts[-union(indelIdx,silentIdx),]
+	if (length(indelIdx) > 0 || length(silentIdx) > 0) {
+  	marginalCounts <- marginalCounts[-union(indelIdx,silentIdx),]
+	}
 
 	#extract variant positions and assign to regions and tiles
 	marginalCounts$position <- as.integer(extract.groups(marginalCounts$codonChange,"(\\d+)"))
@@ -206,8 +208,10 @@ calcEnrichment <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"
 
 				#for multi-condition maps, filter out rows that don't occur at all in this condition
 				unrelated <- which(msc$nonselect.count == 0)
-				regionalCounts <- regionalCounts[-unrelated,]
-				msc <- msc[-unrelated,]
+				if (length(unrelated) > 0) {
+  				regionalCounts <- regionalCounts[-unrelated,]
+  				msc <- msc[-unrelated,]
+				}
 
 				#error modeling only if more than one replicate exists
 				# if (params$numReplicates[[sCond]] > 1) {
@@ -606,7 +610,13 @@ runModelFits <- function(msc,condNames, tiles, mc.cores) {
 #' 
 #' @param  subcores a subset of the count table (for a given tile)
 #' @return a list containing the model function (mapping counts to expected CV), and the model parameters
-fit.cv.model <- function(subscores,cond) {
+fit.cv.model <- function(subscores,cond,noTryCutoff=10) {
+  
+  #if there is less than "noTryCutoff" counts each, abort the modeling process
+  if (all(subscores[,paste0(cond,".count")] < noTryCutoff)) {
+    stop("Aborting modeling due to insufficient counts")
+  }
+  
 	#poisson model of CV
 	cv.poisson <- 1/sqrt(subscores[,paste0(cond,".count")])
 	#filter out NAs and infinites
@@ -646,7 +656,7 @@ fit.cv.model <- function(subscores,cond) {
 	# lines(seq(0,1,0.01), 10^log.cv.model(
 	# 	log10(seq(0,1,0.01)),theta.optim[[1]],theta.optim[[2]],theta.optim[[3]]
 	# ),col="blue")
-
+	
 	#and return output
 	return(c(list(cv.model=cv.model),theta.optim))
 }
