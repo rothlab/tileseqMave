@@ -125,7 +125,10 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,
 	})
 
 	#extract sequencing depths for each sample
-	sampleTable$depth <- sapply(allCounts,function(counts) as.integer(attr(counts,"depth"))) 
+	sampleTable$alignedreads <- sapply(allCounts,function(counts) as.integer(attr(counts,"depth"))) 
+	sampleTable$wtreads <- sapply(allCounts,function(counts) as.integer(attr(counts,"wtpairs"))) 
+	sampleTable$mutreads <- sapply(allCounts,function(counts) as.integer(attr(counts,"mutpairs"))) 
+	sampleTable$depth <- sampleTable$wtreads + sampleTable$mutreads
 	#and save the sample table for future reference
 	logInfo("Exporting sequencing depth information.")
 	outfile <- paste0(outDir,"/sampleDepths.csv")
@@ -134,7 +137,9 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,
 
 	#Calculate frequencies for all counts
 	allCounts <- lapply(allCounts,function(counts) {
-		counts$frequency <- counts$count/as.integer(attr(counts,"depth"))
+	  depth <- as.integer(attr(counts,"wtpairs")) + as.integer(attr(counts,"mutpairs"))
+		# counts$frequency <- counts$count/as.integer(attr(counts,"depth"))
+	  counts$frequency <- counts$count/depth
 		counts
 	})
 
