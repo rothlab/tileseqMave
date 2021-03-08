@@ -12,6 +12,7 @@ calcEnrichment(
   mc.cores = 6,
   srOverride = FALSE,
   bnOverride = FALSE,
+  useWTfilter = FALSE,
   nbs = 10000,
   pessimistic = TRUE
 )

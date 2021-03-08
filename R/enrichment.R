@@ -30,7 +30,7 @@
 #' @return NULL. Results are written to file.
 #' @export
 calcEnrichment <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"parameters.json"),
-	mc.cores=6, srOverride=FALSE, bnOverride=FALSE, nbs=1e4, pessimistic=TRUE) {
+	mc.cores=6, srOverride=FALSE, bnOverride=FALSE, useWTfilter=FALSE, nbs=1e4, pessimistic=TRUE) {
 
 	op <- options(stringsAsFactors=FALSE)
 
@@ -82,6 +82,10 @@ calcEnrichment <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"
 	logInfo("cvDeviation =",params$scoring$cvDeviation)
 	logInfo("assay direction =",params$assay[["selection"]])
 	logInfo("regularization mode: ",regmode)
+	
+	if (useWTfilter) {
+	  logInfo("WT excess filter enabled!")
+	}
 
 	if (bnOverride) {
 		logWarn(
@@ -246,10 +250,11 @@ calcEnrichment <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"
 				# filtering (count and frequency thresholds met) -----------------------
 				logInfo("Filtering...")
 				msc$filter <- rawFilter(msc,
-          params$scoring$countThreshold,
-          params$scoring$wtQuantile,
-          params$scoring$cvDeviation,
-          srOverride
+				  countThreshold=params$scoring$countThreshold,
+          wtq=params$scoring$wtQuantile,
+          cvm=params$scoring$cvDeviation,
+          srOverride=srOverride,
+          useWTfilter=useWTfilter
 				)
 
 				
@@ -525,7 +530,7 @@ mean.sd.count <- function(cond,regionalCounts,tp,params) {
 #' @param cvm coefficient of variation multiplier. Up to how much more than the 
 #'  expected CV do we accept as normal?
 #' @return a vector listing for each row in the table which (if any) filters apply, otherwise NA.
-rawFilter <- function(msc,countThreshold,wtq=0.95,cvm=10,srOverride=FALSE) {
+rawFilter <- function(msc,countThreshold,wtq=0.95,cvm=10,srOverride=FALSE,useWTfilter=FALSE) {
 	#if no error estimates are present, pretend it's 0
 	if (all(c("nonWT.sd.bayes", "selWT.sd.bayes") %in% colnames(msc))) {
 		sd.sWT <- msc$selWT.sd.bayes
@@ -552,15 +557,19 @@ rawFilter <- function(msc,countThreshold,wtq=0.95,cvm=10,srOverride=FALSE) {
 	)
 	
 	#aberrant WT count filter
-	medianDeviation <- function(xs) {
-	  m <- median(xs,na.rm=TRUE)
-	  mean(abs(xs-m),na.rm=TRUE)
+	if (useWTfilter) {
+  	medianDeviation <- function(xs) {
+  	  m <- median(xs,na.rm=TRUE)
+  	  mean(abs(xs-m),na.rm=TRUE)
+  	}
+  	nonwtCutoff <- qnorm(wtq,0,medianDeviation(msc$nonWT.mean))
+  	selwtCutoff <- qnorm(wtq,0,medianDeviation(msc$selWT.mean))
+  	wFilter <- with(msc,
+  	  nonWT.mean > nonwtCutoff | selWT.mean > selwtCutoff
+  	)
+	} else {
+	  wFilter <- rep(FALSE,nrow(msc))
 	}
-	nonwtCutoff <- qnorm(wtq,0,medianDeviation(msc$nonWT.mean))
-	selwtCutoff <- qnorm(wtq,0,medianDeviation(msc$selWT.mean))
-	wFilter <- with(msc,
-	  nonWT.mean > nonwtCutoff | selWT.mean > selwtCutoff
-	)
 	
 	#determine replicate bottlenecks
 	if (!srOverride) {
