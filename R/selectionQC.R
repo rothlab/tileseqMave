@@ -442,6 +442,15 @@ logPhiBias <- function(scores,params,sCond,tp,outDir) {
   
   for (currRegion in params$regions[,1]) {
     
+    if (!any(scores$region == currRegion)) {
+      plot.new()
+      rect(0,0,1,1,col="gray80",border="gray30",lty="dotted")
+      text(0.5,0.5,"no data")
+      mtext(paste0("Region ",currRegion),side=3)
+      tagger$cycle()
+      next
+    }
+    
     nonsenseF <- scores[with(scores,type=="nonsense" & is.na(filter) & logPhi < 0 & region==currRegion),]
     synonymousF <- scores[with(scores,type=="synonymous" & is.na(filter) & region==currRegion),]
     
