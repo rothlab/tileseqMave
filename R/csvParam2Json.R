@@ -70,6 +70,11 @@ validateParameters <- function(params,srOverride=FALSE) {
 	if (length(params$conditions$names) < 1) {
 		stop("Must define at least one condition!")
 	}
+	
+	#check that at all condition names are unique
+	if (any(duplicated(params$conditions$names))) {
+	  stop("All condition names must be unique!")
+	}
 
 	if (!all(grepl("^[A-Za-z][A-Za-z0-9]*$",params$conditions$names))) {
 		stop("Condition names must be strictly alpha-numeric and start with a letter.")
@@ -178,6 +183,9 @@ validateParameters <- function(params,srOverride=FALSE) {
 	if (!all(params$tiles%%1==0)) {
 	  stop("All Tile IDs must be integer numbers, as well as their starts and ends positions!")
 	}
+	if (any(duplicated(params$tiles[,1]))){
+	  stop("Tile IDs must be unique!")
+	}
 	if (any(params$tiles[,"Start AA"] < 2)) {
 	  offender <- params$tiles[which(params$tiles[,"Start AA"] < 2),1]
 	  logWarn("Tile",paste(offender,collapse=", "),"includes start codon!!")
@@ -204,6 +212,9 @@ validateParameters <- function(params,srOverride=FALSE) {
 	if (!all(params$regions%%1==0)) {
 	  stop("Region IDs must be integer numbers, as well as their starts and ends!")
 	}
+	if (any(duplicated(params$regions[,1]))){
+	  stop("Region IDs must be unique!")
+	}
 	if (any(params$regions[,"Start AA"] < 2)) {
 	  offender <- params$regions[which(params$regions[,"Start AA"] < 2),1]
 	  logWarn("Region",paste(offender,collapse=", "),"includes start codon!!")
@@ -222,6 +233,15 @@ validateParameters <- function(params,srOverride=FALSE) {
 	    }
 	  }
 	}
+	
+	#validate time points
+	if (any(duplicated(params$timepoints[,"Time point name"]))) {
+	  stop("Time point names must be unique!")
+	}
+	if (any(is.na(params$timepoints[,"Time"]))) {
+	  stop("Time point values must be numeric!")
+	}
+	#TODO: Validate time units (w,d,h,m,s,ms)
 
 	#validate the sample sheet
 	if (!all(params$samples[,"Tile ID"] %in% params$tiles[,"Tile Number"])) {

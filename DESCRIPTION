@@ -11,5 +11,5 @@ Suggests:
     testthat, mavevis, TmCalculator
 Imports: rapimave, hgvsParseR, yogitools (>= 0.1.1), yogilog, argparser, pbmcapply, hash, optimization
 Remotes: github::VariantEffect/rapimave, github::VariantEffect/hgvsParseR, github::jweile/yogitools, github::jweile/yogilog, github::VariantEffect/mavevis
-RoxygenNote: 7.0.2
+RoxygenNote: 7.1.1
 SystemRequirements: gs
