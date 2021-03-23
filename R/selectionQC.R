@@ -186,6 +186,7 @@ selectionQC <- function(dataDir,countDir=NA, scoreDir=NA, outDir=NA,
 			#filter progression graph
 			logInfo("Plotting filter progression")
 			filterProgression(scores,sCond,tp,params,outDir)
+			filterBreakdown(scores,sCond,tp,params,outDir)
 			
 			#examine codon agreement for same amino acids
 			logInfo("Plotting codon agreement")
@@ -228,6 +229,55 @@ selectionQC <- function(dataDir,countDir=NA, scoreDir=NA, outDir=NA,
 		}
 	}
 
+}
+
+filterBreakdown <- function(scores,sCond,tp,params,outDir) {
+  
+  
+  regSubsets <- data.frame(
+    set=c("all", params$regions$`Region Number`),
+    start=c(2,params$regions$`Start AA`),
+    end=c(params$template$proteinLength,params$regions$`End AA`),
+    len=c(params$template$proteinLength-1,params$regions$`End AA`-params$regions$`Start AA`+1)
+  )
+  scorePos <- as.integer(gsub("\\D","",scores$aaChange))
+  
+  
+  filterStacks <- do.call(cbind,lapply (1:nrow(regSubsets), function(ri) {
+    localScores <- scores[which(scorePos >= regSubsets$start[[ri]] & 
+                                  scorePos <= regSubsets$end[[ri]]),]
+    
+    ff <- factor(localScores$filter,levels=
+       c("frequency","bottleneck:rep","bottleneck:select","wt_excess")
+    )
+    contab <- table(ff,useNA="a")
+    names(contab)[is.na(names(contab))] <- "passed"
+    contab
+  }))
+  colnames(filterStacks) <- sprintf("Region %s",regSubsets$set)
+  
+  
+  #prep plot
+  outfile <- paste0(outDir,sCond,"_t",tp,"_filtering2.pdf")
+  pdf(outfile,11,8.5)
+  tagger <- pdftagger(paste(params$pdftagbase,"; selection condition:",sCond),cpp=1)
+  opar <- par(oma=c(2,2,2,2),mar=c(2,4,1,1)+.1)
+  
+  plotcols <- c("firebrick3","gold3","gold2","orange","chartreuse3")
+  ys <- apply(filterStacks,2,cumsum)
+  labelYs <- apply(rbind(c(0,0),ys),2,function(vs) sapply(2:length(vs),function(j)(vs[[j-1]]+vs[[j]])/2))
+  xs <- barplot(filterStacks,border=NA,col=plotcols,ylab="#variants")
+  grid(NA,NULL)
+  for (i in 1:length(xs)) {
+    toShow <- which(filterStacks[,i] > 0)
+    text(xs[[i]],labelYs[toShow,i],rownames(filterStacks)[toShow])
+  }
+  
+  tagger$cycle()
+  par(opar)
+  invisible(dev.off())
+  
+  
 }
 
 #' Draw replicate correlation plots

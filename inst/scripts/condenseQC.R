@@ -109,7 +109,7 @@ for (sCond in getSelects(params)) {
 		#list report files in order
 		reportFiles <- sprintf("%s/%s_t%s_%s.pdf",qcDir,sCond,tp,c(
 			"ns_replicates","phi_replicates","replicates","logPhiBias","codonCorr","filtering",
-			"synNonDiff","logPhiDistribution","errorModel","errorProfile"
+			"filtering2","synNonDiff","logPhiDistribution","errorModel","errorProfile"
 		))
 		#discard those that don't exist or are unreadable
 		reportFiles <- reportFiles[which(canRead(reportFiles))]
