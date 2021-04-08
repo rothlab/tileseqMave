@@ -14,7 +14,7 @@ scripts <- c(
 	"csv2json.R","joinCounts.R","runLibraryQC.R",
 	"calcEnrichment.R","runSelectionQC.R","scaleScores.R","mavevisLocal.R",
 	"condenseQC.R","popcodeOligos.R","colorizeStructure.R","differenceMap.R",
-	"proveanInput.R"
+	"proveanInput.R", "profileWTCtrl.R", "calibratePhred.R"
 )
 
 #find scripts folder in the local library installation
