@@ -59,7 +59,7 @@ simulatePool <- function(params,poolCV=0.2,poolLambda=1) {
     with(allCodonChanges[allCodonChanges$region==region,],{
       prob <- freq/sum(freq)
       table(sapply(nmut,function(m) {
-        if (m == 0) "WT" else paste(sample(id,m,prob=prob),collapse="|")
+        if (m == 0) "WT" else paste(sample(id,m,prob=prob,replace=TRUE),collapse="|")
       }))
       # Thought a hash-based approach would be faster, but... no
       # counts <- hash::hash()
@@ -99,7 +99,11 @@ simulatePool <- function(params,poolCV=0.2,poolLambda=1) {
 #' @examples
 simulateFitness <- function(params,pool,lofFreq=0.3,hypoFreq=0.1,hypoSD=0.1) {
  
-  allAAChanges <- expand.grid(pos=2:params$template$proteinLength,toAA=sort(unique(pool$allCodonChanges$toAA)))
+  allAAChanges <- expand.grid(
+    pos=2:params$template$proteinLength,
+    toAA=sort(unique(pool$allCodonChanges$toAA)),
+    stringsAsFactors=FALSE
+  )
   allAAChanges$fromAA <- sapply(allAAChanges$pos, function(p) substr(params$template$proteinSeq,p,p))
   allAAChanges$id <- with(allAAChanges,paste0(pos,toAA))
   allAAChanges <- allAAChanges[,c("id","fromAA","pos","toAA")]
@@ -336,6 +340,8 @@ exportSeqSample <- function(reads, name, outdir, params, hgvsb=new.hgvs.builder.
     "#Condition:",sInfo$Condition,"\n",
     "#Replicate:",sInfo$Replicate,"\n",
     "#Timepoint:",sInfo$`Time point`,"\n",
+    "#Number of read pairs without mutations:",wtCount,"\n",
+    "#Total read pairs with mutations:",sum(outData$count),"\n",
     "#Final read-depth:",sum(reads),"\n"
   )
   filename <- paste0(outdir,"counts_sample_",name,".csv")
@@ -355,7 +361,6 @@ exportSeqSample <- function(reads, name, outdir, params, hgvsb=new.hgvs.builder.
 #' @return nothing
 #' @export
 #'
-#' @examples
 exportExperiment <- function(reads,params,outdir) {
   sampleParams <- yogitools::extract.groups(names(reads),"^rep(\\d+)\\.(.+)\\.tile(\\d+)$")
   sampleParams <- data.frame(
@@ -377,12 +382,34 @@ exportExperiment <- function(reads,params,outdir) {
   return(invisible(NULL))
 }
 
+#' Exports raw assay data
+#' 
+#' Export the raw number of cells in each assay replicate
+#' (before tileseq and sequencencing)
+#'
+#' @param assayReps the assay replicates object
+#' @param outdir the output directory
+#'
+#' @return nothing
+#' @export
+#'
+exportRawAssay <- function(assayReps, outdir) {
+  muts <- Reduce(union,lapply(assayReps,names))
+  assayTable <- do.call(cbind,lapply(assayReps,`[`,muts))
+  assayTable[is.na(assayTable)] <- 0
+  write.csv(assayTable,paste0(outdir,"rawAssay.csv"))
+}
 
-simulateExperiment <- function(workdir=tempdir(),paramFile,
+#paramFile <- "/home/jweile/projects/tileseqMave/workspace/input/SUMO1/v0.6/parameters.json"
+#workdir <- "/home/jweile/projects/tileseqMave/workspace/sim/"
+
+simulateExperiment <- function(workdir,paramFile,
                                poolCV=0.2,poolLambda=1,
                                lofFreq=0.3,hypoFreq=0.1,nPlasmids=1e5,
-                               nClones=1e5,assaySD=0.01,assayTime=3,
+                               nClones=5e5,assaySD=0.01,assayTime=3,
                                seqDepth=5e6,varcallErr=3e-6) {
+  
+  glOps <- options(stringsAsFactors=FALSE)
   
   params <- parseParameters(paramFile)
   
@@ -391,27 +418,44 @@ simulateExperiment <- function(workdir=tempdir(),paramFile,
   }
   
   timestamp <- format(Sys.time(),"%Y-%m-%d-%H-%M-%S")
+  outdir <- paste0(workdir,"simul_",timestamp,"_mut_count/")
+  dir.create(outdir,recursive = TRUE, showWarnings = FALSE)
   
   logInfo("Generating variant pool")
   pool <- simulatePool(params,poolCV,poolLambda)
+  #export true marginal information
+  write.csv(pool$allCodonChanges,paste0(outdir,"trueMarginals.csv"),row.names=FALSE)
   
   logInfo("Generating mock fitness landscape")
   trueFit <- simulateFitness(params,pool,lofFreq,hypoFreq)
+  #export true fitness information
+  write.csv(trueFit$allAAChanges,paste0(outdir,"trueFitness.csv"),row.names=FALSE)
   
-  
+  #regional mutagenesis: Sample a pool of (=100K?) plasmids/clones for each region.
   plasmidPools <- lapply(params$regions$`Region Number`, function(ri) {
     pool$sampleVariants(n = nPlasmids, region = ri)
   })
   
+  #export regional pool information
+  for (ri in params$regions$`Region Number`) {
+    write.csv(
+      data.frame(plasmidPools[[ri]]),
+      sprintf("%spool_region%d.csv",outdir,ri),
+      row.names=FALSE
+    )
+  }
+  
+  #perform replicate assays for each selection specified in the parameter sheet
   assayReps <- do.call(c,lapply(getSelects(params),function(sCond) {
     
+    #extract condition names (select/nonselect/sWT/nWT)
     quads <- findQuads(params,sCond,"1")
     repNames <- paste0("rep",1:ncol(quads$repMatrix))
     
     logInfo("Simulating assay for",sCond)
     condReps <- do.call(c,setNames(lapply(repNames, function(repi) {
       setNames(
-        simulateAssay(params,plasmidPools,trueFit,nClones,sd=assaySD,t=assayTime),
+        simulateAssay(params,plasmidPools,trueFit,n=nClones,sd=assaySD,t=assayTime),
         c(quads$condQuad[["nonselect"]],quads$condQuad[["select"]])
       )
     }),repNames))
@@ -424,12 +468,14 @@ simulateExperiment <- function(workdir=tempdir(),paramFile,
     
   }))
   
+  #save raw assay to file
+  exportRawAssay(assayReps, outdir)
+  
   logInfo("Simulating TileSeq")
+  #simulate the process of tiling PCR and sequencing
   sampleReads <- simulateTileSeq(assayReps,params,depth=seqDepth,varcallErr=varcallErr) 
   
   logInfo("Exporting simulated data")
-  outdir <- paste0(workdir,"simul_",timestamp,"_mut_count/")
-  dir.create(outdir,recursive = TRUE, showWarnings = FALSE)
   exportExperiment(sampleReads,params,outdir)
   
   buildJointTable(dataDir = workdir, inDir = outdir, paramFile=paramFile)
@@ -440,17 +486,97 @@ simulateExperiment <- function(workdir=tempdir(),paramFile,
   
   # selectionQC(workdir, outdir, paramFile = paramFile)
   
+  quickMarginal <- function(vPool) {
+    splitPlasmids <- strsplit(names(vPool),"\\|")
+    tapply(
+      do.call(c,lapply(1:length(vPool),function(i) {
+        rep(vPool[[i]],length(splitPlasmids[[i]]))
+      })),
+      do.call(c,splitPlasmids), 
+      sum
+    )
+  }
+  
+  jointPlasmids <- do.call(c,plasmidPools)
+  marginalPlasmids <- quickMarginal(tapply(jointPlasmids,names(jointPlasmids),sum))
+  marginalNS1 <- quickMarginal(assayReps[["rep1.nonselect"]])
+  marginalNS2 <- quickMarginal(assayReps[["rep2.nonselect"]])
+  
+  freqCompare <- pool$allCodonChanges
+  rownames(freqCompare) <- freqCompare$id
+  freqCompare$orig <- with(freqCompare, freq/sum(freq))
+  plasmidMargCount <- marginalPlasmids[freqCompare$id]
+  plasmidMargCount[is.na(plasmidMargCount)] <- 0
+  freqCompare$plasmids <- plasmidMargCount/sum(plasmidMargCount)
+  ns1MargCount <- marginalNS1[freqCompare$id]
+  ns1MargCount[is.na(ns1MargCount)] <- 0
+  freqCompare$ns1 <- ns1MargCount/sum(ns1MargCount)
+  ns2MargCount <- marginalNS2[freqCompare$id]
+  ns2MargCount[is.na(ns2MargCount)] <- 0
+  freqCompare$ns2 <- ns2MargCount/sum(ns2MargCount)
+  
   margfile <- paste0(outdir,"marginalCounts.csv")
-  # enrfile <- paste0(workdir,"simul_",timestamp,"_scores/",sCond,"_t1_enrichment.csv")
   margs <- read.csv(margfile, comment.char="#")
-
   rownames(margs) <- margs$codonChange
-  # rownames(pool$allCodonChanges) <- pool$allCodonChanges$id
-  margComp <- cbind(
-    true=pool$allCodonChanges$freq/sum(pool$allCodonChanges$freq), 
-    observed=margs[pool$allCodonChanges$id,"nonselect.t1.rep1.frequency"]
+  freqCompare$ns1Seq <- margs[freqCompare$id,"nonselect.t1.rep1.frequency"]
+  freqCompare$ns2Seq <- margs[freqCompare$id,"nonselect.t1.rep2.frequency"]
+  
+  
+  panel.cor <- function(x, y,...) {
+    usr <- par("usr"); on.exit(par(usr)); par(usr=c(0,1,0,1))
+    arglist <- list(...)
+    if ("log" %in% names(arglist) && arglist$log == "xy") {
+      r <- cor(fin(cbind(log10(x),log10(y))))[1,2]
+    } else {
+      r <- cor(fin(cbind(x,y)))[1,2]
+    }
+    txt <- sprintf("R = %.02f",r)
+    cex.cor <- 0.8/strwidth(txt)
+    text(0.5, 0.5, txt,cex=cex.cor)
+  }
+  
+  png("freqCompare.png",7*300,7*300,res=300)
+  pairs(
+    log10(freqCompare[,c("orig","plasmids","ns1","ns2","ns1Seq","ns2Seq")]+1e-6),
+    labels=c("simulated","plasmid\npool","preselection\nrep.1",
+             "preselection\nrep2","tileseq\nrep.1","tileseq\nrep.2"),
+    lower.panel=panel.cor, #log="xy",
+    pch=".",col=yogitools::colAlpha(1,0.2)
   )
-  plot(margComp)
+  dev.off()
+  
+  enrfile <- paste0(sub("mut_count","scores",outdir),"select_t1_enrichment.csv")
+  enrich <- read.csv(enrfile, comment.char="#")
+  
+  hgvsb <- new.hgvs.builder.p(3)
+  tfHGVS <- yogitools::rowApply(trueFit$allAAChanges[,2:4],function(fromAA,pos,toAA,...) {
+    toAA <- as.character(toAA)
+    if (toAA == "*") {
+      hgvsb$substitution(pos,fromAA,"Ter")
+    } else if (fromAA == toAA) {
+      hgvsb$synonymous(pos,fromAA)
+    } else {
+      hgvsb$substitution(pos,fromAA,toAA)
+    }
+  })
+  trueFitLookup <- data.frame(row.names=tfHGVS,trueEffect=trueFit$allAAChanges$trueEffect)
+  
+  enrich$trueFit <- trueFitLookup[enrich$hgvsp,]
+  
+  with(enrich,plot(trueFit,bce,pch=20,col=yogitools::colAlpha(1,0.2)))
+  
+  with(enrich,hist(
+    abs(trueFit-bce),breaks=100
+  ))
+  
+  with(enrich,plot(
+    abs(trueFit-bce),bce.sd,
+    log="y",
+    pch=20,col=yogitools::colAlpha(1,0.2)
+  ))
+  
+  
+  options(glOps)
   
   return(list(countDir=outdir,pool=pool,trueFitness=trueFit))
   
