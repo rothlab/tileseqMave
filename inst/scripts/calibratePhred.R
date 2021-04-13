@@ -39,10 +39,11 @@ p <- argparser::arg_parser(
 )
 
 p <- add_argument(p, "sam", help="the SAM file to analyze. Must be a WT ctrl alignment.")
-p <- add_argument(p, "--output", help="ouput file. Defaults to name of the <sam>_phredCalibration.csv")
+p <- add_argument(p, "--output", help="output file. Defaults to name of the <sam>_phredCalibration.csv")
 p <- add_argument(p, "--parameters", help="parameter file. Defaults to parameters.json in the current directory.")
 p <- add_argument(p, "--logfile", help="log file. Defaults to 'calibratePhred.log' in the same directory")
 p <- add_argument(p, "--srOverride", help="Manual override to allow singleton replicates. USE WITH EXTREME CAUTION!",flag=TRUE)
+p <- add_argument(p, "--maxReads", help="Maximum number of reads to process. (To finish faster)",default=1e5)
 
 args <- parse_args(p)
 
@@ -75,6 +76,12 @@ params <- tileseqMave::parseParameters(paramFile,srOverride=args$srOverride)
 wtseq <- params$template$seq
 # wtseq <- strsplit(scan("MTHFR_seq.txt",what="character",sep="\n",quiet=TRUE)[[1]]," ")[[1]][[2]]
 
+#set readCutoff
+maxReads <- as.numeric(args$maxReads)
+if (is.na(maxReads) || maxReads < 1) {
+  maxReads <- Inf
+}
+
 #helper function to convert Phred scores to specified error probabilities
 phredToProb <- function(phred) {
   if (phred == " ") return(NA)
@@ -99,6 +106,7 @@ logger$info("Processing SAM file")
 counts <- matrix(0,nrow=length(phredChars),ncol=2,dimnames=list(phredChars,c("err","tot")))
 
 
+#TODO: may be better to pipe 'shuf -n $maxReads <file>"
 con <- file(sam.file,open="r")
 #read file in 1000 line chunks
 chunk <- 0
@@ -200,7 +208,7 @@ while(length(lines <- readLines(con,1000))>0) {
     matches <- data.frame(t=toChars(tbuffer),r=toChars(rbuffer),q=toChars(qbuffer))
     matches$err <- with(matches,t != r)
     if (sum(matches$err) > 10) {
-      warning("Suspicious error rate in row ",chunk+i)
+      logWarn("Suspicious error rate in row ",chunk+i)
     }
     icounts <- do.call(rbind,with(matches,tapply(err,q,function(e)c(sum(e),length(e)))))
     counts[rownames(icounts),] <- counts[rownames(icounts),] + icounts
@@ -212,6 +220,11 @@ while(length(lines <- readLines(con,1000))>0) {
   # close(pb)
   chunk <- chunk+length(lines)
   logInfo("Processed",chunk,"lines...")
+  
+  if (chunk > maxReads) {
+    logInfo("Exceeded maxReads parameter. Terminating...")
+    break
+  }
 }
 close(con)
 
