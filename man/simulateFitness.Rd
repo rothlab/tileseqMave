@@ -4,7 +4,7 @@
 \alias{simulateFitness}
 \title{Simulate Clone fitness}
 \usage{
-simulateFitness(params, pool, lofFreq = 0.3, hypoFreq = 0.1, hypoSD = 0.1)
+simulateFitness(params, pool, fitBias = 0, fitSpread = 4)
 }
 \arguments{
 \item{params}{The parameter sheet}
