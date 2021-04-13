@@ -23,10 +23,12 @@
 #' @param paramFile input parameter file. defaults to <dataDir>/parameters.json
 #' @param mc.cores the number of CPU cores to use in parallel
 #' @param srOverride the single-replicate override flag
+#' @param covOverride override the requirement for coverage files. For backwards-
+#'   compatibility with older versions prior to v0.7
 #' @return NULL. Results are written to file.
 #' @export
 buildJointTable <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"parameters.json"),
-                            mc.cores=6,srOverride=FALSE) {
+                            mc.cores=6,srOverride=FALSE,covOverride=FALSE) {
 
 	op <- options(stringsAsFactors=FALSE)
 
@@ -111,6 +113,28 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,
 		stop("Missing count files for the following samples: ",paste(missingFiles,collapse=", "))
 	}
 
+	if (!covOverride) {
+  	#find coverage files and assign each to its respective sample
+  	covfiles <- list.files(inDir,pattern="coverage_.+\\.csv$",full.names=TRUE)
+  	if (length(covfiles)==0) {
+  	  error("No coverage files found in ",inDir,"! (Are they named correctly?)")
+  	}
+  	filesamples <- extract.groups(covfiles,"coverage_(.+)\\.csv$")[,1]
+  	sampleTable$coveragefile <- sapply(as.character(sampleTable$`Sample ID`), function(sid) {
+  	  i <- which(filesamples == sid)
+  	  if (length(i) == 0 || is.null(i)) {
+  	    NA
+  	  } else {
+  	    covfiles[[i]]
+  	  }
+  	})
+  	
+  	#if any samples/files are unaccounted for, throw an error!
+  	if (any(is.na(sampleTable$coveragefile))) {
+  	  missingFiles <- with(sampleTable,`Sample ID`[which(is.na(coveragefile))])
+  	  stop("Missing coverage data files for the following samples: ",paste(missingFiles,collapse=", "))
+  	}
+	}
 
 	#####################################
 	# Read and prepare all input tables #
@@ -123,6 +147,13 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,
 			error=function(e) stop("Error reading file ",cfile," : ",conditionMessage(e))
 		)
 	})
+	
+	if (!covOverride) {
+  	logInfo("Reading depth data")
+  	allRejects <- lapply(1:nrow(sampleTable), function(i) {
+  	  parseCoverageFile(sampleTable[i,"coveragefile"],params,sampleTable[i,"tile"])
+  	})
+	}
 
 	#extract sequencing depths for each sample
 	sampleTable$alignedreads <- sapply(allCounts,function(counts) as.integer(attr(counts,"depth"))) 
@@ -136,10 +167,20 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,
 	
 
 	#Calculate frequencies for all counts
-	allCounts <- lapply(allCounts,function(counts) {
-	  depth <- as.integer(attr(counts,"wtpairs")) + as.integer(attr(counts,"mutpairs"))
-		# counts$frequency <- counts$count/as.integer(attr(counts,"depth"))
-	  counts$frequency <- counts$count/depth
+	allCounts <- lapply(1:nrow(sampleTable),function(i) {
+	  counts <- allCounts[[i]]
+	  if (covOverride) {
+	    depth <- as.integer(attr(counts,"wtpairs")) + as.integer(attr(counts,"mutpairs"))
+	    counts$frequency <- counts$count/as.integer(attr(counts,"depth"))
+	  } else {
+	    rejects <- allRejects[[i]]	  
+	    positionalDepth <- as.integer(attr(counts,"depth")) - rejects
+	    posList <- yogitools::global.extract.groups(counts$hgvs,"(\\d+)")
+	    combinedDepth <- sapply(posList, function(posStrings) {
+	      mean(positionalDepth[posStrings],na.rm=TRUE)
+	    })
+	    counts$frequency <- counts$count/combinedDepth
+	  }
 		counts
 	})
 

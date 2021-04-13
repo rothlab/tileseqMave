@@ -58,6 +58,34 @@ parseCountFile <- function(filename) {
 	return(countTable)
 }
 
+#' parse coverage data file
+#'
+#' @param filename the input csv file
+#' @param params the parameter sheet
+#' @param tile the tile number associated with this file
+#'
+#' @return a vector detailing the number of rejected reads for each position
+#' @export
+#'
+parseCoverageFile <- function(filename,params,tile) {
+  
+  coverageTable <- read.csv(filename)
+  # coverageTable$m_either <- apply(coverageTable[,c("m_r1","m_r2")],1,max)
+  coverageTable$rejected <- with(coverageTable,m_either-passed)
+  
+  tileStart <- params$tiles[params$tiles[,"Tile Number"]==tile,"Start NC in CDS"]
+  tileEnd <- params$tiles[params$tiles[,"Tile Number"]==tile,"End NC in CDS"]
+  posNames <- as.character(tileStart:tileEnd)
+
+  rejections <- with(coverageTable,setNames(rejected,pos))
+  rejections <- setNames(rejections[posNames],posNames)
+  if (any(is.na(rejections))) {
+    rejections[which(is.na(rejections))] <- 0
+  }
+  
+  return(rejections)
+}
+
 #' Translate a single HGVS string from nucleotide to amino acid level
 #' 
 #' This function takes a codon-level HGVS string and translates it to amino acid level.
