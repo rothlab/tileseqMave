@@ -44,6 +44,7 @@ p <- add_argument(p, "--parameters", help="parameter file. Defaults to parameter
 p <- add_argument(p, "--logfile", help="log file. Defaults to joinCounts.log in the workspace directory")
 p <- add_argument(p, "--cores", default=6, help="number of CPU cores to use in parallel for multi-threading")
 p <- add_argument(p, "--srOverride", help="Manual override to allow singleton replicates. USE WITH EXTREME CAUTION!",flag=TRUE)
+p <- add_argument(p, "--covOverride", help="Manual override to ignore positional coverage. For backwards-compatibility with data prior to v0.7",flag=TRUE)
 args <- parse_args(p)
 
 #Workaround for bug in future package, that re-uses command line arguments:
@@ -76,6 +77,8 @@ logVersion()
 
 #run the actual function
 invisible(
-	buildJointTable(dataDir,inDir=args$input,outDir=args$output,paramfile,mc.cores,srOverride=args$srOverride)
+	buildJointTable(dataDir,inDir=args$input,outDir=args$output,paramfile,
+	                mc.cores,srOverride=args$srOverride,covOverride=args$covOverride
+  )
 )
 

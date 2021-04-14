@@ -10,7 +10,8 @@ buildJointTable(
   outDir = NA,
   paramFile = paste0(dataDir, "parameters.json"),
   mc.cores = 6,
-  srOverride = FALSE
+  srOverride = FALSE,
+  covOverride = FALSE
 )
 }
 \arguments{
@@ -25,6 +26,9 @@ buildJointTable(
 \item{mc.cores}{the number of CPU cores to use in parallel}
 
 \item{srOverride}{the single-replicate override flag}
+
+\item{covOverride}{override the requirement for coverage files. For backwards-
+compatibility with older versions prior to v0.7}
 }
 \value{
 NULL. Results are written to file.
