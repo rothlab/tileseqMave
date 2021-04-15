@@ -27,7 +27,8 @@
 #'   compatibility with older versions prior to v0.7
 #' @return NULL. Results are written to file.
 #' @export
-buildJointTable <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"parameters.json"),
+buildJointTable <- function(dataDir,inDir=NA,outDir=NA,
+                            paramFile=paste0(dataDir,"parameters.json"),
                             mc.cores=6,srOverride=FALSE,covOverride=FALSE) {
 
 	op <- options(stringsAsFactors=FALSE)
@@ -183,7 +184,7 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,
 	
 	if (!covOverride) {
   	outfile <- paste0(outDir,"/positionalDepths.csv")
-  	write.csv(as.data.frame(positionalDepth),outfile,row.names=FALSE)
+  	write.csv(as.data.frame(positionalDepth),outfile)
 	}
 	
 
@@ -390,8 +391,21 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,
 	
 	#if positional coverage data is available, we need to correct the frequencies
 	if (!covOverride) {
-	  margPos <- gsub("\\D+","",marginalCounts$codonChange)
-	  depths <- t(positionalDepth[,margPos])
+	  #first we need to convert the coverage from nucleotide indices to AA indices
+	  allAAPos <- 1:params$template$proteinLength
+	  aa2ncpos <- lapply(allAAPos*3,`-`,2:0)
+	  
+	  aaDepth <- do.call(rbind,lapply(aa2ncpos, function(is) {
+	    is <- intersect(as.character(is),colnames(positionalDepth))
+	    if (length(is)==0) {
+	      return(setNames(rep(0,nrow(positionalDepth)),rownames(positionalDepth)))
+	    } else {
+	      rowMeans(positionalDepth[,is],na.rm=TRUE)
+	    }
+	  }))
+	  
+	  margPos <- as.integer(gsub("\\D+","",marginalCounts$codonChange))
+	  depths <- aaDepth[margPos,]
 	  freqs <- marginalCounts[,paste0(colnames(depths),".count")]/depths
 	  marginalCounts[,paste0(colnames(depths),".frequency")] <- freqs
 	}
