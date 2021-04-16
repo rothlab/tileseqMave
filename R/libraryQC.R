@@ -137,6 +137,7 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
 	allCountFile <- paste0(inDir,"/allCounts.csv")
 	marginalCountFile <- paste0(inDir,"/marginalCounts.csv")
 	depthTableFile <-  paste0(inDir,"/sampleDepths.csv")
+	covTableFile <-  paste0(inDir,"/positionalDepths.csv")
 	
 	if (!all(file.exists(allCountFile, marginalCountFile, depthTableFile))) {
 	  stop("Invalid input directory ",inDir," ! Must contain allCounts.csv, marginalCounts.csv and sampleDepths.csv !")
@@ -145,6 +146,23 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
 	allCounts <- read.csv(allCountFile,comment.char="#")
 	marginalCounts <- read.csv(marginalCountFile,comment.char="#")
 	depthTable <- read.csv(depthTableFile)
+	
+	if (file.exists(covTableFile)) {
+	  #read postional depth table and draw a diagnosis plot for it
+	  covTable <- read.csv(covTableFile,row.names=1)
+	  colnames(covTable) <- sub("^X","",colnames(covTable))
+	  drawPositionalDepth(covTable,outDir,pdftag)
+	  
+	  #adjust depth table with "effective" depth
+	  tileDepths <- do.call(rbind,lapply(1:nrow(covTable),function(row) {
+	    apply(params$tiles,1,function(tile) {
+	      poss <- as.character(tile[["Start AA"]]:tile[["End AA"]])
+	      poss <- intersect(colnames(covTable),poss)
+	      median(as.matrix(covTable[row,poss]),na.rm=TRUE)
+	    })
+	  }))
+	  dimnames(tileDepths) <- list(rownames(covTable),params$tiles[,1])
+	}
 	
 	#TODO: Maybe at a later point we will want to report on silent mutations too
 	#but for now we remove them
@@ -622,9 +640,16 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
   				coverageSubmap(startPos,endPos,aaMarginal,seps,thresholds=c(wmThreshold/10,wmThreshold*10))
   				#and plot the corresponding censi
   				lapply(tiles, function(tile) {
-  					depths <- with(depthTable,depth[
-  						Condition==nsCond & Time.point==tp & Tile.ID==tile
-  					])
+  				  if (exists("tileDepths")) {
+  				    reps <- params$numReplicates[[nsCond]]
+  				    depths <- as.matrix(tileDepths[
+  				      sprintf("%s.t%s.rep%d",nsCond,tp,1:reps), as.character(tile)
+  				    ])
+  				  } else {
+    					depths <- with(depthTable,depth[
+    						Condition==nsCond & Time.point==tp & Tile.ID==tile
+    					])
+  				  }
   					plotCensus(
   						tileCensi[as.character(tile),],
   						lambda=tileLambdas[as.character(tile),"lambda"],
@@ -835,6 +860,38 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
 	options(op)
 	logInfo("QC analysis complete.")
 	return(NULL)
+}
+
+drawPositionalDepth <- function(covTable,outDir,pdftag) {
+  pos <- as.integer(sub("^X","",colnames(covTable)))
+  
+  #this may be a problem if there are more than 9 conditions...
+  idxCols <- c("steelblue","firebrick","chartreuse","gold","purple","slategray",
+               "royalblue","hotpink","springgreen","orange","darkorchid")
+  
+  conds <- sort(rownames(covTable))
+  condGroups <- sub("\\.rep\\d+","",conds)
+  cgTable <- table(condGroups)
+  lineColors <- setNames(do.call(c,lapply(1:length(cgTable), function(j) {
+    colorRampPalette(paste0(idxCols[[j]],c(1,4)))(cgTable[[j]])
+  })),conds)
+  
+    
+  pdf(paste0(outDir,"effectiveSeqDepth.pdf"),11,8.5)
+  tagger <- pdftagger(pdftag,cpp=1)
+  opar <- par(mar=c(5,4,1,1),oma=c(2,2,2,2))
+  plot(NA,type="n",
+    xlim=c(min(pos),1.2*max(pos)),ylim=c(0,max(covTable,na.rm = TRUE)),
+    xlab="CDS nucl. position" ,ylab="Effective seq. depth"   
+  )
+  invisible(lapply(1:nrow(covTable),function(i) {
+    lines(pos,covTable[i,],col=lineColors[rownames(covTable)[[i]]])
+  }))
+  legend("right",names(lineColors),col=lineColors,lty=1)
+  tagger$cycle()
+  par(opar)
+  invisible(dev.off())
+  
 }
 
 #helper function to draw a subsection of the coverage map.

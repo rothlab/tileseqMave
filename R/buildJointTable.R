@@ -23,10 +23,13 @@
 #' @param paramFile input parameter file. defaults to <dataDir>/parameters.json
 #' @param mc.cores the number of CPU cores to use in parallel
 #' @param srOverride the single-replicate override flag
+#' @param covOverride override the requirement for coverage files. For backwards-
+#'   compatibility with older versions prior to v0.7
 #' @return NULL. Results are written to file.
 #' @export
-buildJointTable <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"parameters.json"),
-                            mc.cores=6,srOverride=FALSE) {
+buildJointTable <- function(dataDir,inDir=NA,outDir=NA,
+                            paramFile=paste0(dataDir,"parameters.json"),
+                            mc.cores=6,srOverride=FALSE,covOverride=FALSE) {
 
 	op <- options(stringsAsFactors=FALSE)
 
@@ -95,7 +98,7 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,
 	if (length(countfiles)==0) {
 		error("No count files found in ",inDir,"! (Are they named correctly?)")
 	}
-	filesamples <- extract.groups(countfiles,"counts_sample_(.+)\\.csv$")[,1]
+	filesamples <- extract.groups(countfiles,"counts_sample_([^/]+)\\.csv$")[,1]
 	sampleTable$countfile <- sapply(as.character(sampleTable$`Sample ID`), function(sid) {
 		i <- which(filesamples == sid)
 		if (length(i) == 0 || is.null(i)) {
@@ -111,6 +114,28 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,
 		stop("Missing count files for the following samples: ",paste(missingFiles,collapse=", "))
 	}
 
+	if (!covOverride) {
+  	#find coverage files and assign each to its respective sample
+  	covfiles <- list.files(inDir,pattern="coverage_.+\\.csv$",full.names=TRUE)
+  	if (length(covfiles)==0) {
+  	  error("No coverage files found in ",inDir,"! (Are they named correctly?)")
+  	}
+  	filesamples <- extract.groups(covfiles,"coverage_([^/]+)\\.csv$")[,1]
+  	sampleTable$coveragefile <- sapply(as.character(sampleTable$`Sample ID`), function(sid) {
+  	  i <- which(filesamples == sid)
+  	  if (length(i) == 0 || is.null(i)) {
+  	    NA
+  	  } else {
+  	    covfiles[[i]]
+  	  }
+  	})
+  	
+  	#if any samples/files are unaccounted for, throw an error!
+  	if (any(is.na(sampleTable$coveragefile))) {
+  	  missingFiles <- with(sampleTable,`Sample ID`[which(is.na(coveragefile))])
+  	  stop("Missing coverage data files for the following samples: ",paste(missingFiles,collapse=", "))
+  	}
+	}
 
 	#####################################
 	# Read and prepare all input tables #
@@ -123,6 +148,29 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,
 			error=function(e) stop("Error reading file ",cfile," : ",conditionMessage(e))
 		)
 	})
+	
+	if (!covOverride) {
+  	logInfo("Reading depth data")
+	  #parse coverage files to calculate the number of rejected variant calls per position
+  	allRejects <- lapply(1:nrow(sampleTable), function(i) {
+  	  parseCoverageFile(sampleTable[i,"coveragefile"],params,sampleTable[i,"Tile ID"])
+  	})
+  	#the number of reads minus the number of rejections gives us the positional depth
+  	positionalDepth <- lapply(1:nrow(sampleTable), function(i) {
+  	  as.integer(attr(allCounts[[i]],"depth")) - allRejects[[i]]
+  	})
+  	#re-organize the positional depth by condition timepoint and replicate
+  	condRID <- with(sampleTable,sprintf("%s.t%s.rep%d",Condition,`Time point`,Replicate))
+  	positionalDepth <- do.call(rbind,tapply(1:nrow(sampleTable),condRID,function(is) {
+  	  pds <- do.call(c,positionalDepth[is])
+  	  if (any(duplicated(names(pds)))) {
+  	    stop("Overlapping tiles in coverage data!")
+  	  }
+  	  pds[order(as.integer(names(pds)))]
+  	}))
+  	
+  	  
+	}
 
 	#extract sequencing depths for each sample
 	sampleTable$alignedreads <- sapply(allCounts,function(counts) as.integer(attr(counts,"depth"))) 
@@ -134,12 +182,31 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,
 	outfile <- paste0(outDir,"/sampleDepths.csv")
 	write.csv(sampleTable,outfile,row.names=FALSE)
 	
+	if (!covOverride) {
+  	outfile <- paste0(outDir,"/positionalDepths.csv")
+  	write.csv(as.data.frame(positionalDepth),outfile)
+	}
+	
 
+	logInfo("Calculating relative frequencies")
 	#Calculate frequencies for all counts
-	allCounts <- lapply(allCounts,function(counts) {
-	  depth <- as.integer(attr(counts,"wtpairs")) + as.integer(attr(counts,"mutpairs"))
-		# counts$frequency <- counts$count/as.integer(attr(counts,"depth"))
-	  counts$frequency <- counts$count/depth
+	allCounts <- lapply(1:nrow(sampleTable),function(i) {
+	  counts <- allCounts[[i]]
+	  if (covOverride) {
+	    depth <- as.integer(attr(counts,"wtpairs")) + as.integer(attr(counts,"mutpairs"))
+	    counts$frequency <- counts$count/as.integer(attr(counts,"depth"))
+	  } else {
+	    condRID <- with(sampleTable[i,],sprintf("%s.t%s.rep%d",Condition,`Time point`,Replicate))
+	    # rejects <- allRejects[[i]]	  
+	    # localDepth <- as.integer(attr(counts,"depth")) - rejects
+	    localDepth <- positionalDepth[condRID,]
+	    posList <- yogitools::global.extract.groups(counts$HGVS,"(\\d+)")
+	    #for multi-mutants, we average over the depths of the applicable positions
+	    combinedDepth <- sapply(posList, function(posStrings) {
+	      mean(localDepth[posStrings],na.rm=TRUE)
+	    })
+	    counts$frequency <- counts$count/combinedDepth
+	  }
 		counts
 	})
 
@@ -188,7 +255,10 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,
 
 	#helper function to combine a set of count/frequency tables, ordered by allVars
 	joinTables <- function(tables, allVars) {
+	  #initialize empty table
 		out <- data.frame(count=rep(0,length(allVars)),frequency=rep(0,length(allVars)),row.names=allVars)
+		#add-in table contents one-by-one (this way any potential overlapping 
+		#positions between tiles get summed)
 		for (i in 1:length(tables)) {
 			out[tables[[i]]$HGVS,] <- out[tables[[i]]$HGVS,] + tables[[i]][,c("count","frequency")]
 		}
@@ -318,6 +388,27 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,
 			colSums(jointTable[ccIdx[[cc]],-(1:6)],na.rm=TRUE)
 		)
 	},mc.cores=mc.cores))
+	
+	#if positional coverage data is available, we need to correct the frequencies
+	if (!covOverride) {
+	  #first we need to convert the coverage from nucleotide indices to AA indices
+	  allAAPos <- 1:params$template$proteinLength
+	  aa2ncpos <- lapply(allAAPos*3,`-`,2:0)
+	  
+	  aaDepth <- do.call(rbind,lapply(aa2ncpos, function(is) {
+	    is <- intersect(as.character(is),colnames(positionalDepth))
+	    if (length(is)==0) {
+	      return(setNames(rep(0,nrow(positionalDepth)),rownames(positionalDepth)))
+	    } else {
+	      rowMeans(positionalDepth[,is],na.rm=TRUE)
+	    }
+	  }))
+	  
+	  margPos <- as.integer(gsub("\\D+","",marginalCounts$codonChange))
+	  depths <- aaDepth[margPos,]
+	  freqs <- marginalCounts[,paste0(colnames(depths),".count")]/depths
+	  marginalCounts[,paste0(colnames(depths),".frequency")] <- freqs
+	}
 
 	logInfo("Writing results to file.")
 	outfile <- paste0(outDir,"/marginalCounts.csv")

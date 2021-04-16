@@ -97,8 +97,8 @@ simulatePool <- function(params,poolCV=0.2,poolLambda=1) {
 #' @export
 #'
 #' @examples
-simulateFitness <- function(params,pool,lofFreq=0.3,hypoFreq=0.1,hypoSD=0.1) {
- 
+simulateFitness <- function(params,pool,fitBias=0,fitSpread=4) {
+  #lofFreq=0.3,hypoFreq=0.1,hypoSD=0.1
   allAAChanges <- expand.grid(
     pos=2:params$template$proteinLength,
     toAA=sort(unique(pool$allCodonChanges$toAA)),
@@ -109,16 +109,26 @@ simulateFitness <- function(params,pool,lofFreq=0.3,hypoFreq=0.1,hypoSD=0.1) {
   allAAChanges <- allAAChanges[,c("id","fromAA","pos","toAA")]
   rownames(allAAChanges) <- allAAChanges$id
   
-  allAAChanges$trueEffect <- sapply(1:nrow(allAAChanges), function(i) with(allAAChanges[i,],{
-    if (fromAA==toAA) 1 
-    else if (toAA=="*") 0
-    else {
-      rand <- runif(1,0,1)
-      if (rand < lofFreq) 0
-      else if (rand < lofFreq+hypoFreq) rnorm(1,0.5,hypoSD)
-      else 1
-    }
-  }))
+  
+  logistic <- function(x) exp(x)/(1+exp(x))
+  #assign random fitness effects based on logistic distribution
+  allAAChanges$trueEffect <- logistic(rnorm(nrow(allAAChanges),fitBias,fitSpread))
+  #assign synonymous to always be 1
+  allAAChanges$trueEffect[with(allAAChanges,which(fromAA==toAA))] <- 1
+  #and nonsense to always be 0
+  allAAChanges$trueEffect[with(allAAChanges,which(toAA=="*"))] <- 0
+  
+  
+  # allAAChanges$trueEffect <- sapply(1:nrow(allAAChanges), function(i) with(allAAChanges[i,],{
+  #   if (fromAA==toAA) 1 
+  #   else if (toAA=="*") 0
+  #   else {
+  #     rand <- runif(1,0,1)
+  #     if (rand < lofFreq) 0
+  #     else if (rand < lofFreq+hypoFreq) rnorm(1,0.5,hypoSD)
+  #     else 1
+  #   }
+  # }))
   
   calcTrueFitness <- function(codonChanges) {
     #import translation table
@@ -403,9 +413,28 @@ exportRawAssay <- function(assayReps, outdir) {
 #paramFile <- "/home/jweile/projects/tileseqMave/workspace/input/SUMO1/v0.6/parameters.json"
 #workdir <- "/home/jweile/projects/tileseqMave/workspace/sim/"
 
-simulateExperiment <- function(workdir,paramFile,
+#' Title
+#'
+#' @param workdir current working directory
+#' @param paramFile parameter file
+#' @param poolCV coefficient of variation in original mutant pool
+#' @param poolLambda number of mutations per clone
+#' @param fitBias fitness bias (towards neutral or deleterious)
+#' @param fitSpread fitness spread (how strongly it tends to extremes)
+#' @param nPlasmids size of initial plasmid pool
+#' @param nClones number of clones to be used in each replicate pool
+#' @param assaySD the amount of noise in the assay
+#' @param assayTime the growth time in the assay
+#' @param seqDepth the sequencing depth for tileseq
+#' @param varcallErr the per-base variant calling error
+#'
+#' @return
+#' @export
+#'
+#' @examples
+simulateExperiment <- function(workdir,paramFile=paste0(workdir,"parameters.json"),
                                poolCV=0.2,poolLambda=1,
-                               lofFreq=0.3,hypoFreq=0.1,nPlasmids=1e5,
+                               fitBias=0,fitSpread=4,nPlasmids=5e5,
                                nClones=5e5,assaySD=0.01,assayTime=3,
                                seqDepth=5e6,varcallErr=3e-6) {
   
@@ -427,7 +456,7 @@ simulateExperiment <- function(workdir,paramFile,
   write.csv(pool$allCodonChanges,paste0(outdir,"trueMarginals.csv"),row.names=FALSE)
   
   logInfo("Generating mock fitness landscape")
-  trueFit <- simulateFitness(params,pool,lofFreq,hypoFreq)
+  trueFit <- simulateFitness(params,pool,fitBias=fitBias,fitSpread=fitSpread)
   #export true fitness information
   write.csv(trueFit$allAAChanges,paste0(outdir,"trueFitness.csv"),row.names=FALSE)
   
@@ -497,30 +526,61 @@ simulateExperiment <- function(workdir,paramFile,
     )
   }
   
-  jointPlasmids <- do.call(c,plasmidPools)
-  marginalPlasmids <- quickMarginal(tapply(jointPlasmids,names(jointPlasmids),sum))
-  marginalNS1 <- quickMarginal(assayReps[["rep1.nonselect"]])
-  marginalNS2 <- quickMarginal(assayReps[["rep2.nonselect"]])
+  #list vectors containing replicate names for each nonselect condition
+  nsReps <- unique(lapply(getSelects(params),function(sel) findQuads(params,sel,"1")$repMatrix["nonselect",]))
+  nsNames <- sapply(nsReps,function(x)sub("\\..*","",x[[1]]))
   
-  freqCompare <- pool$allCodonChanges
-  rownames(freqCompare) <- freqCompare$id
-  freqCompare$orig <- with(freqCompare, freq/sum(freq))
-  plasmidMargCount <- marginalPlasmids[freqCompare$id]
-  plasmidMargCount[is.na(plasmidMargCount)] <- 0
-  freqCompare$plasmids <- plasmidMargCount/sum(plasmidMargCount)
-  ns1MargCount <- marginalNS1[freqCompare$id]
-  ns1MargCount[is.na(ns1MargCount)] <- 0
-  freqCompare$ns1 <- ns1MargCount/sum(ns1MargCount)
-  ns2MargCount <- marginalNS2[freqCompare$id]
-  ns2MargCount[is.na(ns2MargCount)] <- 0
-  freqCompare$ns2 <- ns2MargCount/sum(ns2MargCount)
-  
-  margfile <- paste0(outdir,"marginalCounts.csv")
-  margs <- read.csv(margfile, comment.char="#")
-  rownames(margs) <- margs$codonChange
-  freqCompare$ns1Seq <- margs[freqCompare$id,"nonselect.t1.rep1.frequency"]
-  freqCompare$ns2Seq <- margs[freqCompare$id,"nonselect.t1.rep2.frequency"]
-  
+  freqCompareTables <- lapply(nsReps, function(repNames) {
+    
+    repComponents <- do.call(rbind,strsplit(repNames,"\\."))
+    repNamesInternal <- apply(repComponents[,c(3,1)],1,paste,collapse=".")
+    
+    #comparison table for marginal frequencies
+    freqCompare <- pool$allCodonChanges
+    rownames(freqCompare) <- freqCompare$id
+    #original simulated frequency
+    freqCompare$orig <- with(freqCompare, freq/sum(freq))
+    
+    #marginals from Plasmid pools
+    jointPlasmids <- do.call(c,plasmidPools)
+    marginalPlasmids <- quickMarginal(tapply(jointPlasmids,names(jointPlasmids),sum))
+    plasmidMargCount <- marginalPlasmids[freqCompare$id]
+    plasmidMargCount[is.na(plasmidMargCount)] <- 0
+    #add to comparison table
+    freqCompare$plasmids <- plasmidMargCount/sum(plasmidMargCount)
+    
+    #marginals in assay cell pools
+    assayMarginals <- do.call(cbind,lapply(repNamesInternal, function(repName) {
+      repMarginal <- quickMarginal(assayReps[[repName]])
+      
+      nsRepMargCount <- repMarginal[freqCompare$id]
+      nsRepMargCount[is.na(nsRepMargCount)] <- 0
+      return(nsRepMargCount/sum(nsRepMargCount))
+    }))
+    colnames(assayMarginals) <- repNamesInternal
+    #add to comparison table
+    freqCompare <- cbind(freqCompare,assayMarginals)
+    
+    # marginalNS1 <- quickMarginal(assayReps[["rep1.nonselect"]])
+    # marginalNS2 <- quickMarginal(assayReps[["rep2.nonselect"]])
+    
+    # ns1MargCount <- marginalNS1[freqCompare$id]
+    # ns1MargCount[is.na(ns1MargCount)] <- 0
+    # freqCompare$ns1 <- ns1MargCount/sum(ns1MargCount)
+    # ns2MargCount <- marginalNS2[freqCompare$id]
+    # ns2MargCount[is.na(ns2MargCount)] <- 0
+    # freqCompare$ns2 <- ns2MargCount/sum(ns2MargCount)
+    
+    margfile <- paste0(outdir,"marginalCounts.csv")
+    margs <- read.csv(margfile, comment.char="#")
+    rownames(margs) <- margs$codonChange
+    finalMargs <- margs[freqCompare$id,repNames]
+    
+    freqCompare <- cbind(freqCompare,finalMargs)
+    # freqCompare$ns1Seq <- margs[freqCompare$id,"nonselect.t1.rep1.frequency"]
+    # freqCompare$ns2Seq <- margs[freqCompare$id,"nonselect.t1.rep2.frequency"]
+    return(freqCompare)
+  })
   
   panel.cor <- function(x, y,...) {
     usr <- par("usr"); on.exit(par(usr)); par(usr=c(0,1,0,1))
@@ -535,46 +595,73 @@ simulateExperiment <- function(workdir,paramFile,
     text(0.5, 0.5, txt,cex=cex.cor)
   }
   
-  png("freqCompare.png",7*300,7*300,res=300)
-  pairs(
-    log10(freqCompare[,c("orig","plasmids","ns1","ns2","ns1Seq","ns2Seq")]+1e-6),
-    labels=c("simulated","plasmid\npool","preselection\nrep.1",
-             "preselection\nrep2","tileseq\nrep.1","tileseq\nrep.2"),
-    lower.panel=panel.cor, #log="xy",
-    pch=".",col=yogitools::colAlpha(1,0.2)
-  )
-  dev.off()
-  
-  enrfile <- paste0(sub("mut_count","scores",outdir),"select_t1_enrichment.csv")
-  enrich <- read.csv(enrfile, comment.char="#")
+  invisible(lapply(1:length(nsNames), function(i) {
+    freqCompare <- freqCompareTables[[i]]
+    nrep <- length(nsReps[[i]])
+    pngfile <- paste0(nsNames[[i]],"_marginalCompare.png")
+    png(pngfile,7*300,7*300,res=300)
+    pairs(
+      log10(freqCompare[,-(1:9)]+1e-6),
+      labels=c("simulated","plasmid\npool",
+               sprintf("preselection\nrep.%d",1:nrep),
+               sprintf("tileseq\nrep.%d",1:nrep)
+      ),
+      lower.panel=panel.cor, #log="xy",
+      pch=".",col=yogitools::colAlpha(1,0.2)
+    )
+    dev.off()
+  }))
   
   hgvsb <- new.hgvs.builder.p(3)
-  tfHGVS <- yogitools::rowApply(trueFit$allAAChanges[,2:4],function(fromAA,pos,toAA,...) {
-    toAA <- as.character(toAA)
-    if (toAA == "*") {
-      hgvsb$substitution(pos,fromAA,"Ter")
-    } else if (fromAA == toAA) {
-      hgvsb$synonymous(pos,fromAA)
-    } else {
-      hgvsb$substitution(pos,fromAA,toAA)
-    }
+  #compare fitness values in selection conditions
+  lapply(getSelects(params), function(sCond){
+    enrfile <- paste0(sub("mut_count","scores",outdir),sCond,"_t1_enrichment.csv")
+    enrich <- read.csv(enrfile, comment.char="#")
+    tfHGVS <- yogitools::rowApply(trueFit$allAAChanges[,2:4],function(fromAA,pos,toAA,...) {
+      toAA <- as.character(toAA)
+      if (toAA == "*") {
+        hgvsb$substitution(pos,fromAA,"Ter")
+      } else if (fromAA == toAA) {
+        hgvsb$synonymous(pos,fromAA)
+      } else {
+        hgvsb$substitution(pos,fromAA,toAA)
+      }
+    })
+    trueFitLookup <- data.frame(row.names=tfHGVS,trueEffect=trueFit$allAAChanges$trueEffect)
+    
+    enrich$trueFit <- trueFitLookup[enrich$hgvsp,]
+    
+    pngfile <- paste0(sCond,"_scoreCompare.png")
+    png(pngfile,7*300,7*300,res=300)
+    with(enrich,plot(trueFit,bce,pch=20,col=yogitools::colAlpha(1,0.2)))
+    dev.off()
+    
+    pngfile <- paste0(sCond,"_errorCompare.png")
+    png(pngfile,7*300,7*300,res=300)
+    layout(rbind(1,2,3),heights=c(2,.2,2))
+    with(enrich,plot(
+      bce,abs(trueFit-bce),
+      pch=20,col=yogitools::colAlpha(1,0.2)
+    ))
+    op <- par(mar=c(0,4,0,1))
+    with(enrich,hist(
+      abs(trueFit-bce),breaks=100,main="",
+      col="gray",border=NA,axes=FALSE
+    ))
+    axis(2)
+    par(mar=c(5,4,0,1))
+    with(enrich,plot(
+      abs(trueFit-bce),bce.sd,
+      log="y",
+      pch=20,col=yogitools::colAlpha(1,0.2)
+    ))
+    runMed <- with(enrich,yogitools::runningFunction(abs(trueFit-bce),bce.sd,nbins=50,fun=median))
+    lines(runMed,col=2,lwd=2)
+    par(op)
+    dev.off()
+    
   })
-  trueFitLookup <- data.frame(row.names=tfHGVS,trueEffect=trueFit$allAAChanges$trueEffect)
-  
-  enrich$trueFit <- trueFitLookup[enrich$hgvsp,]
-  
-  with(enrich,plot(trueFit,bce,pch=20,col=yogitools::colAlpha(1,0.2)))
-  
-  with(enrich,hist(
-    abs(trueFit-bce),breaks=100
-  ))
-  
-  with(enrich,plot(
-    abs(trueFit-bce),bce.sd,
-    log="y",
-    pch=20,col=yogitools::colAlpha(1,0.2)
-  ))
-  
+
   
   options(glOps)
   
