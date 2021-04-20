@@ -153,10 +153,22 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
 	  colnames(covTable) <- sub("^X","",colnames(covTable))
 	  drawPositionalDepth(covTable,outDir,pdftag)
 	  
+	  #convert to amino acid positions
+	  allAAPos <- 1:params$template$proteinLength
+	  aa2ncpos <- lapply(allAAPos*3,`-`,2:0)
+	  aaDepth <- do.call(rbind,lapply(aa2ncpos, function(is) {
+	    is <- intersect(as.character(is),colnames(covTable))
+	    if (length(is)==0) {
+	      return(setNames(rep(0,nrow(covTable)),rownames(covTable)))
+	    } else {
+	      rowMeans(covTable[,is],na.rm=TRUE)
+	    }
+	  }))
+	  
 	  #adjust depth table with "effective" depth
 	  tileDepths <- do.call(rbind,lapply(1:nrow(covTable),function(row) {
 	    apply(params$tiles,1,function(tile) {
-	      poss <- as.character(tile[["Start AA"]]:tile[["End AA"]])
+	      poss <- as.character(tile[["Start NC in CDS"]]:tile[["End NC in CDS"]])
 	      poss <- intersect(colnames(covTable),poss)
 	      median(as.matrix(covTable[row,poss]),na.rm=TRUE)
 	    })
@@ -642,18 +654,22 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
   				lapply(tiles, function(tile) {
   				  if (exists("tileDepths")) {
   				    reps <- params$numReplicates[[nsCond]]
-  				    depths <- as.matrix(tileDepths[
+  				    edepths <- as.matrix(tileDepths[
   				      sprintf("%s.t%s.rep%d",nsCond,tp,1:reps), as.character(tile)
   				    ])
   				  } else {
-    					depths <- with(depthTable,depth[
-    						Condition==nsCond & Time.point==tp & Tile.ID==tile
-    					])
+  				    edepths <- with(depthTable,depth[
+  				      Condition==nsCond & Time.point==tp & Tile.ID==tile
+  				    ])
   				  }
+  					depths <- with(depthTable,alignedreads[
+  						Condition==nsCond & Time.point==tp & Tile.ID==tile
+  					])
   					plotCensus(
   						tileCensi[as.character(tile),],
   						lambda=tileLambdas[as.character(tile),"lambda"],
   						d=if(length(depths)>0) min(depths,na.rm=TRUE) else NULL,
+  						e=if(length(edepths)>0) min(edepths,na.rm=TRUE) else NULL,
   						main=paste0("Tile #",tile)
   					)
   				})
@@ -956,7 +972,7 @@ drawCoverageLegend <- function(wmThreshold,aaMarginal) {
 }
 
 #helper function to plot a census dataset
-plotCensus <- function(census,lambda,d=NULL,main="") {
+plotCensus <- function(census,lambda,d=NULL,e=NULL,main="") {
 	if (is.null(census) || any(is.na(census))) {
 		plot.new()
 		rect(0,0,1,1,col="gray80",border="gray30",lty="dotted")
@@ -976,11 +992,16 @@ plotCensus <- function(census,lambda,d=NULL,main="") {
 	u <- par("usr")
 	midx <- mean(u[1:2])
 	midy <- mean(u[3:4])
-	uppermid <- 0.4*u[[3]]+0.6*u[[4]]
-	lowermid <- 0.6*u[[3]]+0.4*u[[4]]
+	topmid <- 0.2*u[[3]]+0.8*u[[4]]
+	uppermid <- 0.5*u[[3]]+0.5*u[[4]]
+	lowermid <- 0.8*u[[3]]+0.2*u[[4]]
 	text(midx,lowermid,bquote(lambda == .(round(lambda,digits=3))))
 	if (!is.null(d)) {
-		text(midx,uppermid,paste("#reads =",d))
+		# text(midx,topmid,paste("#reads =",d))
+	  text(midx,topmid,bquote(d["raw"] == .(d)))
+	}
+	if (!is.null(e)) {
+	  text(midx,uppermid,bquote(d["eff"] %~~% .(e)))
 	}
 	par(op)
 	invisible(return(NULL))
