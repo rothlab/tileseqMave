@@ -234,10 +234,11 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
 	    
 	    # RAW REPLICATE CORRELATIONS PER TILE ------------------------------------
 	    
+	    nreps <- params$numReplicates[[nsCond]]
 	    nsReps <- sprintf("%s.t%s.rep%s.frequency",nsCond,tp,1:params$numReplicates[[nsCond]])
 	    
-	    if (params$numReplicates[[nsCond]] > 1) {
-	      #TODO: Make this work for more than two replicates!
+	    if (nreps == 2) {
+	      
 	      logInfo("Drawing per-tile replicate correlation plot")
 	      pdf(paste0(outDir,nsCond,"_t",tp,"_tileRepCorr.pdf"),8.5,11)
 	      tagger <- pdftagger(paste(pdftag,"; condition:",nsCond,"timepoint:",tp),cpp=12)
@@ -246,9 +247,12 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
   	      tile <- params$tiles[tilei,"Tile Number"]
   	      subset <- marginalCounts[which(marginalTiles == tile),]
   	      if (nrow(subset) > 0) {
+  	        r <- cor(fin(log10(subset[,nsReps[1:2]]+1e-7)))[1,2]
+  	        rtxt <- sprintf("R = %.02f",r)
     	      plot(
     	        subset[,nsReps[[1]]]+1e-7,subset[,nsReps[[2]]]+1e-7,
-    	        log="xy",pch=20,col=colAlpha(1,0.2),main=paste("Tile",tile),
+    	        log="xy",pch=20,col=colAlpha(1,0.2),
+    	        main=sprintf("Tile %d\nR = %.02f",tile,r),
     	        xlab=paste(nsCond,"rep.1"),ylab=paste(nsCond,"rep.2")
     	      )
   	      } else {
@@ -261,6 +265,47 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
   	    }
   	    par(opar)
   	    invisible(dev.off())
+  	    
+	    } else if (nreps > 2) {
+	      
+	      panel.cor <- function(x, y,...){
+	        usr <- par("usr")
+	        par(usr=c(0,1,0,1))
+	        r <- cor(fin(cbind(x,y)))[1,2]
+	        txt <- sprintf("R = %.02f",r)
+	        cex.cor <- r*0.8/strwidth(txt)
+	        text(.5,.5,txt,cex=cex.cor)
+	        points(mean(usr[1:2]), mean(usr[3:4]))
+	        par(usr)
+	      }
+	      
+	      pdf(paste0(outDir,nsCond,"_t",tp,"_tileRepCorr.pdf"),8.5,11)
+	      tagger <- pdftagger(paste(pdftag,"; condition:",nsCond,"timepoint:",tp),cpp=1)
+	      for (tilei in 1:nrow(params$tiles)) {
+	        tile <- params$tiles[tilei,"Tile Number"]
+	        subset <- marginalCounts[which(marginalTiles == tile),]
+	        if (nrow(subset) > 0) {
+	          pairs(
+	            log10(subset[,nsReps]+1e-7), labels=sprintf("repl. %d",1:nreps),
+	            pch=20,col=colAlpha(1,0.2),main=paste("Tile",tile),
+	            lower.panel=panel.cor,oma=c(12,4,10,4)
+	            # xlab=paste(nsCond,"rep.1"),ylab=paste(nsCond,"rep.2")
+	          )
+	        } else {
+	          opar <- par(oma=c(2,2,2,2))
+	          plot.new()
+	          rect(0,0,1,1,col="gray80",border="gray30",lty="dotted")
+	          text(0.5,0.5,"no data")
+	          mtext(paste("Tile",tile),side=3)
+	          par(opar)
+	        }
+	        opar <- par(oma=c(2,2,2,2))
+	        tagger$cycle()
+	        par(opar)
+	      }
+	      par(opar)
+	      invisible(dev.off())
+	      
 	    }
   
   	  # CALC MEANS AND NORMALIZE ------------------------------------------------
