@@ -46,6 +46,7 @@ p <- add_argument(p, "--srOverride", help="Manual override to allow singleton re
 p <- add_argument(p, "--allConditions", help="Run on all conditions instead of just nonselect.",flag=TRUE)
 #Workaround: Setting the default value to String type, to avoid bug. Validate manually later
 p <- add_argument(p, "--wmThreshold", default="5e-5", help="Define the marginal frequency threshold for well-measuredness.")
+p <- add_argument(p, "--silent", help="Turn off message printing to stdout",flag=TRUE)
 args <- parse_args(p)
 
 #Manully validate wmThreshold as part of workaround
@@ -78,7 +79,7 @@ logfile <- if (is.na(args$logfile)) paste0(dataDir,"libraryQC.log") else args$lo
 mc.cores <- if (is.na(args$cores)) 6 else args$cores
 
 #set up logger and shunt it into the error handler
-logger <- new.logger(logfile)
+logger <- new.logger(logfile,stdout=!args$silent)
 registerLogger(logger)
 registerLogErrorHandler(logger)
 logVersion()

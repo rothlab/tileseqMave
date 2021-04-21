@@ -45,6 +45,7 @@ p <- add_argument(p, "--output", help="output directory. Defaults to name of inp
 p <- add_argument(p, "--parameters", help="parameter file. Defaults to parameters.json in the data directory.")
 p <- add_argument(p, "--logfile", help="log file. Defaults to selectionQC.log in the same directory")
 p <- add_argument(p, "--srOverride", help="Manual override to allow singleton replicates. USE WITH EXTREME CAUTION!",flag=TRUE)
+p <- add_argument(p, "--silent", help="Turn off message printing to stdout",flag=TRUE)
 args <- parse_args(p)
 
 #Workaround for bug in future package, that re-uses command line arguments:
@@ -70,7 +71,7 @@ paramFile <- if (is.na(args$parameters)) paste0(dataDir,"parameters.json") else 
 logfile <- if (is.na(args$logfile)) paste0(dataDir,"selectionQC.log") else args$logfile
 
 #set up logger and shunt it into the error handler
-logger <- new.logger(logfile)
+logger <- new.logger(logfile,stdout=!args$silent)
 registerLogger(logger)
 registerLogErrorHandler(logger)
 logVersion()
