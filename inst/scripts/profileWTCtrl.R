@@ -145,7 +145,7 @@ invisible(lapply(wtCtrls,function(wtCtrl) {
   perBaseFreq <- tapply(perNCFreq,substr(names(perNCFreq),1,1),sum)  
   
   con <- file(paste0(outfile,"_",wtCtrl,".tsv"),open="w")
-  cat(
+  logInfo(
     "#Rates of SVNs and MNVs per codon",
     formatVector(setNames(snvVmnvFreq,paste0(1:3,"-nt"))),
     "\n#Mutation rate per original base",
@@ -178,6 +178,6 @@ invisible(lapply(wtCtrls,function(wtCtrl) {
   dev.off()
   
 }))
-cat("Done!\n")
+logInfo("Done!\n")
 
 
