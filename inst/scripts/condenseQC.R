@@ -77,6 +77,8 @@ if (length(nonSels) == 0 || args$allConditions) {
   nonSels <- params$conditions$names
 }
 
+fcount <- 0
+cat("Condensing library QC plots...")
 for (nsCond in nonSels) {
   for (tp in params$timepoints$`Time point name`) {
   	#list report files in order
@@ -96,14 +98,23 @@ for (nsCond in nonSels) {
   			"-dBATCH",
   			reportFiles
   		)
-  		retVal <- system2("gs",gsArgs)
+  		retVal <- system2("gs",gsArgs,stdout=FALSE)
   		if (retVal == 0 && !args$retainSingles) {
   			file.remove(reportFiles)
   		}
   	}
+  	fcount <- fcount+length(reportFiles)
   }
 }
+if (fcount > 0) {
+  cat(sprintf("%d files.\n",fcount))
+} else {
+  cat("no data!\n")
+}
 
+
+fcount <- 0
+cat("Condensing selection QC plots...")
 for (sCond in getSelects(params)) {
 	for (tp in params$timepoints[,1]) {
 		#list report files in order
@@ -123,11 +134,19 @@ for (sCond in getSelects(params)) {
 				"-dBATCH",
 				reportFiles
 			)
-			retVal <- system2("gs",gsArgs)
+			retVal <- system2("gs",gsArgs,stdout=FALSE)
 			if (retVal == 0 && !args$retainSingles) {
 				file.remove(reportFiles)
 			}
 		}
+	  fcount <- fcount+length(reportFiles)
 	}
 }
+if (fcount > 0) {
+  cat(sprintf("%d files.\n",fcount))
+} else {
+  cat("no data!\n")
+}
+
+cat("Done!\n")
 
