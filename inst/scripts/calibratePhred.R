@@ -44,6 +44,7 @@ p <- add_argument(p, "--parameters", help="parameter file. Defaults to parameter
 p <- add_argument(p, "--logfile", help="log file. Defaults to 'calibratePhred.log' in the same directory")
 p <- add_argument(p, "--srOverride", help="Manual override to allow singleton replicates. USE WITH EXTREME CAUTION!",flag=TRUE)
 p <- add_argument(p, "--maxReads", help="Maximum number of reads to process. (To finish faster)",default=1e5)
+p <- add_argument(p, "--silent", help="Turn off message printing to stdout",flag=TRUE)
 
 args <- parse_args(p)
 
@@ -52,7 +53,7 @@ paramFile <- if (is.na(args$parameters)) "parameters.json" else args$parameters
 logfile <- if (is.na(args$logfile)) "calibratePhred.log" else args$logfile
 
 #set up logger and shunt it into the error handler
-logger <- new.logger(logfile)
+logger <- new.logger(logfile,stdout=!args$silent)
 registerLogger(logger)
 registerLogErrorHandler(logger)
 logVersion()
