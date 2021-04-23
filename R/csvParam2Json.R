@@ -284,6 +284,17 @@ validateParameters <- function(params,srOverride=FALSE) {
 	    paste(culprits,collapse = ", ")
 	 )
 	}
+	
+	#check for duplicated sample semantics
+	semStr <- with(params$samples, paste(`Tile ID`,Condition,`Time point`,Replicate,sep="."))
+	if (any(duplicated(semStr))) {
+	  culprits <- params$sample$`Sample ID`[which(duplicated(semStr))]
+	  stop(
+	    "Duplicated Sample definitions!!\n",
+	    "The following samples have identical definitions:",
+	    paste(culprits,collapse=", ")
+	  )
+	}
 
 	repCombos <- apply(params$samples[,c("Tile ID","Condition","Time point")],1,paste,collapse="\t")
 	repPerCombo <- tapply(params$samples[,"Replicate"],repCombos,function(x)length(unique(x)))
