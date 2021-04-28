@@ -172,7 +172,7 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,
   	  
 	}
 
-	#extract sequencing depths for each sample
+	#tabulate raw sequencing depths for each sample
 	sampleTable$alignedreads <- sapply(allCounts,function(counts) as.integer(attr(counts,"depth"))) 
 	sampleTable$wtreads <- sapply(allCounts,function(counts) as.integer(attr(counts,"wtpairs"))) 
 	sampleTable$mutreads <- sapply(allCounts,function(counts) as.integer(attr(counts,"mutpairs"))) 
@@ -187,29 +187,37 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,
   	write.csv(as.data.frame(positionalDepth),outfile)
 	}
 	
-
-	logInfo("Calculating relative frequencies")
-	#Calculate frequencies for all counts
-	allCounts <- lapply(1:nrow(sampleTable),function(i) {
-	  counts <- allCounts[[i]]
-	  if (covOverride) {
-	    depth <- as.integer(attr(counts,"wtpairs")) + as.integer(attr(counts,"mutpairs"))
-	    counts$frequency <- counts$count/as.integer(attr(counts,"depth"))
-	  } else {
-	    condRID <- with(sampleTable[i,],sprintf("%s.t%s.rep%d",Condition,`Time point`,Replicate))
-	    # rejects <- allRejects[[i]]	  
-	    # localDepth <- as.integer(attr(counts,"depth")) - rejects
-	    localDepth <- positionalDepth[condRID,]
-	    posList <- yogitools::global.extract.groups(counts$HGVS,"(\\d+)")
-	    #for multi-mutants, we average over the depths of the applicable positions
-	    combinedDepth <- sapply(posList, function(posStrings) {
-	      mean(localDepth[posStrings],na.rm=TRUE)
-	    })
-	    counts$frequency <- counts$count/combinedDepth
-	  }
-		counts
-	})
-
+	#helper function to calculate the combined effective depth
+	#for co-occurring variants
+	combineDepths <- function(depths,rawDepth) {
+	  prod(depths) / (rawDepth^(length(depths)-1))
+	}
+	
+	#helper function to extract positions from HGVS strings
+	extractHGVSPositions <- function(hgvss) {
+	  #break multi-variants into components and iterate
+	  pbmclapply(strsplit(hgvss,";"), function(chunksList) {
+	    #process each chunk
+	    do.call(c,lapply(chunksList, function(chunk) {
+	      #check if there is a positional range or just a single position present
+	      if (grepl("_",chunk)) {
+	        #for a range, extract the start and stop
+	        startStop <- as.integer(yogitools::extract.groups(chunk,"(\\d+)_(\\d+)")[1,])
+	        #for delins and del, the whole range counts
+	        if (grepl("del",chunk)) {
+	          startStop[[1]]:startStop[[2]]
+	        } else {
+	          #for insertions, only the end counts
+	          startStop[[2]]
+	        }
+	      } else {
+	        #for a single position, just extract it
+	        as.integer(gsub("\\D+","",chunk))
+	      }
+	    }))
+	  },mc.cores=mc.cores)
+	}
+	
 
 	#find the union of all variants
 	allVars <- Reduce(union,lapply(allCounts,function(x)x$HGVS))
@@ -239,69 +247,114 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,
 		}
 		stop("Translations for ",sum(is.na(transTable[,2]))," variants failed! See log for details.")
 	}
-
+	
 
 	################
 	# Merge tables #
 	################
 
-	logInfo("Merging tables...")
-
-	#make lists of unique conditions, timepoints and replicates
-	conditions <- params$conditions$names
-	# conditions <- unique(sampleTable$Condition)
-	# timepoints <- unique(sampleTable$`Time point`)
-	# replicates <- unique(sampleTable$Replicate)
-
-	#helper function to combine a set of count/frequency tables, ordered by allVars
-	joinTables <- function(tables, allVars) {
-	  #initialize empty table
-		out <- data.frame(count=rep(0,length(allVars)),frequency=rep(0,length(allVars)),row.names=allVars)
-		#add-in table contents one-by-one (this way any potential overlapping 
-		#positions between tiles get summed)
-		for (i in 1:length(tables)) {
-			out[tables[[i]]$HGVS,] <- out[tables[[i]]$HGVS,] + tables[[i]][,c("count","frequency")]
-		}
-		return(out)
+	#helper function to sort unique numbers by abundance
+	mostUnique <- function(xs) {
+	  tbl <- table(xs)
+	  as.numeric(names(tbl)[order(tbl,decreasing=TRUE)])
 	}
-
-	#join all samples together into one comprehensive table
-	condTables <- lapply(conditions, function(cond) {
-		#get the timepoints that are valid for the current condition
-	  timepoints <- getTimepointsFor(cond,params)
-		tpTables <- lapply(timepoints, function(tp) {
-			logInfo("Processing condition",cond,"timepoint",tp)
-			#get the replicates for this condition
-			replicates <- 1:params$numReplicates[[cond]]
-			replTables <- lapply(replicates, function(repl) {
-				#find the set of samples that represent the tiles for this specific
-				# combination of condition / timepoint / replicate
-				is <- with(sampleTable,{
-					which(Condition == cond & `Time point` == tp & Replicate == repl)
-				})
-				#And join into a single table
-				joinTables(allCounts[is],allVars)
-			# },mc.cores=min(length(replicates),mc.cores))
-			})
-			#bind columns together
-			names(replTables) <- paste0("rep",replicates)
-			do.call(cbind,replTables)
-		})
-		#bind columns together
-		names(tpTables) <- paste0("t",timepoints)
-		do.call(cbind,tpTables)
+	
+	#helper function to find the most applicable tile assignments for set of positions
+	ncpos2tile <- function(posGroups) {
+	  #and find tile assignments for all variants
+	  bestTiles <- pbmclapply(posGroups, function(poss) {
+	    rows <- sapply(poss,function(pos) {
+	      i <- which(
+	        params$tiles[,"Start NC in CDS"] <= pos & 
+	          params$tiles[,"End NC in CDS"] >= pos
+	      )
+	      if (length(i)==0) NA else i
+	    }) 
+	    mostUnique(params$tiles[rows,"Tile Number"])
+	  },mc.cores=mc.cores)
+	  
+	  #check for problematic cases and complain if necessary
+	  if (any(sapply(bestTiles,length)>1)) {
+	    culprits <- which(sapply(bestTiles,length)>1)
+	    logWarn("The following variant positions cross tile-boundaries: ",
+	            paste(posGroups[culprits],collapse=",")
+	    )
+	  }
+	  #reduce to just the most likely tile per variant
+	  sapply(bestTiles,`[[`,1)
+	}
+	
+	logInfo("Indexing variant positions...")
+	#extract positions for all variants
+	allPositions <- extractHGVSPositions(allVars)
+	
+	logInfo("Indexing tile assignments...")
+	#and their most applicable tiles
+	allTiles <- ncpos2tile(allPositions)
+	
+	#index sample table by condition-timepoint-replicate
+	sampleTable$condRID <- sapply(1:nrow(sampleTable),function(i)with(sampleTable[i,],
+     sprintf("%s.t%s.rep%d",Condition,`Time point`,Replicate)
+  ))
+	
+	
+	logInfo("Merging tables and calculating frequencies...")
+	
+	#join the tables
+	condTables <- tapply(1:nrow(sampleTable),sampleTable$condRID,function(isamples) {
+	  
+	  out <- data.frame(
+	    count=rep(0,length(allVars)),
+	    frequency=rep(0,length(allVars)),
+	    effectiveDepth=rep(0,length(allVars)),
+	    row.names=allVars
+	  )
+	  
+	  for (isample in isamples) {
+	    currTile <- sampleTable[isample,"Tile ID"]
+	    counts <- allCounts[[isample]]
+	    rawDepth <- as.integer(attr(counts,"depth"))
+	    crid <- sampleTable[isample,"condRID"]
+	    
+	    applVars <- which(allTiles==currTile)
+	    if (covOverride) {
+	      #in case of old data without positional coverage we use the old method
+	      depth <- as.integer(attr(counts,"wtpairs")) + as.integer(attr(counts,"mutpairs"))
+	      out[applVars,"effectiveDepth"] <- depth
+	    } else {
+	      #look up the positional depths for this condition
+	      localDepth <- positionalDepth[crid,]
+	      #pull up the list of positions for these variants
+	      posList <- allPositions[applVars]
+	      #for multi-mutants, we must combine the depths of the applicable positions
+	      combinedDepth <- sapply(posList, function(poss) {
+	        ds <- localDepth[as.character(poss)]
+	        combineDepths(ds,rawDepth)
+	      })
+	      out[applVars,"effectiveDepth"] <- combinedDepth
+	    }
+	    
+	    rows <- counts$HGVS
+			out[rows,"count"] <- out[rows,"count"] + counts[,"count"]
+	  }
+	  
+	  out$frequency <- out$count/out$effectiveDepth
+	  
+	  return(out)
+	  
 	})
-	names(condTables) <- conditions
+	
 	#add back HGVS strings and translations in the final column binding step
 	jointTable <- cbind(
-		HGVS=allVars,
-		# HGVS_pro=values(trIdx,keys=allVars),
-		transTable,
-		do.call(cbind,condTables)
+	  HGVS=allVars,
+	  # HGVS_pro=values(trIdx,keys=allVars),
+	  transTable,
+	  do.call(cbind,condTables)
 	)
 	#after joining we don't need the individual tables anymore, so we can remove them
 	#to save RAM
 	rm(condTables)
+	
 
 	########################
 	# WRITE OUTPUT TO FILE #
@@ -323,7 +376,7 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,
 	# CALCULATE MARGINAL FREQUENCIES #
 	##################################
 
-	logInfo("Calculating marginal frequencies")
+	logInfo("Calculating marginal frequencies...")
 
 	#split codon change HGVSs by codon
 	codonChangeHGVSs <- strsplit(gsub("c\\.|c\\.\\[|\\]","",transTable$codonHGVS),";")
@@ -336,6 +389,7 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,
 	codonChangeStrs <- strsplit(transTable$codonChanges,"\\|")
 	aaChangeStrs <- strsplit(transTable$aaChanges,"\\|")
 	
+	#helper function to merge two HGVS terms in-cis
 	cisMerge <- function(hs) {
 	  if (length(hs) < 2) return(hs)
 	  paste0("c.[",paste(substr(hs,3,nchar(hs)),collapse=";"),"]")
@@ -348,6 +402,7 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,
 	aaStrIdx <- hash()
 	for (i in 1:length(codonChangeHGVSs)) {
 		# js <- min(length(codonChangeHGVSs[[i]]), length(aaChangeHGVSs[[i]]))
+	  #js is the number of aa changes in this variant
 		js <- length(aaChangeHGVSs[[i]])
 		#in case of frameshifts, all other mutations get ignored, so we need to figure out 
 		#which one triggered the frameshift(s). In that case, we have fewer aa changes than codon changes listed
@@ -363,6 +418,7 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,
 			  matches[order(ncpos[matches])]
 		  })
 		} else {
+		  #ks are the codon change HGVSs that match the positions for each j
 			ks <- as.list(1:js)
 		}
 		#now iterate over aa changes and index them
@@ -380,34 +436,51 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,
 	}
 
 	#build marginals using index
+	depthCols <- grep("effectiveDepth",colnames(jointTable))
 	marginalCCs <- keys(ccIdx)
 	marginalCounts <- as.df(pbmclapply(marginalCCs, function(cc) {
+	  jointTable[ccIdx[[cc]],-(1:6)]
 		c(
 			list(hgvsc=cc,hgvsp=aaIdx[[cc]]),
 			codonChange=ccStrIdx[[cc]],aaChange=aaStrIdx[[cc]],
-			colSums(jointTable[ccIdx[[cc]],-(1:6)],na.rm=TRUE)
+			# colSums(jointTable[ccIdx[[cc]],-(1:6)],na.rm=TRUE)
+			setNames(lapply(7:ncol(jointTable),function(coli) {
+			  if (coli %in% depthCols) {
+			    mean(jointTable[ccIdx[[cc]],coli],na.rm=TRUE)
+			  } else {
+			    sum(jointTable[ccIdx[[cc]],coli],na.rm=TRUE)
+			  }
+			}),colnames(jointTable)[-(1:6)])
 		)
 	},mc.cores=mc.cores))
 	
 	#if positional coverage data is available, we need to correct the frequencies
 	if (!covOverride) {
-	  #first we need to convert the coverage from nucleotide indices to AA indices
-	  allAAPos <- 1:params$template$proteinLength
-	  aa2ncpos <- lapply(allAAPos*3,`-`,2:0)
+	  logInfo("Indexing marginal variant positions...")
+	  margPositions <- extractHGVSPositions(marginalCCs)
+	  logInfo("Indexing marginal variant tile assignments...")
+	  margTiles <- ncpos2tile(margPositions)
 	  
-	  aaDepth <- do.call(rbind,lapply(aa2ncpos, function(is) {
-	    is <- intersect(as.character(is),colnames(positionalDepth))
-	    if (length(is)==0) {
-	      return(setNames(rep(0,nrow(positionalDepth)),rownames(positionalDepth)))
-	    } else {
-	      rowMeans(positionalDepth[,is],na.rm=TRUE)
+	  logInfo("Correcting marginal frequencies for position-specific depth...")
+	  for (rowi in 1:nrow(marginalCounts)) {
+	    tili <- margTiles[[rowi]]
+	    #pull up the list of positions for these variants
+	    poss <- margPositions[[rowi]]
+	    #process across all condition-timepoint-replicate groups
+	    for (crid in unique(sampleTable$condRID)) {
+	      #pull up the relevant raw-depth
+	      rawDepth <- with(sampleTable,alignedreads[condRID==crid & `Tile ID`==tili])
+	      #pull up the relevant positional depths 
+	      ds <- positionalDepth[crid,as.character(poss)]
+	      #combine them using the formula
+	      effDepth <- combineDepths(ds,rawDepth)
+	      #and overwrite the old results
+	      cnt <- marginalCounts[rowi,paste0(crid,".count")]
+	      marginalCounts[rowi,paste0(crid,".effectiveDepth")] <- effDepth
+	      marginalCounts[rowi,paste0(crid,".frequency")] <- cnt/effDepth
 	    }
-	  }))
+	  }
 	  
-	  margPos <- as.integer(gsub("\\D+","",marginalCounts$codonChange))
-	  depths <- aaDepth[margPos,]
-	  freqs <- marginalCounts[,paste0(colnames(depths),".count")]/depths
-	  marginalCounts[,paste0(colnames(depths),".frequency")] <- freqs
 	}
 
 	logInfo("Writing results to file.")
