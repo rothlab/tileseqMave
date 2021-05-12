@@ -148,29 +148,30 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
 	depthTable <- read.csv(depthTableFile)
 	
 	if (file.exists(covTableFile)) {
-	  #read postional depth table and draw a diagnosis plot for it
+	  #read positional depth table and draw a diagnosis plot for it
 	  covTable <- read.csv(covTableFile,row.names=1)
 	  colnames(covTable) <- sub("^X","",colnames(covTable))
 	  drawPositionalDepth(covTable,outDir,pdftag)
 	  
 	  #convert to amino acid positions
-	  allAAPos <- 1:params$template$proteinLength
-	  aa2ncpos <- lapply(allAAPos*3,`-`,2:0)
-	  aaDepth <- do.call(rbind,lapply(aa2ncpos, function(is) {
-	    is <- intersect(as.character(is),colnames(covTable))
-	    if (length(is)==0) {
-	      return(setNames(rep(0,nrow(covTable)),rownames(covTable)))
-	    } else {
-	      rowMeans(covTable[,is],na.rm=TRUE)
-	    }
-	  }))
+	  # #FIXME new comboDepth!
+	  # allAAPos <- 1:params$template$proteinLength
+	  # aa2ncpos <- lapply(allAAPos*3,`-`,2:0)
+	  # aaDepth <- do.call(rbind,lapply(aa2ncpos, function(is) {
+	  #   is <- intersect(as.character(is),colnames(covTable))
+	  #   if (length(is)==0) {
+	  #     return(setNames(rep(0,nrow(covTable)),rownames(covTable)))
+	  #   } else {
+	  #     rowMeans(covTable[,is],na.rm=TRUE)
+	  #   }
+	  # }))
 	  
-	  #adjust depth table with "effective" depth
+	  #adjust depth table with mean "effective" depth
 	  tileDepths <- do.call(rbind,lapply(1:nrow(covTable),function(row) {
 	    apply(params$tiles,1,function(tile) {
 	      poss <- as.character(tile[["Start NC in CDS"]]:tile[["End NC in CDS"]])
 	      poss <- intersect(colnames(covTable),poss)
-	      median(as.matrix(covTable[row,poss]),na.rm=TRUE)
+	      mean(as.matrix(covTable[row,poss]),na.rm=TRUE)
 	    })
 	  }))
 	  dimnames(tileDepths) <- list(rownames(covTable),params$tiles[,1])
@@ -180,7 +181,7 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
 	#but for now we remove them
 	allCounts <- allCounts[which(allCounts$aaChanges != "silent"),]
 	marginalCounts <- marginalCounts[which(marginalCounts$aaChange != "silent"),]
-
+	
 
 	logInfo("Interpreting variant descriptors. This may take some time...")
 	
@@ -311,12 +312,17 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
   	  # CALC MEANS AND NORMALIZE ------------------------------------------------
   	  
   		#pull out nonselect condition and average over replicates
+	    dreps <- sub("frequency","effectiveDepth",nsReps)
   		if (params$numReplicates[[nsCond]] > 1) {
   			nsMarginalMeans <- rowMeans(marginalCounts[,nsReps],na.rm=TRUE)
+  			nsMarginalDepth <- rowMeans(marginalCounts[,dreps],na.rm=TRUE)
   			nsAllMeans <- rowMeans(allCounts[,nsReps],na.rm=TRUE)
+  			nsAllDepth <- rowMeans(allCounts[,dreps],na.rm=TRUE)
   		} else {
   			nsMarginalMeans <- marginalCounts[,nsReps]
+  			nsMarginalDepth <- marginalCounts[,dreps]
   			nsAllMeans <- allCounts[,nsReps]
+  			nsAllDepth <- allCounts[,dreps]
   		}
 	    
 	    smallestFreq <- unique(sort(fin(nsMarginalMeans)))[[2]]
@@ -433,9 +439,16 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
   		colnames(marginalSplitChanges) <- c("from","pos","to")
   		simplifiedMarginal <- cbind(
   		  as.data.frame(marginalSplitChanges),
-  		  freq=nsMarginalMeans,tile=marginalTiles
+  		  freq=nsMarginalMeans,depth=nsMarginalDepth,tile=marginalTiles
   		)
   		simplifiedMarginal$pos <- as.integer(simplifiedMarginal$pos)
+  		
+  		#filter out 0-depth variants here?
+  		if (any(simplifiedMarginal$depth < 1)) {
+  		  culprits <- which(simplifiedMarginal$depth < 1)
+  		  logWarn(sprintf("Discarding %d variants with 0 depth!",length(culprits)))
+  		  simplifiedMarginal <- simplifiedMarginal[-culprits,]
+  		}
   		
   		
   		# JACKPOT DIAGNOSIS ---------------------------------------------
@@ -649,7 +662,8 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
   				pos=unique(pos[is]),
   				to=unique(toaa[is]),
   				tile=unique(tile[is]),
-  				freq=sum(freq[is])
+  				freq=sum(freq[is]),
+  				depth=mean(depth[is],na.rm=TRUE)
   			)
   		})))
   
@@ -754,7 +768,7 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
   		invisible(tapply(1:nrow(cplxPlot),cplxPlot[,"tile"],function(is) {
   			if (length(is) > 1) {
   				tile <- unique(cplxPlot[is,3])
-  				if (!all(cplxPlot[is,2] == 0)) {
+  				if (!all(cplxPlot[is,2] == 0,na.rm=TRUE)) {
   					plot(cplxPlot[is,1:2],log="xy",
   						xlab="#unique contexts in tile",ylab="marginal frequency",
   						main=paste0("Tile #",tile)

@@ -41,7 +41,8 @@ p <- argparser::arg_parser(
 
 p <- add_argument(p, "sam", help="the SAM file to analyze. Must be a WT ctrl alignment.")
 p <- add_argument(p, "--output", help="output file. Defaults to name of the <sam>_phredCalibration.csv")
-p <- add_argument(p, "--parameters", help="parameter file. Defaults to parameters.json in the current directory.")
+p <- add_argument(p, "--parameters", help="parameter file containing the reference sequence. Defaults to parameters.json in the current directory.")
+p <- add_argument(p, "--fastaref", help="fasta file containing the reference sequence. This can be given as an alternative to the parameter sheet.")
 p <- add_argument(p, "--logfile", help="log file. Defaults to 'calibratePhred.log' in the same directory")
 p <- add_argument(p, "--srOverride", help="Manual override to allow singleton replicates. USE WITH EXTREME CAUTION!",flag=TRUE)
 p <- add_argument(p, "--maxReads", help="Maximum number of reads to process. (To finish faster)",default=1e5)
@@ -51,6 +52,7 @@ args <- parse_args(p)
 
 
 paramFile <- if (is.na(args$parameters)) "parameters.json" else args$parameters
+fastaFile <- args$fastaref
 logfile <- if (is.na(args$logfile)) "calibratePhred.log" else args$logfile
 
 #set up logger and shunt it into the error handler
@@ -70,13 +72,24 @@ outfile <- if (is.na(args$output)) {
 if (!canRead(sam.file)) {
   stop("Cannot read SAM file ",sam.file,"!")
 }
-if (!canRead(paramFile)) {
-  stop("Cannot read parameter file ",paramFile,"!")
+if (!canRead(fastaFile)) {
+  logWarn("Unable to read reference FASTA file, defaulting to parameter sheet...")
+  if (!canRead(paramFile)) {
+    stop("Cannot read parameter file ",paramFile,"!")
+  }
+  #parse parameter file
+  params <- tileseqMave::parseParameters(paramFile,srOverride=args$srOverride)
+  wtseq <- params$template$seq
+} else {
+  fastaLines <- readLines(fastaFile)
+  if (sum(grepl("^>",fastaLines)) != 1) {
+    stop("FASTA file must contain exactly one single entry!")
+  }
+  wtseq <- paste(trimws(fastaLines[-1]),collapse="")
+  if (!grepl("^[ACGT]+$",wtseq)) {
+    stop("Reference sequence is not a valid DNA sequence! (Must only contain A,C,G,T)")
+  }
 }
-#parse parameter file
-params <- tileseqMave::parseParameters(paramFile,srOverride=args$srOverride)
-wtseq <- params$template$seq
-# wtseq <- strsplit(scan("MTHFR_seq.txt",what="character",sep="\n",quiet=TRUE)[[1]]," ")[[1]][[2]]
 
 #set readCutoff
 maxReads <- as.numeric(args$maxReads)
@@ -112,10 +125,17 @@ parseSpecialTab <- function(lines) {
       c(elem,rep(NA,maxCols-length(elem)))
     } else elem
   }))
-  colnames(df) <- c(
-    "cname","flag","rname","pos","mapq","cigar","mrnm","mpos",
-    "isize","seq","qual","tags", 13:maxCols
-  )
+  if (maxCols > 12) {
+    colnames(df) <- c(
+      "cname","flag","rname","pos","mapq","cigar","mrnm","mpos",
+      "isize","seq","qual","tags", 13:maxCols
+    )
+  } else {
+    colnames(df) <- c(
+      "cname","flag","rname","pos","mapq","cigar","mrnm","mpos",
+      "isize","seq","qual","tags"
+    )
+  }
   df$flag <- as.integer(df$flag)
   df$pos <- as.integer(df$pos)
   df$mapq <- as.integer(df$mapq)
@@ -178,6 +198,11 @@ result <- mclapply(1:nthreads,function(threadi) {
     
     #parse unmapped flag
     unmapped <- bitops::bitAnd(sam$flag,flagMasks[["segmentUnmapped"]])>0
+    
+    #if nothing maps, there's nothing worth counting here.
+    if (all(unmapped)) {
+      next
+    }
     
     #inner loop to process individual lines in the chunk
     for (i in 1:nrow(sam)) {
