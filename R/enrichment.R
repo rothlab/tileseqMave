@@ -30,7 +30,8 @@
 #' @return NULL. Results are written to file.
 #' @export
 calcEnrichment <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"parameters.json"),
-	mc.cores=6, srOverride=FALSE, bnOverride=FALSE, useWTfilter=FALSE, nbs=1e4, pessimistic=TRUE) {
+	mc.cores=6, srOverride=FALSE, bnOverride=FALSE, useWTfilter=FALSE, nbs=1e4, pessimistic=TRUE,
+	useQuorum=FALSE) {
 
 	op <- options(stringsAsFactors=FALSE)
 
@@ -71,6 +72,8 @@ calcEnrichment <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"
 		parseParameters(paramFile,srOverride=srOverride),
 		warning=function(w)logWarn(conditionMessage(w))
 	)
+	#cache function parameter in params object
+	params$scoring$useQuorum <- useQuorum
 	
 	
 	regmode <- if (pessimistic) "pessimistic" else "optimistic"
@@ -471,7 +474,6 @@ bnl <- function(pseudo.n,n,model.sd,empiric.sd) {
 	sqrt((pseudo.n * model.sd^2 + (n - 1) * empiric.sd^2)/(pseudo.n + n - 2))
 }
 
-
 #' Function to form mean, stdev and average raw count for a given condition
 #'
 #' @param cond the names of the condition (e.g. select, nonselect)
@@ -505,16 +507,52 @@ mean.sd.count <- function(cond,regionalCounts,tp,params) {
 	    tp <- tps[[1]]
 	  }
 	}
+	
+	maxFactor <- params$scoring$cvDeviation
+	
 	freqs <- regionalCounts[,sprintf("%s.t%s.rep%d.frequency",cond,tp,1:params$numReplicates[[cond]])]
 	counts <- regionalCounts[,sprintf("%s.t%s.rep%d.count",cond,tp,1:params$numReplicates[[cond]])]
-	means <- if (nrep > 1) rowMeans(freqs,na.rm=TRUE) else freqs
-	sds <- if (nrep > 1) apply(freqs,1,sd,na.rm=TRUE) else rep(NA,length(freqs))
+	
+	mCount <- if(nrep>1)rowMeans(counts,na.rm=TRUE) else counts
+	# cvPois <- 1/sqrt(mCount+.1)
+	
+	if (nrep == 1) {
+	  means <- freqs
+	  sds <- rep(NA,length(freqs))
+	} else if (nrep == 2 ||!params$scoring$useQuorum) {
+	  means <- rowMeans(freqs,na.rm=TRUE)
+	  sds <- apply(freqs,1,sd,na.rm=TRUE)
+	} else if (nrep > 2) {
+	  majorities <- t(apply(freqs,1,function(fs){
+	    m <- median(fs,na.rm=TRUE)
+	    valid <- (fs/m <= maxFactor) & (fs/m >= 1/maxFactor)
+	    if (sum(valid,na.rm=TRUE) > 1) {
+	      c(
+	        mean=mean(fs[which(valid)]),
+	        sd=sd(fs[which(valid)]),
+	        outliers=sum(!valid,na.rm=TRUE)
+	      )
+	    } else {
+	      c(
+	        mean=mean(fs),
+	        sd=sd(fs),
+	        outliers=length(valid)
+	      )
+	    }
+	  }))
+	  means <- majorities[,"mean"]
+	  sds <- majorities[,"sd"]
+	}
+	
+	# sds <- if (nrep > 1) apply(freqs,1,sd,na.rm=TRUE) else rep(NA,length(freqs))
+	
 	out <- data.frame(
 		mean=means,
 		sd=sds,
 		cv=sds/means,
 		# cv=mapply(function(s,m) if(s==0) 0 else s/m,sds,means),
-		count=if(nrep>1)rowMeans(counts,na.rm=TRUE) else counts
+		# count=if(nrep>1)rowMeans(counts,na.rm=TRUE) else counts
+		count=mCount
 		# csd=apply(counts,1,sd,na.rm=TRUE)
 	)
 	return(out)
