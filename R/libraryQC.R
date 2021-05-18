@@ -147,10 +147,16 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
 	marginalCounts <- read.csv(marginalCountFile,comment.char="#")
 	depthTable <- read.csv(depthTableFile)
 	
+	# COUNT ATTRIBUTES PLOT -----------------------------------
+	logInfo("Plotting sequencing anomalies")
+	countAttributes(params,depthTable,inDir,outDir,pdftag)
+	
 	if (file.exists(covTableFile)) {
 	  #read positional depth table and draw a diagnosis plot for it
 	  covTable <- read.csv(covTableFile,row.names=1)
 	  colnames(covTable) <- sub("^X","",colnames(covTable))
+	  
+	  logInfo("Plotting positional depths")
 	  drawPositionalDepth(covTable,outDir,pdftag)
 	  
 	  #convert to amino acid positions
@@ -1173,4 +1179,49 @@ pdftagger <- function(tag, cpp=1) {
 		.cycle <- 1
 	}
 	list(cycle=cycle,reInit=reInit)
+}
+
+countAttributes <- function(params,depthTable,inDir,outDir,pdftag) {
+  countHeaders <- as.df(lapply(depthTable$countfile, function(cfile) {
+    #rebase
+    cfile <- paste0(inDir,basename(cfile))
+    lines <- readLines(cfile,20)
+    values <- do.call(c,lapply(
+      strsplit(lines[grep("^#",lines)],":\\s*"),
+      function(xs) setNames(
+        paste(xs[-1],collapse=":"),
+        sub("^#","",trimws(xs[[1]]))
+      )
+    ))
+    values <- values[names(values) != "Comment"]
+    values <- as.list(values)
+    isNum <- which(!is.na(as.numeric(values)))
+    values[isNum] <- as.numeric(values[isNum])
+    values
+  }))
+  rawdepth <- countHeaders$`Raw read depth`
+  unmapped <- countHeaders$`Number of read pairs did not map to gene`
+  offtile <- countHeaders$`Number of reads outside of the tile`
+
+  toPlot <- rbind(
+    unmapped=100*unmapped/rawdepth,
+    offtile=100*offtile/rawdepth
+  )
+  
+  pdffile <- paste0(outDir,"seqReads.pdf")
+  pdf(pdffile,8.5,11)
+  opar <- par(las=1,mar=c(5,10,1,1),oma=c(2,2,2,2),cex=.6)
+  tagger <- pdftagger(paste(pdftag),cpp=1)
+  barplot(
+    toPlot,names.arg=depthTable$Sample.ID,
+    beside=TRUE,horiz=TRUE,border=NA,
+    xlab="% reads",xlim=c(0,max(toPlot)*1.2),
+    col=c(1,2)
+  )
+  grid(NULL,NA)
+  tagger$cycle()
+  legend("right",c("no match","wrong tile"),fill=c(1,2))
+  par(opar)
+  dev.off()
+  
 }
