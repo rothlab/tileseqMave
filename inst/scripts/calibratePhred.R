@@ -72,7 +72,7 @@ outfile <- if (is.na(args$output)) {
 if (!canRead(sam.file)) {
   stop("Cannot read SAM file ",sam.file,"!")
 }
-if (!canRead(fastaFile)) {
+if (is.na(fastaFile) || !canRead(fastaFile)) {
   logWarn("Unable to read reference FASTA file, defaulting to parameter sheet...")
   if (!canRead(paramFile)) {
     stop("Cannot read parameter file ",paramFile,"!")
