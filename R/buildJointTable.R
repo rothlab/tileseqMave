@@ -471,7 +471,8 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,
 	      #pull up the relevant raw-depth
 	      rawDepth <- with(sampleTable,alignedreads[condRID==crid & `Tile ID`==tili])
 	      #pull up the relevant positional depths 
-	      ds <- positionalDepth[crid,as.character(poss)]
+	      relevPos <- intersect(colnames(positionalDepth),as.character(poss))
+	      ds <- positionalDepth[crid,relevPos]
 	      #combine them using the formula
 	      effDepth <- combineDepths(ds,rawDepth)
 	      #and overwrite the old results
