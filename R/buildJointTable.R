@@ -190,7 +190,11 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,
 	#helper function to calculate the combined effective depth
 	#for co-occurring variants
 	combineDepths <- function(depths,rawDepth) {
-	  prod(depths) / (rawDepth^(length(depths)-1))
+	  if (length(depths)==1) {
+	    return(depths)
+	  } else {
+	    prod(depths[[1]],depths[-1]/rawDepth)
+	  }
 	}
 	
 	#helper function to extract positions from HGVS strings
