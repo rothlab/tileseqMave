@@ -285,7 +285,13 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,
 	    )
 	  }
 	  #reduce to just the most likely tile per variant
-	  sapply(bestTiles,`[[`,1)
+	  sapply(bestTiles, function(ts) {
+	    if (length(ts) > 0) {
+	      ts[[1]]
+	    } else {
+	      NA
+	    }
+	  })
 	}
 	
 	logInfo("Indexing variant positions...")
@@ -471,18 +477,20 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,
 	    #pull up the list of positions for these variants
 	    poss <- margPositions[[rowi]]
 	    #process across all condition-timepoint-replicate groups
-	    for (crid in unique(sampleTable$condRID)) {
-	      #pull up the relevant raw-depth
-	      rawDepth <- with(sampleTable,alignedreads[condRID==crid & `Tile ID`==tili])
-	      #pull up the relevant positional depths 
-	      relevPos <- intersect(colnames(positionalDepth),as.character(poss))
-	      ds <- positionalDepth[crid,relevPos]
-	      #combine them using the formula
-	      effDepth <- combineDepths(ds,rawDepth)
-	      #and overwrite the old results
-	      cnt <- marginalCounts[rowi,paste0(crid,".count")]
-	      marginalCounts[rowi,paste0(crid,".effectiveDepth")] <- effDepth
-	      marginalCounts[rowi,paste0(crid,".frequency")] <- cnt/effDepth
+	    if (!is.na(tili) && !is.na(poss)) {
+  	    for (crid in unique(sampleTable$condRID)) {
+  	      #pull up the relevant raw-depth
+  	      rawDepth <- with(sampleTable,alignedreads[condRID==crid & `Tile ID`==tili])
+  	      #pull up the relevant positional depths 
+  	      relevPos <- intersect(colnames(positionalDepth),as.character(poss))
+  	      ds <- positionalDepth[crid,relevPos]
+  	      #combine them using the formula
+  	      effDepth <- combineDepths(ds,rawDepth)
+  	      #and overwrite the old results
+  	      cnt <- marginalCounts[rowi,paste0(crid,".count")]
+  	      marginalCounts[rowi,paste0(crid,".effectiveDepth")] <- effDepth
+  	      marginalCounts[rowi,paste0(crid,".frequency")] <- cnt/effDepth
+  	    }
 	    }
 	  }
 	  
