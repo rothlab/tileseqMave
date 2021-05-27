@@ -118,6 +118,7 @@ translateHGVS <- function(hgvs, params,
 
 	#extract coding sequence and break into codons
 	cdsSeq <- params$template$cdsSeq
+	cdsLen <- params$template$cdsLength
 	codonStarts <- seq(1,nchar(cdsSeq),3)
 	# codonIndices <- sapply(codonStarts, function(i) c(i,i+1,i+2))
 	# codons <- sapply(codonStarts,function(i) substr(cdsSeq,i,i+2))
@@ -133,9 +134,12 @@ translateHGVS <- function(hgvs, params,
 	if (!("end" %in% colnames(breakdown))) {
 		breakdown$end <- NA
 	}
+	if (!("variant" %in% colnames(breakdown))) {
+	  breakdown$variant <- NA
+	}
 
 	#check for unsupported mutation types
-	unsupportedTypes <- c("duplication","inversion","conversion","amplification")
+	unsupportedTypes <- c("duplication","inversion","conversion","amplification","invalid")
 	if (any(breakdown$type %in% unsupportedTypes)) {
 		offenders <- with(breakdown,unique(type[which(type %in% unsupportedTypes)]))
 		stop("Unsupported variant type(s): ",paste(offenders, collapse=","), " in ", hgvs)
@@ -143,19 +147,127 @@ translateHGVS <- function(hgvs, params,
 
 	#check for any cases that are reported backwards and correct them
 	if (with(breakdown,any(start > end,na.rm=TRUE))) {
-		culprits <- with(breakdown,which(start > end))
-		for (culprit in culprits) {
-			newStart <- breakdown[culprit,"end"]
-			breakdown[culprit,"end"] <- breakdown[culprit,"start"]
-			breakdown[culprit,"start"] <- newStart
-		}
+	  culprits <- with(breakdown,which(start > end))
+	  for (culprit in culprits) {
+	    newStart <- breakdown[culprit,"end"]
+	    breakdown[culprit,"end"] <- breakdown[culprit,"start"]
+	    breakdown[culprit,"start"] <- newStart
+	  }
+	}
+	
+	####################################
+	# CHECK FOR VARIANTS OUT OF BOUNDS #
+	####################################
+	oob <- sapply(1:nrow(breakdown), function(i) with(breakdown[i,],{
+	  any(c(
+	    type=="insertion" && (end < 2 || start > cdsLen-1),
+	    type %in% c("deletion","delins") && (end < 1 || start > cdsLen),
+	    type %in% c("substitution","singledeletion") && (start < 1 || start > cdsLen)
+	  ))
+	}))
+	#remove out-of-bounds variants from consideration
+	if (any(oob)) {
+	  breakdown <- breakdown[!oob,]
+	}
+	#also, if everything is out of bounds, we're done here
+	if (all(oob)) {
+	  return(c(
+	    hgvsp="p.=",
+	    codonChanges="silent",codonHGVS="c.=",
+	    aaChanges="silent",aaChangeHGVS="p.="
+	  ))
+	}
+	
+	#########################################
+	# CHECK FOR MERGEABLE ADJACENT VARIANTS #
+	#########################################
+	if (nrow(breakdown) > 1) {
+	  #sort by start position
+	  breakdown <- breakdown[order(breakdown$start),]
+	  #define replacement ranges
+	  ranges <- do.call(rbind,lapply(1:nrow(breakdown), function(i) {
+	    s <- breakdown[i,"start"]
+	    e <- breakdown[i,"end"]
+	    switch(breakdown[i,"type"],
+         substitution = c(start=s,end=s),
+         deletion = c(start=s,end=e),
+         singledeletion = c(start=s,end=s),
+         #yes, insertions end before they begin
+         #because they don't replace anything
+         insertion = c(start=e,end=s),
+         delins = c(start=s,end=e),
+         stop("Unsupported type!")
+	    )
+	  }))
+	  #check which variants are _not_ adjacent
+	  maxDist <- 3
+	  nadj <- which(sapply(2:nrow(ranges),function(i){
+	    ranges[i,"start"]-ranges[i-1,"end"]
+	  }) > maxDist)
+	  #and use that to calculate "runs" of variants
+	  runs <- cbind(start=c(1,nadj+1),end=c(nadj,nrow(ranges)))
+	  
+	  #if there are indeed clustered runs, then condense them
+	  if (nrow(runs) < nrow(breakdown)) {
+	    #construct the condensed component variants per cluster
+  	  components <- sapply(1:nrow(runs), function(i) {
+  	    idx <- runs[i,1]:runs[i,2]
+  	    # start <- min(breakdown[idx,"start"],na.rm=TRUE)
+  	    start <- min(ranges[idx,"start"])
+  	    # end <- max(c(start,breakdown[idx,"end"]),na.rm=TRUE)
+  	    end <- max(ranges[idx,"end"])
+  	    
+  	    na2empty <- function(x) if (is.na(x)) "" else x
+  	    
+  	    insSeq <- na2empty(breakdown[idx[[1]],"variant"])
+  	    if (length(idx) > 1) {
+  	      for (j in 2:length(idx)) {
+  	        idxj <- idx[[j]]
+  	        idxk <- idx[[j-1]]
+  	        if (ranges[idxj,"start"]-ranges[idxk,"end"] > 1) {
+  	          skippedBases <- substr(cdsSeq,ranges[idxk,"end"]+1,ranges[idxj,"start"]-1)
+  	          insSeq <- paste0(insSeq,skippedBases)
+  	        }
+  	        insJ <- na2empty(breakdown[idxj,"variant"])
+  	        insSeq <- paste0(insSeq,insJ)
+  	      }
+  	    }
+  	    
+  	    if (is.na(insSeq) || insSeq == "") {#deletion
+  	      cbuilder$deletion(start=start,stop=end)
+  	    } else if (end-start==0 && nchar(insSeq)==1) {#substituion
+    	      anc <- unique(breakdown[idx,"ancestral"])
+    	      if (is.na(anc)) {
+    	        anc <- substr(cdsSeq,start,start)
+    	      }
+    	      cbuilder$substitution(pos=start,ancestral=anc,variant=insSeq)
+  	     } else if (end-start==-1) {#insertion
+  	        cbuilder$insertion(start=end,seq=insSeq)
+  	    } else {#delins
+  	      cbuilder$delins(start=start,stop=end,seq=insSeq)
+  	    }
+  	  })
+  	  
+  	  if (length(components) > 1) {
+  	    hgvs <- cbuilder$cis(components)
+  	  } else {
+  	    hgvs <- components
+  	  }
+  	  
+  	  breakdown <- parseHGVS(hgvs)
+  	  if (!("end" %in% colnames(breakdown))) {
+  	    breakdown$end <- NA
+  	  }
+  	  if (!("variant" %in% colnames(breakdown))) {
+  	    breakdown$variant <- NA
+  	  }
+	  }
 	}
 	
 	#################################
 	# CHECK FOR 5'/3'-UTR MUTATIONS #
 	#################################
 	
-	cdsLen <- params$template$cdsLength
 	isUTR <- sapply(1:nrow(breakdown), function(i) with(breakdown[i,],{
 	  start >= cdsLen || (!is.na(end) && end <= 1) || (is.na(end) && start < 1)
 	}))
@@ -256,6 +368,12 @@ translateHGVS <- function(hgvs, params,
 		relevantMuts <- which(sapply(affectedCodons,function(l) codonIdx %in% l))
 		#iterate over the relevant entries and cumulatively apply them to the codon
 		for (mi in relevantMuts) {
+		  #FIXME: This checks for a prior deletion interfering with the frame
+		  #of the current codon. If this happens, the variant is skipped for now
+		  if (codon == "") {
+		    logWarn("Cross-codon deletion interference:",hgvs)
+		    next
+		  }
 			#calculate start and end indices with respect to whole CDS and codon
 			mStart <- breakdown[mi,"start"]
 			mEnd <- breakdown[mi,"end"]
@@ -295,10 +413,17 @@ translateHGVS <- function(hgvs, params,
 					if (mEnd != mStart+1) {
 						stop("Invalid insertion point!")
 					}
-					preSeq <- substr(codon,1,mStartInner)
-					sufSeq <- substr(codon,mEndInner,3) 
-					#this is now actually more than just one codon!
-					codon <- paste0(preSeq,insSeq,sufSeq)
+				  if (mStart == cStart-1) {#insertion is _before_ codon
+				    #do nothing! the insertion was already handled in 
+				    #the previous codon
+				  } else if (mStart == cStart+2) {#insertion is _after_ codon
+				    codon <- paste0(codon,insSeq)
+				  } else {#insertion is _inside_ codon
+				    preSeq <- substr(codon,1,mStartInner)
+				    sufSeq <- substr(codon,mEndInner,3) 
+				    #this is now actually more than just one codon!
+				    codon <- paste0(preSeq,insSeq,sufSeq)
+				  }
 				},
 				delins={
 					#check if the insertion is shorter than the deletion
@@ -399,7 +524,8 @@ translateHGVS <- function(hgvs, params,
 			snvpos <- cstart+offset-1
 			return(cbuilder$substitution(snvpos,wtbase,mutbase))
 		} else { 
-			return(cbuilder$delins(cstart,cstart+nchar(mut)-1,mut))
+			# return(cbuilder$delins(cstart,cstart+nchar(mut)-1,mut))
+		  return(cbuilder$delins(cstart,cstart+2,mut))
 		}
 	}
 	#Helper function to build single-AA specific HGVS
