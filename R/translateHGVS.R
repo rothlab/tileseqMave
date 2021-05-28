@@ -455,8 +455,14 @@ translateHGVS <- function(hgvs, params,
 						if (mStart > cStart) {
 							preSeq <- substr(codon,1,mStartInner-1)
 							sufLen <- 3-nchar(preSeq)
-							sufSeq <- substr(insSeq,1,sufLen)
-							codon <- paste0(preSeq,sufSeq)
+							#if the whole delins takes part within the same codon
+							if (mEnd <= cStart+2) {
+							  postSeq <- substr(codon,mEndInner+1,nchar(codon))
+							  codon <- paste0(preSeq,insSeq,postSeq)
+							} else {#otherwise we're reaching into subsequent codons
+  							sufSeq <- substr(insSeq,1,sufLen)
+  							codon <- paste0(preSeq,sufSeq)
+							}
 						} else if (mEnd > cStart+2) {
 							#if this is not the last codon in the replacement area, we replace everything
 							offset <- cStart-mStart
