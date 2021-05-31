@@ -450,8 +450,8 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
   		simplifiedMarginal$pos <- as.integer(simplifiedMarginal$pos)
   		
   		#filter out 0-depth variants here?
-  		if (any(simplifiedMarginal$depth < 1)) {
-  		  culprits <- which(simplifiedMarginal$depth < 1)
+  		if (any(is.na(simplifiedMarginal$freq)) || any(simplifiedMarginal$depth < 1)) {
+  		  culprits <- which(simplifiedMarginal$depth < 1 | is.na(simplifiedMarginal$freq))
   		  logWarn(sprintf("Discarding %d variants with 0 depth!",length(culprits)))
   		  simplifiedMarginal <- simplifiedMarginal[-culprits,]
   		}
@@ -583,14 +583,14 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
   				return(c(fs=NA,indel=NA,WT=NA,setNames(rep(NA,maxChanges),1:maxChanges)))
   			}
   			# WT frequency
-  			wtFreq <- 1 - sum(nsAllMeans[isInTile])
+  			wtFreq <- 1 - sum(nsAllMeans[isInTile],na.rm=TRUE)
   			#frameshift freq
-  			fsFreq <- sum(nsAllMeans[isInTile & isFrameshift])
+  			fsFreq <- sum(nsAllMeans[isInTile & isFrameshift],na.rm=TRUE)
   			#indel frequency
-  			indelFreq <- sum(nsAllMeans[isInTile & !isFrameshift & isInFrameIndel])
+  			indelFreq <- sum(nsAllMeans[isInTile & !isFrameshift & isInFrameIndel],na.rm=TRUE)
   			#substitution mutation census
   			isSubst <- which(isInTile & !isFrameshift & !isInFrameIndel)
-  			census <- tapply(nsAllMeans[isSubst], numChanges[isSubst],sum)
+  			census <- tapply(nsAllMeans[isSubst], numChanges[isSubst],sum,na.rm=TRUE)
   			census <- c(
   				fs=fsFreq,
   				indel=indelFreq,
