@@ -265,12 +265,14 @@ filterBreakdown <- function(scores,sCond,tp,params,outDir) {
   
   plotcols <- c("firebrick3","gold3","gold2","orange","chartreuse3")
   ys <- apply(filterStacks,2,cumsum)
-  labelYs <- apply(rbind(c(0,0),ys),2,function(vs) sapply(2:length(vs),function(j)(vs[[j-1]]+vs[[j]])/2))
+  labelYs <- apply(rbind(rep(0,ncol(ys)),ys),2,function(vs) sapply(2:length(vs),function(j)(vs[[j-1]]+vs[[j]])/2))
   xs <- barplot(filterStacks,border=NA,col=plotcols,ylab="#variants")
   grid(NA,NULL)
   for (i in 1:length(xs)) {
     toShow <- which(filterStacks[,i] > 0)
-    text(xs[[i]],labelYs[toShow,i],rownames(filterStacks)[toShow])
+    if (length(toShow) > 0) {
+      text(xs[[i]],labelYs[toShow,i],rownames(filterStacks)[toShow])
+    }
   }
   
   tagger$cycle()
