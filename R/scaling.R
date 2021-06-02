@@ -128,7 +128,12 @@ scaleScores <- function(dataDir, scoreDir=NA, outDir=NA,
       regions <- params$regions[,"Region Number"]
       scoreTable <- do.call(rbind,lapply(regions, function(region) {
         
-        logInfo("Processing region",region)
+        if (!(region %in% enrichments$region)) {
+          logInfo("Ignoring empty region",region)
+          return(NULL)
+        } else {
+          logInfo("Processing region",region)
+        }
         
         msc <-  enrichments[which(enrichments$region == region),]
         
