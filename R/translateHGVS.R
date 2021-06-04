@@ -172,7 +172,7 @@ translateHGVS <- function(hgvs, params,
 	#also, if everything is out of bounds, we're done here
 	if (all(oob)) {
 	  return(c(
-	    hgvsp="p.=",
+	    hgvsc=hgvs,hgvsp="p.=",
 	    codonChanges="silent",codonHGVS="c.=",
 	    aaChanges="silent",aaChangeHGVS="p.="
 	  ))
@@ -309,7 +309,8 @@ translateHGVS <- function(hgvs, params,
 		fsSimple <- paste0(aa,codonIdx,"fs")
 		fsCodon <- paste0(codons[[codonIdx]],codonIdx,"indel")
 		return(c(
-			hgvsp=fsout,codonChanges=fsCodon,codonHGVS=breakdown[first,"hgvs"],
+		  hgvsc=hgvs,hgvsp=fsout,
+		  codonChanges=fsCodon,codonHGVS=breakdown[first,"hgvs"],
 			aaChanges=fsSimple,aaChangeHGVS=fsout
 		))
 	}
@@ -348,7 +349,8 @@ translateHGVS <- function(hgvs, params,
 		fsSimple <- paste0(aa,codonIdx,"fs")
 		fsCodon <- paste0(codons[[codonIdx]],codonIdx,"indel")
 		return(c(
-			hgvsp=fsout,codonChanges=fsCodon,codonHGVS=breakdown[culprit,"hgvs"],
+		  hgvsc=hgvs,hgvsp=fsout,
+		  codonChanges=fsCodon,codonHGVS=breakdown[culprit,"hgvs"],
 			aaChanges=fsSimple,aaChangeHGVS=fsout
 		))
 	}
@@ -495,7 +497,7 @@ translateHGVS <- function(hgvs, params,
 	#due to all UTR mutations (see above), the list may be empty
 	if (length(aaChanges) == 0) {
 	  return(c(
-	    hgvsp="p.=",
+	    hgvsc=hgvs,hgvsp="p.=",
 	    codonChanges="silent",codonHGVS="c.=",
 	    aaChanges="silent",aaChangeHGVS="p.="
 	  ))
@@ -621,7 +623,7 @@ translateHGVS <- function(hgvs, params,
 
 	#and finally, return the result
 	return(c(
-		hgvsp=finalHGVS,
+	  hgvsc=hgvs,hgvsp=finalHGVS,
 		codonChanges=codonChangeStr,codonHGVS=codonChangeHGVS,
 		aaChanges=aaChangeStr,aaChangeHGVS=aaChangeHGVS
 	))
