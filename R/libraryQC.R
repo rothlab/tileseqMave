@@ -112,7 +112,11 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
 
 
 	#create PDF tag
-	pdftag <- with(params,sprintf("%s (%s): %s%s",project,template$geneName,runLabel,timeStamp))
+  tsmVersion <- sub(".9000$","",as.character(packageVersion("tileseqMave")))
+	pdftag <- with(params,sprintf("tileseqPro v%s|%s (%s): %s%s",
+	                              tsmVersion,project,template$geneName,
+	                              runLabel,timeStamp
+	))
 
 	#identify nonselect conditions
 	nsConditions <- getNonselects(params)
