@@ -155,6 +155,10 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
 	logInfo("Plotting sequencing anomalies")
 	countAttributes(params,depthTable,inDir,outDir,pdftag)
 	
+	# PLOT PHIX ERROR RATES -----------------------------------
+	logInfo("Plotting sequencing error rates")
+	plotSeqErrorRates(inDir,outDir,pdftag)
+	
 	if (file.exists(covTableFile)) {
 	  #read positional depth table and draw a diagnosis plot for it
 	  covTable <- read.csv(covTableFile,row.names=1)
@@ -1227,5 +1231,44 @@ countAttributes <- function(params,depthTable,inDir,outDir,pdftag) {
   legend("right",c("no match","wrong tile"),fill=c(1,2))
   par(opar)
   dev.off()
+  
+}
+
+plotSeqErrorRates <- function(inDir,outDir,pdftag) {
+  
+  phredFiles <- list.files(inDir,pattern="calibrate_phred",full.names = TRUE)
+  
+  if (length(phredFiles) > 0) {
+    sampleIDs <- sub("_calibrate_phred.csv$","",basename(phredFiles))
+    phredTables <- setNames(lapply(phredFiles,read.csv),sampleIDs)
+    
+    
+    allPhreds <- cbind(phredTables[[1]][,1:2],do.call(cbind,lapply(phredTables,function(tbl)tbl$observed)))
+    labels <- na.omit(allPhreds)[,1]
+    probs <- na.omit(allPhreds)[,-1]
+    
+    if (nrow(probs)==0) {
+      logWarn("Invalid PHRED error rate data. Skipping analysis...")
+      return(NULL)
+    }
+    
+    pdffile <- paste0(outDir,"seqErrorRates.pdf")
+    pdf(pdffile,11,8.5)
+    tagger <- pdftagger(paste(pdftag),cpp=1)
+    op <- par(mar=c(5,4,1,1),oma=c(2,2,2,2))
+    plotCols <- gray.colors(length(sampleIDs)+1)
+    barplot(t(as.matrix(probs)),
+      beside=TRUE,col=plotCols,border=NA,ylab="error rate",
+      xlab="Quality score",names.arg=labels,log="y",ylim=c(1e-4,1)
+    )
+    grid(NA,NULL)
+    legend("topright",c("PHRED spec",sampleIDs),fill=plotCols,border=NA)
+    tagger$cycle()
+    par(op)
+    dev.off()
+  } else {
+    logWarn("No PHRED calibration files found. Skipping analysis...")
+  }
+  
   
 }

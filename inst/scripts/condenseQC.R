@@ -77,13 +77,44 @@ if (length(nonSels) == 0 || args$allConditions) {
   nonSels <- params$conditions$names
 }
 
+cat("Condensing variant caller QC plots...")
+#condense general sequencing QC plots
+reportFiles <- sprintf("%s/%s.pdf",qcDir,c(
+  "seqErrorRates","seqReads","effectiveSeqDepth"
+))
+#discard those that don't exist or are unreadable
+reportFiles <- reportFiles[which(canRead(reportFiles))]
+#if more than one file is applicable, merge them
+if (length(reportFiles) > 0) {
+  condensedFile <- sprintf("%s/varcallQC.pdf",qcDir)
+  gsArgs <- c(
+    "-dNOPAUSE",
+    "-sDEVICE=pdfwrite",
+    paste0("-sOUTPUTFILE=",condensedFile),
+    "-dBATCH",
+    reportFiles
+  )
+  retVal <- system2("gs",gsArgs,stdout=FALSE)
+  if (retVal == 0 && !args$retainSingles) {
+    invisible(file.remove(reportFiles))
+  }
+}
+fcount <- length(reportFiles)
+if (fcount > 0) {
+  cat(sprintf("%d files.\n",fcount))
+} else {
+  cat("no data!\n")
+}
+
+
 fcount <- 0
 cat("Condensing library QC plots...")
 for (nsCond in nonSels) {
   for (tp in params$timepoints$`Time point name`) {
   	#list report files in order
   	reportFiles <- sprintf("%s/%s_t%s_%s.pdf",qcDir,nsCond,tp,c(
-  		"coverage","census","wellmeasured","tileRepCorr","WTlevels","jackpot",
+  		"coverage","census","wellmeasured",
+  		"tileRepCorr","WTlevels","jackpot",
   		"complexity","mutationtypes","nucleotide_bias","fsMap"
   	))
   	#discard those that don't exist or are unreadable
