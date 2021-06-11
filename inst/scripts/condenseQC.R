@@ -80,7 +80,7 @@ if (length(nonSels) == 0 || args$allConditions) {
 cat("Condensing variant caller QC plots...")
 #condense general sequencing QC plots
 reportFiles <- sprintf("%s/%s.pdf",qcDir,c(
-  "seqErrorRates","seqReads","effectiveSeqDepth"
+  "seqErrorRates","seqReads","effectiveSeqDepth","depthDrops"
 ))
 #discard those that don't exist or are unreadable
 reportFiles <- reportFiles[which(canRead(reportFiles))]

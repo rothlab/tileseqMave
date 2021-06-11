@@ -315,6 +315,11 @@ validateParameters <- function(params,srOverride=FALSE) {
 	}
 	
 	#validate metaparameters
+	expected <- c("posteriorThreshold","minCover","mutRate","maxDrop")
+	if (!all(expected %in% names(params$varcaller))) {
+	  stop("Parameter sheet JSON file is out of date with software version!\n",
+	       "Please re-run csv2json.R !")
+	}
 	if (is.na(params$varcaller$posteriorThreshold)) {
 		stop("Posterior threshold must be numeric!")
 	}
@@ -335,6 +340,21 @@ validateParameters <- function(params,srOverride=FALSE) {
 	}
 	if (params$varcaller$mutRate > 0.1) {
 		logWarn("Mutation rate parameter is set unusually high! Are you sure about this?")
+	}
+	if (params$varcaller$maxDrop < 0 || params$varcaller$maxDrop > 1) {
+	  stop("Maximum depth drop must be between 0 and 1!")
+	}
+	if (params$varcaller$maxDrop < 0.05) {
+	  logWarn("Maximum depth drop is set unusually low! Are you sure about this?")
+	}
+	if (params$varcaller$maxDrop > 0.5) {
+	  logWarn("Maximum depth drop is set unusually high! Are you sure about this?")
+	}
+	
+	expected <- c("countThreshold","pseudo.n","sdThreshold","wtQuantile","cvDeviation")
+	if (!all(expected %in% names(params$scoring))) {
+	  stop("Parameter sheet JSON file is out of date with software version!\n",
+	       "Please re-run csv2json.R !")
 	}
 	if (is.na(params$scoring$countThreshold)) {
 		stop("Minimum read count must be an integer!")
@@ -588,6 +608,12 @@ csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",infile),
 	} else {
 		logWarn("No mutation rate specified. Defaulting to 0.0025")
 		output$varcaller$mutRate <- 0.0025
+	}
+	if (hasRow("Maximum depth drop:")) {
+	  output$varcaller$maxDrop <- as.numeric(csv[[getRow("Maximum depth drop:")]][[2]])
+	} else {
+	  logWarn("No maximum depth drop specified. Defaulting to 0.2")
+	  output$varcaller$maxDrop <- 0.2
 	}
 	output$scoring <- list()
 	if (hasRow("Minimum read count:")) {

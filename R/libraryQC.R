@@ -167,19 +167,6 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
 	  logInfo("Plotting positional depths")
 	  drawPositionalDepth(covTable,outDir,pdftag)
 	  
-	  #convert to amino acid positions
-	  # #FIXME new comboDepth!
-	  # allAAPos <- 1:params$template$proteinLength
-	  # aa2ncpos <- lapply(allAAPos*3,`-`,2:0)
-	  # aaDepth <- do.call(rbind,lapply(aa2ncpos, function(is) {
-	  #   is <- intersect(as.character(is),colnames(covTable))
-	  #   if (length(is)==0) {
-	  #     return(setNames(rep(0,nrow(covTable)),rownames(covTable)))
-	  #   } else {
-	  #     rowMeans(covTable[,is],na.rm=TRUE)
-	  #   }
-	  # }))
-	  
 	  #adjust depth table with mean "effective" depth
 	  tileDepths <- do.call(rbind,lapply(1:nrow(covTable),function(row) {
 	    apply(params$tiles,1,function(tile) {
@@ -214,6 +201,7 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
 	         substr(cc,numEnd+1,nchar(cc))
 	    )
 	  }))
+	  rawTable
 	}
 
 	allSplitChanges <- pbmclapply(
@@ -233,6 +221,26 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
 	allTiles <- pbmclapply(allSplitChanges,inferTiles,mc.cores=mc.cores)	
 	marginalTiles <- inferTiles(marginalSplitChanges)
 
+	# CALCULATE SEVERITY OF DROPS IN SEQUENCING DEPTH
+	if (file.exists(covTableFile)) {
+  	logInfo("Calculating drops in sequencing depth for each variant...")
+  	
+  	allDepthDrops <- calcDepthDrops(allCounts,allTiles,depthTable)
+  	margDepthDrops <- calcDepthDrops(marginalCounts,marginalTiles,depthTable)
+  	
+  	pdffile <- paste0(outDir,"depthDrops.pdf")
+  	pdf(pdffile,11,8.5)
+  	tagger <- pdftagger(paste(pdftag),cpp=1)
+  	op <- par(mar=c(5,4,1,1),oma=c(2,2,2,2))
+  	hist(100*allDepthDrops,breaks=seq(0,100),
+  	  col="gray",border=NA,main="",
+  	  xlab="% drop in effective depth\nper variant"
+  	)
+  	abline(v=params$varcaller$maxDrop*100,col="red",lty="dashed")
+  	tagger$cycle()
+  	par(op)
+  	invisible(dev.off())
+	}
 
 	#ITERATE OVER (POSSIBLY MULTIPLE) NONSELECT CONDITIONS AND ANALYZE SEPARATELY
 	for (nsCond in nsConditions) {
@@ -246,6 +254,48 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
 	    }
 	    
 	    logInfo("Processing",nsCond,"; time point",tp)
+	    
+	    # FILTER OUT VARIANTS AT INSUFFICIENT DEPTH ------------------------------
+	    regex <- paste(c(nsCond,getWTControlFor(nsCond,params)),collapse="|")
+	    relCols <- grep(regex,colnames(allDepthDrops))
+	    filter <- sapply(1:nrow(allCounts), function(i) {
+	      any(is.na(allDepthDrops[i,relCols])) || any(allDepthDrops[i,relCols] > params$varcaller$maxDrop)
+	    })
+	    if (any(filter)) {
+	      if (sum(filter)/length(filter) > 0.1) {
+	        logWarn("
+################################################
+MASSIVE SEQUENCING ERROR CONTAMINATION DETECTED!
+     ! These results are likely unusable !
+################################################"
+	                )
+	      }
+	      logWarn(sprintf(
+	        "Removing %d variants (%.02f%%) with excessive drops in effective depth from analysis",
+	        sum(filter),100*sum(filter)/length(filter)
+	      ))
+	      
+	      allCounts <- allCounts[!filter,]
+	      allSplitChanges <- allSplitChanges[!filter]
+	      allTiles <- allTiles[!filter]
+	      
+	    }
+	    
+	    relCols <- grep(regex,colnames(margDepthDrops))
+	    filter <- sapply(1:nrow(marginalCounts), function(i) {
+	      any(is.na(margDepthDrops[i,relCols])) || any(margDepthDrops[i,relCols] > params$varcaller$maxDrop)
+	    })
+	    if (any(filter)) {
+	      logWarn(sprintf(
+	        "Removing %d marginal variants (%.02f%%) with excessive drops in effective depth from analysis",
+	        sum(filter),100*sum(filter)/length(filter)
+	      ))
+	      
+	      marginalCounts <- marginalCounts[!filter,]
+	      marginalSplitChanges <- marginalSplitChanges[!filter,]
+	      marginalTiles <- marginalTiles[!filter]
+	    }
+	    
 	    
 	    # RAW REPLICATE CORRELATIONS PER TILE ------------------------------------
 	    
@@ -1269,6 +1319,39 @@ plotSeqErrorRates <- function(inDir,outDir,pdftag) {
   } else {
     logWarn("No PHRED calibration files found. Skipping analysis...")
   }
-  
-  
+}
+
+calcDepthDrops <- function(xCounts, xTiles, depthTable) {
+  edcols <- grep("effectiveDepth$",colnames(xCounts))
+  ednames <- colnames(xCounts)[edcols]
+  edconds <- extract.groups(
+    colnames(xCounts)[edcols],
+    "^([A-Za-z0-9]+)\\.t([A-Za-z0-9]+)\\.rep(\\d+)\\.effectiveDepth$"
+  )
+  uniqueTiles <- sort(unique(depthTable$Tile.ID))
+  rawDepths <- do.call(rbind,lapply(1:length(edcols),function(j) {
+    cond <- edconds[j,1]
+    tp <- edconds[j,2]
+    repl <- edconds[j,3]
+    ds <- sapply(uniqueTiles, function(tile) {
+      k <- with(depthTable,which(
+        Tile.ID==tile & Condition==cond & 
+          Time.point==tp & Replicate==repl
+      ))
+      depthTable[k,"alignedreads"]
+    })
+    setNames(ds,uniqueTiles)
+  }))
+  do.call(rbind,pbmclapply(1:nrow(xCounts), function(i) {
+    # tile <- xTiles[[i]][[1]]
+    tile <- names(which.max(table(xTiles[[i]])))
+    if (is.null(tile)) {
+      return(rep(NA,length(edcols)))
+    }
+    setNames(sapply(1:length(edcols), function(j){
+      ed <- xCounts[i,edcols[[j]]]
+      rd <- rawDepths[j,as.character(tile)]
+      sapply(1 - ed/rd,max,0)
+    }),ednames)
+  },mc.cores=mc.cores))
 }

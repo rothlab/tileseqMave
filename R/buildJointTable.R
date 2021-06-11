@@ -286,7 +286,7 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,
     if (any(sapply(bestTiles,length)>1)) {
       culprits <- which(sapply(bestTiles,length)>1)
       logWarn("The following variant positions cross tile-boundaries: ",
-              paste(posGroups[culprits],collapse=",")
+              paste(sapply(posGroups[culprits],paste,collapse=","),collapse=";\n")
       )
     }
     #reduce to just the most likely tile per variant
