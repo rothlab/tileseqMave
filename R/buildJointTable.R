@@ -210,7 +210,7 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,
           startStop <- as.integer(yogitools::extract.groups(chunk,"(\\d+)_(\\d+)")[1,])
           #for delins use the start + length of insertion
           if (grepl("delins",chunk)) {
-          	l <- nchar(sub(".+delins","",chunk))
+          	l <- nchar(gsub(".+delins|\\]","",chunk))
           	startStop[[1]]:(startStop[[1]]+(l-1))
           } else if (grepl("del",chunk)) {
           	#for deletions, only the start counts
@@ -257,6 +257,7 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,
     stop("Translations for ",sum(is.na(transTable[,3]))," variants failed! See log for details.")
   }
   
+  # save(transTable,file="transTable.rda")
 
   ################
   # Merge tables #
@@ -285,9 +286,12 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,
     #check for problematic cases and complain if necessary
     if (any(sapply(bestTiles,length)>1)) {
       culprits <- which(sapply(bestTiles,length)>1)
-      logWarn("The following variant positions cross tile-boundaries: ",
-              paste(sapply(posGroups[culprits],paste,collapse=","),collapse=";\n")
-      )
+      for (culprit in culprits) {
+        logWarn("The following variant positions cross tile-boundaries: ",
+                names(posGroups)[[culprit]],"\n(",
+                sapply(posGroups[[culprit]],paste,collapse=","),")"
+        )
+      }
     }
     #reduce to just the most likely tile per variant
     sapply(bestTiles, function(ts) {
@@ -298,6 +302,17 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,
       }
     })
   }
+
+  nuc2tile <- function(pos) {
+    rows <- sapply(pos,function(pos) {
+      i <- which(
+        params$tiles[,"Start NC in CDS"] <= pos & 
+        params$tiles[,"End NC in CDS"] >= pos
+      )
+      if (length(i)==0) NA else i
+    }) 
+    params$tiles[rows,"Tile Number"]
+  }
   
   #Build a lookup table for the cleaned HGVS strings
   logInfo("Merging equivalent variants...")
@@ -306,6 +321,9 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,
     transTable[is[[1]],]
   }))
 
+  # save(transTableClean,file="transTableClean.rda")
+
+
   #after cleanup we don't need the original table anymore, so we can remove it
   #to save RAM
   rm(transTable)
@@ -313,6 +331,7 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,
   logInfo("Indexing variant positions...")
   #extract positions for all variants
   allPositions <- extractHGVSPositions(transTableClean[,"hgvsc"])
+  names(allPositions) <- transTableClean[,"hgvsc"]
   
   logInfo("Indexing tile assignments...")
   #and their most applicable tiles
@@ -327,13 +346,6 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,
   
   #join the tables
   condTables <- tapply(1:nrow(sampleTable),sampleTable$condRID,function(isamples) {
-    
-    # out <- data.frame(
-    #   count=rep(0,length(allVars)),
-    #   frequency=rep(0,length(allVars)),
-    #   effectiveDepth=rep(0,length(allVars)),
-    #   row.names=allVars
-    # )
     
     out <- data.frame(
       count=rep(0,nrow(transTableClean)),
@@ -360,8 +372,14 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,
         posList <- allPositions[applVars]
         #for multi-mutants, we must combine the depths of the applicable positions
         combinedDepth <- sapply(posList, function(poss) {
-          ds <- localDepth[as.character(poss)]
-          combineDepths(ds,rawDepth)
+          valid <- which(nuc2tile(poss)==currTile)
+          if (length(valid) > 0) {
+            ds <- localDepth[as.character(poss[valid])]
+            combineDepths(ds,rawDepth)
+          } else {
+            logWarn("Invalid variant outside of tile!")
+            NA
+          }
         })
         out[applVars,"effectiveDepth"] <- combinedDepth
       }
@@ -494,6 +512,7 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,
   if (!covOverride) {
     logInfo("Indexing marginal variant positions...")
     margPositions <- extractHGVSPositions(marginalCCs)
+    names(margPositions) <- marginalCCs
     logInfo("Indexing marginal variant tile assignments...")
     margTiles <- ncpos2tile(margPositions)
     
@@ -502,8 +521,10 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,
       tili <- margTiles[[rowi]]
       #pull up the list of positions for these variants
       poss <- margPositions[[rowi]]
+      valid <- which(nuc2tile(poss)==tili)
+      poss <- poss[valid]
       #process across all condition-timepoint-replicate groups
-      if (!is.na(tili) && !is.na(poss)) {
+      if (!is.na(tili) && length(poss) > 0 && !is.na(poss)) {
         for (crid in unique(sampleTable$condRID)) {
           #pull up the relevant raw-depth
           rawDepth <- with(sampleTable,alignedreads[condRID==crid & `Tile ID`==tili])
