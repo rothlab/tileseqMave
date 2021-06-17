@@ -256,46 +256,50 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
 	    logInfo("Processing",nsCond,"; time point",tp)
 	    
 	    # FILTER OUT VARIANTS AT INSUFFICIENT DEPTH ------------------------------
-	    regex <- paste(c(nsCond,getWTControlFor(nsCond,params)),collapse="|")
-	    relCols <- grep(regex,colnames(allDepthDrops))
-	    filter <- sapply(1:nrow(allCounts), function(i) {
-	      any(is.na(allDepthDrops[i,relCols])) || any(allDepthDrops[i,relCols] > params$varcaller$maxDrop)
-	    })
-	    if (any(filter)) {
-	      if (sum(filter)/length(filter) > 0.1) {
-	        logWarn("
-################################################
-MASSIVE SEQUENCING ERROR CONTAMINATION DETECTED!
-     ! These results are likely unusable !
-################################################"
-	                )
-	      }
-	      logWarn(sprintf(
-	        "Removing %d variants (%.02f%%) with excessive drops in effective depth from analysis",
-	        sum(filter),100*sum(filter)/length(filter)
-	      ))
-	      
-	      allCounts <- allCounts[!filter,]
-	      allSplitChanges <- allSplitChanges[!filter]
-	      allTiles <- allTiles[!filter]
-	      
-	    }
 	    
-	    relCols <- grep(regex,colnames(margDepthDrops))
-	    filter <- sapply(1:nrow(marginalCounts), function(i) {
-	      any(is.na(margDepthDrops[i,relCols])) || any(margDepthDrops[i,relCols] > params$varcaller$maxDrop)
-	    })
-	    if (any(filter)) {
-	      logWarn(sprintf(
-	        "Removing %d marginal variants (%.02f%%) with excessive drops in effective depth from analysis",
-	        sum(filter),100*sum(filter)/length(filter)
-	      ))
-	      
-	      marginalCounts <- marginalCounts[!filter,]
-	      marginalSplitChanges <- marginalSplitChanges[!filter,]
-	      marginalTiles <- marginalTiles[!filter]
+	    if (file.exists(covTableFile)) {
+  	    regex <- paste(c(nsCond,getWTControlFor(nsCond,params)),collapse="|")
+  	    relCols <- grep(regex,colnames(allDepthDrops))
+  	    filter <- sapply(1:nrow(allCounts), function(i) {
+  	      any(is.na(allDepthDrops[i,relCols])) || any(allDepthDrops[i,relCols] > params$varcaller$maxDrop)
+  	    })
+  	    if (any(filter)) {
+  	      if (sum(filter)/length(filter) > 0.1) {
+  	        logWarn("
+  ################################################
+  MASSIVE SEQUENCING ERROR CONTAMINATION DETECTED!
+       ! These results are likely unusable !
+  ################################################"
+  	                )
+  	      }
+  	      logWarn(sprintf(
+  	        "Removing %d variants (%.02f%%) with excessive drops in effective depth from analysis",
+  	        sum(filter),100*sum(filter)/length(filter)
+  	      ))
+  	      logWarn("Examples of dropped variants :\n   ",paste(head(allCounts$hgvsc[filter]),collapse="\n   "))
+  	      
+  	      allCounts <- allCounts[!filter,]
+  	      allSplitChanges <- allSplitChanges[!filter]
+  	      allTiles <- allTiles[!filter]
+  	      
+  	    }
+  	    
+  	    relCols <- grep(regex,colnames(margDepthDrops))
+  	    filter <- sapply(1:nrow(marginalCounts), function(i) {
+  	      any(is.na(margDepthDrops[i,relCols])) || any(margDepthDrops[i,relCols] > params$varcaller$maxDrop)
+  	    })
+  	    if (any(filter)) {
+  	      logWarn(sprintf(
+  	        "Removing %d marginal variants (%.02f%%) with excessive drops in effective depth from analysis",
+  	        sum(filter),100*sum(filter)/length(filter)
+  	      ))
+  	      logWarn("Examples of dropped variants:\n   ",paste(head(marginalCounts$hgvsc[filter]),collapse="\n   "))
+  	      
+  	      marginalCounts <- marginalCounts[!filter,]
+  	      marginalSplitChanges <- marginalSplitChanges[!filter,]
+  	      marginalTiles <- marginalTiles[!filter]
+  	    }
 	    }
-	    
 	    
 	    # RAW REPLICATE CORRELATIONS PER TILE ------------------------------------
 	    
@@ -1321,6 +1325,16 @@ plotSeqErrorRates <- function(inDir,outDir,pdftag) {
   }
 }
 
+#' Calculate relative drops in effective sequencing depth for each variant
+#'
+#' @param xCounts marginal or all counts table
+#' @param xTiles tile assignments for each variant in the table
+#' @param depthTable the raw depth table
+#'
+#' @return a table listing the relative drop in for each variant in each
+#' condition-time-replicate combination.
+#' @export
+#'
 calcDepthDrops <- function(xCounts, xTiles, depthTable) {
   edcols <- grep("effectiveDepth$",colnames(xCounts))
   ednames <- colnames(xCounts)[edcols]

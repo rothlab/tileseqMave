@@ -171,7 +171,7 @@ selectionQC <- function(dataDir,countDir=NA, scoreDir=NA, outDir=NA,
 			
 			if (all(is.na(scores$bce))) {
 			  scores$bce <- scores$logPhi
-			  scores$bce.se <- scores$logPhi.sd
+			  scores$bce.se <- scores$logPhi.se
 			}
 
 			#ordering should match scores
@@ -221,7 +221,7 @@ selectionQC <- function(dataDir,countDir=NA, scoreDir=NA, outDir=NA,
 			
 				#If scores could not be assigned due to synonymous-nonsense median failure
 				#then we can't run an error profile analysis
-				if (!all(is.na(scores$logPhi)) && !any(scores$logPhi.sd < 0,na.rm=TRUE)) {
+				if (!all(is.na(scores$logPhi)) && !any(scores$logPhi.se < 0,na.rm=TRUE)) {
 					#Error profile
 				  logInfo("Plotting error profile")
 					errorProfile(scores,sCond,tp,outDir,params)
@@ -328,7 +328,7 @@ filterProgression <- function(scores,sCond,tp,params,outDir) {
 	                                scorePos <= regSubsets$end[[ri]]),]
 	  filteredScores <- scores[which(is.na(scores$filter) & scorePos >= regSubsets$start[[ri]] & 
 	                             scorePos <= regSubsets$end[[ri]]),]
-	  hqScores <- filteredScores[which(filteredScores$bce.sd < params$scoring$sdThreshold),]
+	  hqScores <- filteredScores[which(filteredScores$bce.se < params$scoring$sdThreshold),]
 	  
   	#calculate filter census
   	census <- rbind(
@@ -520,7 +520,7 @@ logPhiBias <- function(scores,params,sCond,tp,outDir) {
     ))
     with(nonsenseF, {
       points(log10(nonselect.mean),logPhi,col="firebrick3",pch=20)
-      yogitools::errorBars(log10(nonselect.mean),logPhi,logPhi.sd,col="firebrick3")
+      yogitools::errorBars(log10(nonselect.mean),logPhi,logPhi.se,col="firebrick3")
     })
     abline(zns,col="firebrick2",lty="dashed")
     # abline(a=thetaNon[[1]],b=thetaNon[[2]],col="firebrick2")
@@ -528,7 +528,7 @@ logPhiBias <- function(scores,params,sCond,tp,outDir) {
     
     with(synonymousF, {
       points(log10(nonselect.mean),logPhi,col="chartreuse3",pch=20)
-      yogitools::errorBars(log10(nonselect.mean),logPhi,logPhi.sd,col="chartreuse3")
+      yogitools::errorBars(log10(nonselect.mean),logPhi,logPhi.se,col="chartreuse3")
     })
     abline(zsyn,col="chartreuse2",lty="dashed")
     # abline(a=thetaSyn[[1]],b=thetaSyn[[2]],col="chartreuse2")
@@ -791,15 +791,16 @@ scoreDistributions <- function(scores,sCond,tp,outDir,params,srOverride) {
     # #residual error isn't really reliable yet, so this will just have to be total error for now.
     # resErr <- residualError(filteredScores$bce,filteredScores$bce.sd,mirror=TRUE,wtX=1)
     # nerr <- resErr - min(resErr,na.rm=TRUE) + min(abs(resErr),na.rm=TRUE)
-    nerr <- filteredScores$bce.sd
+    nerr <- filteredScores$bce.se
   }
   
 	#collapse by amino acid consequence and associate with regions
 	aaScores <- as.df(with(filteredScores,tapply(1:length(hgvsp),hgvsp, function(is) {
-		if (!srOverride && !any(is.na(bce.sd[is]))) {
+		if (!srOverride && !any(is.na(bce.se[is]))) {
 			joint <- join.datapoints(
 			  ms=bce[is],
-			  sds=bce.sd[is],
+			  sds=bce.se[is],
+			  #FIXME: Carry forward joint DF from enrichment step!!
 				dfs=rep(params$numReplicates[[sCond]],length(is)),
 				ws=(1/nerr[is])/sum(1/nerr[is])
 			)
@@ -819,6 +820,7 @@ scoreDistributions <- function(scores,sCond,tp,outDir,params,srOverride) {
 			bce=joint[["mj"]],
 			sd=joint[["sj"]],
 			df=joint[["dfj"]],
+			#FIXME: This is no longer correct
 			se=joint[["sj"]]/sqrt(joint[["dfj"]]),
 			pos=p,
 			region=mutregion
@@ -978,7 +980,7 @@ errorProfile <- function(scores,sCond,tp,outDir,params) {
   
   plotEP <- function(scores,varname,xlab) {
     
-    sdname <- paste0(varname,".sd")
+    sdname <- paste0(varname,".se")
     sdRange <- range(log10(scores[is.na(scores$filter),sdname]),finite=TRUE)
     lphiRange <- range(scores[is.na(scores$filter),varname],finite=TRUE)
     # runningMedian <- with(scores[is.na(scores$filter),],yogitools::runningFunction(
@@ -1047,7 +1049,7 @@ codonAgreement <- function(scores,sCond,tp,params,outDir,srOverride) {
   pairScores <- as.df(apply(pairings,1,function(idxs) {
     filter <- any(!is.na(scores[idxs,"filter"]))
     lphi <- scores[idxs,"logPhi"]
-    lpsd <- scores[idxs,"logPhi.sd"]
+    lpsd <- scores[idxs,"logPhi.se"]
     c(list(filter=filter),c(logPhi=lphi,sd=lpsd))
   }))
   
@@ -1118,14 +1120,14 @@ synNonDelta <- function(scores,sCond,tp,params,outDir,srOverride){
   #positional weighted averages of synonymous variants
   #FIXME: Use residual error as weights
   syns <- as.df(with(scores[scores$type=="synonymous" & is.na(scores$filter),],tapply(1:length(pos),pos,function(idxs){
-    sds <- if (!srOverride) logPhi.sd[idxs] else rep(1,length(idxs))
+    sds <- if (!srOverride) logPhi.se[idxs] else rep(1,length(idxs))
     joint <- join.datapoints(logPhi[idxs],sds,rep(2,length(idxs)))
     p <- unique(pos[idxs])
     c(pos=p,joint)
   })))
   #positional weighted averages of nonsense (stop) variants
   stops <- as.df(with(scores[scores$type=="nonsense" & is.na(scores$filter),],tapply(1:length(pos),pos,function(idxs){
-    sds <- if (!srOverride) logPhi.sd[idxs] else rep(1,length(idxs))
+    sds <- if (!srOverride) logPhi.se[idxs] else rep(1,length(idxs))
     joint <- join.datapoints(logPhi[idxs],sds,rep(2,length(idxs)))
     p <- unique(pos[idxs])
     c(pos=p,joint)

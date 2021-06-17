@@ -3,6 +3,7 @@
 export(analyzeLegacyTileseqCounts)
 export(biasCorrection)
 export(buildJointTable)
+export(calcDepthDrops)
 export(calcEnrichment)
 export(charProfile)
 export(checkCSV)

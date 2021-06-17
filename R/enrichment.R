@@ -154,6 +154,16 @@ calcEnrichment <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"
 	marginalCounts$position <- as.integer(extract.groups(marginalCounts$codonChange,"(\\d+)"))
 	marginalCounts$region <- params$pos2reg(marginalCounts$position)
 	marginalCounts$tile <- params$pos2tile(marginalCounts$position)
+	
+	#load raw depth table
+	depthTableFile <- paste0(inDir,"/sampleDepths.csv")
+	depthTable <- read.csv(depthTableFile)
+	#calculate drops in effective depth
+	depthDrops <- calcDepthDrops(marginalCounts,marginalCounts$tile,depthTable)
+	rownames(depthDrops) <- marginalCounts$hgvsc
+	#TODO: eliminate individual replicates with excessive drops
+	#note variants for which all variants have been dropped as filtered
+	#adjust degrees of freedem as appropriate!
 
 	# iterate selection conditions -----------------------------------------------
 	for (sCond in selectConds) {
@@ -200,10 +210,14 @@ calcEnrichment <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"
 				}
 
 				#extract relevant count data for this region
-				regionalCounts <- marginalCounts[which(marginalCounts$region == region),]
+			  regIdx <- which(marginalCounts$region == region)
+				regionalCounts <- marginalCounts[regIdx,]
+				regionalDrops <- depthDrops[regIdx,]
 
 				# means, stdevs and average count calculation for each condition----------
-				msc <- do.call(cbind,lapply(condQuad, mean.sd.count, regionalCounts, tp, params))
+				msc <- do.call(cbind,lapply(
+				  condQuad, mean.sd.count, regionalCounts, regionalDrops, tp, params
+				))
 				
 				#determine mutation types
 				aac <- regionalCounts$aaChange
@@ -217,6 +231,7 @@ calcEnrichment <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"
 				unrelated <- which(msc$nonselect.count == 0)
 				if (length(unrelated) > 0) {
   				regionalCounts <- regionalCounts[-unrelated,]
+  				regionalDrops <- regionalDrops[-unrelated,]
   				msc <- msc[-unrelated,]
 				}
 
@@ -480,14 +495,14 @@ bnl <- function(pseudo.n,n,model.sd,empiric.sd) {
 #' @param regionalCounts the region-specific subset of the marginal counts dataframe
 #' @param tp the time point ID
 #' @param params the global parameters object
-mean.sd.count <- function(cond,regionalCounts,tp,params) {
+mean.sd.count <- function(cond,regionalCounts,regionalDrops,tp,params) {
   
   #detect dummy conditions (when no WT control exists)
   if (is.na(cond)) {
     #zeroes
     z <- rep(0,nrow(regionalCounts))
     return(data.frame(
-      mean=z,sd=z,cv=z,count=z
+      mean=z,sd=z,cv=z,count=z,df=1
     ))
   }
   
@@ -509,52 +524,87 @@ mean.sd.count <- function(cond,regionalCounts,tp,params) {
 	}
 	
 	maxFactor <- params$scoring$cvDeviation
+	maxDrop <- params$varcaller$maxDrop
 	
 	freqs <- regionalCounts[,sprintf("%s.t%s.rep%d.frequency",cond,tp,1:params$numReplicates[[cond]])]
 	counts <- regionalCounts[,sprintf("%s.t%s.rep%d.count",cond,tp,1:params$numReplicates[[cond]])]
+	drops <- regionalDrops[,sprintf("%s.t%s.rep%d.effectiveDepth",cond,tp,1:params$numReplicates[[cond]])]
+	dropFilter <- drops < maxDrop
 	
-	mCount <- if(nrep>1)rowMeans(counts,na.rm=TRUE) else counts
+	# mCount <- if(nrep>1)rowMeans(counts,na.rm=TRUE) else counts
 	# cvPois <- 1/sqrt(mCount+.1)
 	
-	if (nrep == 1) {
-	  means <- freqs
-	  sds <- rep(NA,length(freqs))
-	} else if (nrep == 2 ||!params$scoring$useQuorum) {
-	  means <- rowMeans(freqs,na.rm=TRUE)
-	  sds <- apply(freqs,1,sd,na.rm=TRUE)
-	} else if (nrep > 2) {
-	  majorities <- t(apply(freqs,1,function(fs){
-	    m <- median(fs,na.rm=TRUE)
-	    valid <- (fs/m <= maxFactor) & (fs/m >= 1/maxFactor)
+	out <- as.df(lapply(1:nrow(regionalCounts), function(i) {
+	  cols <- which(dropFilter[i,])
+	  dfInit <- length(cols)
+	  mCount <- mean(unlist(counts[i,cols]),na.rm=TRUE)
+	  fs <- unlist(freqs[i,cols])
+	  if (dfInit==0) {
+	    list(mean=NA,sd=NA,cv=NA,count=NA,df=0)
+	  } else if (dfInit==1) {
+	    list(mean=fs,sd=NA,cv=NA,count=mCount,df=1)
+	  } else if (dfInit==2||!params$scoring$useQuorum) {
+	    m <- mean(fs,na.rm=TRUE)
+	    s <- sd(fs,na.rm=TRUE)
+	    list(mean=m,sd=s,cv=s/m,count=mCount,df=dfInit)
+	  } else {#i.e. dfInit > 2
+	    med <- median(fs,na.rm=TRUE)
+	    valid <- (fs/med <= maxFactor) & (fs/med >= 1/maxFactor)
 	    if (sum(valid,na.rm=TRUE) > 1) {
-	      c(
-	        mean=mean(fs[which(valid)]),
-	        sd=sd(fs[which(valid)]),
-	        outliers=sum(!valid,na.rm=TRUE)
+	      m <- mean(fs[which(valid)])
+	      s <- sd(fs[which(valid)])
+	      list(mean=m,sd=s,cv=s/m,
+	        count=mean(counts[i,cols][which(valid)],na.rm=TRUE),
+	        df=sum(valid,na.rm=TRUE)
 	      )
 	    } else {
-	      c(
-	        mean=mean(fs),
-	        sd=sd(fs),
-	        outliers=length(valid)
-	      )
+	      m <- mean(fs,na.rm=TRUE)
+	      s <- sd(fs,na.rm=TRUE)
+	      list(mean=m,sd=s,cv=s/m,count=mCount,df=dfInit)
 	    }
-	  }))
-	  means <- majorities[,"mean"]
-	  sds <- majorities[,"sd"]
-	}
+	  }
+	}))
+	
+	# if (nrep == 1) {
+	#   means <- freqs
+	#   sds <- rep(NA,length(freqs))
+	# } else if (nrep == 2 ||!params$scoring$useQuorum) {
+	#   means <- rowMeans(freqs,na.rm=TRUE)
+	#   sds <- apply(freqs,1,sd,na.rm=TRUE)
+	# } else if (nrep > 2) {
+	#   #FIXME: Track degrees of freedom!
+	#   majorities <- t(apply(freqs,1,function(fs){
+	#     m <- median(fs,na.rm=TRUE)
+	#     valid <- (fs/m <= maxFactor) & (fs/m >= 1/maxFactor)
+	#     if (sum(valid,na.rm=TRUE) > 1) {
+	#       c(
+	#         mean=mean(fs[which(valid)]),
+	#         sd=sd(fs[which(valid)]),
+	#         outliers=sum(!valid,na.rm=TRUE)
+	#       )
+	#     } else {
+	#       c(
+	#         mean=mean(fs),
+	#         sd=sd(fs),
+	#         outliers=length(valid)
+	#       )
+	#     }
+	#   }))
+	#   means <- majorities[,"mean"]
+	#   sds <- majorities[,"sd"]
+	# }
 	
 	# sds <- if (nrep > 1) apply(freqs,1,sd,na.rm=TRUE) else rep(NA,length(freqs))
 	
-	out <- data.frame(
-		mean=means,
-		sd=sds,
-		cv=sds/means,
-		# cv=mapply(function(s,m) if(s==0) 0 else s/m,sds,means),
-		# count=if(nrep>1)rowMeans(counts,na.rm=TRUE) else counts
-		count=mCount
-		# csd=apply(counts,1,sd,na.rm=TRUE)
-	)
+	# out <- data.frame(
+	# 	mean=means,
+	# 	sd=sds,
+	# 	cv=sds/means,
+	# 	# cv=mapply(function(s,m) if(s==0) 0 else s/m,sds,means),
+	# 	# count=if(nrep>1)rowMeans(counts,na.rm=TRUE) else counts
+	# 	count=mCount
+	# 	# csd=apply(counts,1,sd,na.rm=TRUE)
+	# )
 	return(out)
 }
 
@@ -594,6 +644,10 @@ rawFilter <- function(msc,countThreshold,wtq=0.95,cvm=10,srOverride=FALSE,useWTf
 		# select.mean <= selWT.mean + 3*sd.sWT
 	)
 	
+	#depth filter
+	dfCols <- grep("\\.df$",colnames(msc))
+	dFilter <- apply(msc[,dfCols],1,function(dfs) any(dfs < 1))
+	
 	#aberrant WT count filter
 	if (useWTfilter) {
   	medianDeviation <- function(xs) {
@@ -624,13 +678,14 @@ rawFilter <- function(msc,countThreshold,wtq=0.95,cvm=10,srOverride=FALSE,useWTf
 	}
 	
 	
-	mapply(function(ns,s,rf,w) {
+	mapply(function(ns,s,rf,w,d) {
 	  if (w) "wt_excess"
 	  else if (ns) "frequency" 
 	  else if (s) "bottleneck:select" 
 	  else if (rf) "bottleneck:rep"
+	  else if (d) "depth"
 	  else NA
-	},nsFilter,sFilter,rFilter,wFilter)
+	},nsFilter,sFilter,rFilter,wFilter,dFilter)
 }
 
 #' Run model fitting on all tiles in all given conditions
@@ -760,6 +815,18 @@ regularizeRaw <- function(msc,condNames,tiles,n,pseudo.n, modelFunctions,pessimi
 	return(regul)
 }
 
+# simulate from beta function using mean and sd
+rbeta2 <- function(n,m,s) {
+  maxVar <- m*(1-m)
+  if (s^2 >= maxVar) {
+    warning("Variance too large!")
+    s <- sqrt(maxVar)
+  }
+  nu <- (m*(1-m))/(s^2)-1
+  a <- m*nu
+  b <- (1-m)*nu
+  rbeta(n,a,b)
+}
 
 calcPhiBootstrap <- function(msc,N=10000) {
   
@@ -775,10 +842,22 @@ calcPhiBootstrap <- function(msc,N=10000) {
   
   logInfo("Bootstrapping for error propagation...")
   boot <- pbmclapply(1:N, function(i) {
-    selectSam <- with(msc,rnorm(length(select.mean),select.mean,select.sd.bayes))
-    selWTSam <- with(msc,rnorm(length(selWT.mean),selWT.mean,selWT.sd.bayes))
-    nonselectSam <- with(msc,rnorm(length(nonselect.mean),nonselect.mean,nonselect.sd.bayes))
-    nonWTSam <- with(msc,rnorm(length(nonWT.mean),nonWT.mean,nonWT.sd.bayes))
+    selectSam <- with(msc,rnorm(
+      length(select.mean),select.mean,
+      select.sd.bayes/sqrt(select.df)
+    ))
+    selWTSam <- with(msc,rnorm(
+      length(selWT.mean),selWT.mean,
+      selWT.sd.bayes/sqrt(selWT.df)
+    ))
+    nonselectSam <- with(msc,rnorm(
+      length(nonselect.mean),nonselect.mean,
+      nonselect.sd.bayes/sqrt(nonselect.df)
+    ))
+    nonWTSam <- with(msc,rnorm(
+      length(nonWT.mean),nonWT.mean,
+      nonWT.sd.bayes/sqrt(nonWT.df)
+    ))
     
     select <- floor0(selectSam-selWTSam)
     nonselect <-floor0(nonselectSam-nonWTSam)
@@ -788,7 +867,7 @@ calcPhiBootstrap <- function(msc,N=10000) {
   })
   sds <- apply(do.call(zbind,boot),c(1,2),function(x)sd(fin(x)))
   
-  return(data.frame(phi=phi,phi.sd=sds[,"phi"],logPhi=logPhi,logPhi.sd=sds[,"logPhi"]))
+  return(data.frame(phi=phi,phi.se=sds[,"phi"],logPhi=logPhi,logPhi.se=sds[,"logPhi"]))
   
 }
 
@@ -814,6 +893,10 @@ calcPhi <- function(msc) {
 			sd2=sqrt(nonselect.sd.bayes^2+nonWT.sd.bayes^2)
 		))
 	} else rep(NA,length(phi))
+	#and stderr via joint df
+	jdf <- rowSums(msc[,c("select.df","nonselect.df","selWT.df","nonWT.df")])-4
+	jdf <- sapply(jdf,max,1)
+	phi.se <- phi.sd/sqrt(jdf)
 
 
 	#as well as logPhi and its stdev
@@ -824,8 +907,10 @@ calcPhi <- function(msc) {
 	#ultimately, this should be fixed with bootstrapping
 	lpsCap <- 2*quantile(logPhi.sd,0.95,na.rm=TRUE)
 	logPhi.sd[logPhi.sd > lpsCap] <- lpsCap
+	
+	logPhi.se <- logPhi.sd/sqrt(jdf)
 
-	return(data.frame(phi=phi,phi.sd=phi.sd,logPhi=logPhi,logPhi.sd=logPhi.sd))
+	return(data.frame(phi=phi,phi.se=phi.se,logPhi=logPhi,logPhi.se=logPhi.se))
 }
 
 #' Run read-frequecy bias correction on logPhi
@@ -858,7 +943,7 @@ biasCorrection <- function(msc) {
   bces <- as.df(lapply(1:nrow(msc), function(i) with(msc[i,],{
     c(
       bce=(logPhi-enon)/ediff,
-      bce.sd=logPhi.sd/abs(ediff)
+      bce.se=logPhi.se/abs(ediff)
     )
   })))
   return(bces)
