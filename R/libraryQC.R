@@ -225,8 +225,8 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
 	if (file.exists(covTableFile)) {
   	logInfo("Calculating drops in sequencing depth for each variant...")
   	
-  	allDepthDrops <- calcDepthDrops(allCounts,allTiles,depthTable)
-  	margDepthDrops <- calcDepthDrops(marginalCounts,marginalTiles,depthTable)
+  	allDepthDrops <- calcDepthDrops(allCounts,allTiles,depthTable,mc.cores)
+  	margDepthDrops <- calcDepthDrops(marginalCounts,marginalTiles,depthTable,mc.cores)
   	
   	pdffile <- paste0(outDir,"depthDrops.pdf")
   	pdf(pdffile,11,8.5)
@@ -1335,7 +1335,7 @@ plotSeqErrorRates <- function(inDir,outDir,pdftag) {
 #' condition-time-replicate combination.
 #' @export
 #'
-calcDepthDrops <- function(xCounts, xTiles, depthTable) {
+calcDepthDrops <- function(xCounts, xTiles, depthTable, mc.cores=6) {
   edcols <- grep("effectiveDepth$",colnames(xCounts))
   ednames <- colnames(xCounts)[edcols]
   edconds <- extract.groups(

@@ -4,7 +4,7 @@
 \alias{mean.sd.count}
 \title{Function to form mean, stdev and average raw count for a given condition}
 \usage{
-\method{mean}{sd.count}(cond, regionalCounts, tp, params)
+\method{mean}{sd.count}(cond, regionalCounts, regionalDrops, tp, params)
 }
 \arguments{
 \item{cond}{the names of the condition (e.g. select, nonselect)}

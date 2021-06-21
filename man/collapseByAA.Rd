@@ -9,7 +9,7 @@ collapseByAA(
   params,
   sCond,
   scoreCol = "score",
-  sdCol = "score.sd",
+  seCol = "score.se",
   srOverride = FALSE,
   bnOverride = FALSE
 )
@@ -23,7 +23,7 @@ collapseByAA(
 
 \item{scoreCol}{the name of the column containing the scores}
 
-\item{sdCol}{the name of the column containing the stdev}
+\item{seCol}{the name of the column containing the stderr}
 
 \item{sdOverride}{the sdOverride flag}
 }

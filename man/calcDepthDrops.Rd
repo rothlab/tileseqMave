@@ -4,7 +4,7 @@
 \alias{calcDepthDrops}
 \title{Calculate relative drops in effective sequencing depth for each variant}
 \usage{
-calcDepthDrops(xCounts, xTiles, depthTable)
+calcDepthDrops(xCounts, xTiles, depthTable, mc.cores = 6)
 }
 \arguments{
 \item{xCounts}{marginal or all counts table}

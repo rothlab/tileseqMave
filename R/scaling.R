@@ -142,15 +142,15 @@ scaleScores <- function(dataDir, scoreDir=NA, outDir=NA,
         #check if overrides were provided for the distribution modes
         normOvr <- getPivotOverrides(params,sCond,tp,region)
         #and apply
-        msc <- cbind(msc,enactScale(msc,msc$aaChange,params$scoring$sdThreshold,normOvr))
+        msc <- cbind(msc,enactScale(
+          msc, aac=msc$aaChange,
+          sdThreshold=params$scoring$sdThreshold, 
+          overrides=normOvr
+        ))
         
-        # flooring and stderr calculation only where more than one replicate exists ----
+        # flooring only where more than one replicate exists ----
         if (params$numReplicates[[sCond]] > 1) {
-          #Flooring and SD adjustment
           msc <- cbind(msc,flooring(msc,params))
-          
-          #add stderr
-          msc$se.floored <- msc$sd.floored/sqrt(params$numReplicates[[sCond]])
         }
         
         return(msc)
@@ -199,15 +199,15 @@ scaleScores <- function(dataDir, scoreDir=NA, outDir=NA,
       simpleCols <- if (srOverride) {
         #when single-replicate override is enabled, no flooring is available, 
         #so we default to unfloored values
-        c("hgvsc","hgvsp","score","score.sd","score.sd")
+        c("hgvsc","hgvsp","score","score.se")
       } else {
-        c("hgvsc","hgvsp","score.floored","sd.floored","se.floored")
+        c("hgvsc","hgvsp","score.floored","se.floored")
       }
       simpleTable <- scoreTable[
         exportFilter,
         simpleCols
       ]
-      colnames(simpleTable) <- c("hgvs_nt","hgvs_pro","score","sd","se")
+      colnames(simpleTable) <- c("hgvs_nt","hgvs_pro","score","se")
       
       #export to file
       logInfo("Writing simplified table to file.")
@@ -219,8 +219,8 @@ scaleScores <- function(dataDir, scoreDir=NA, outDir=NA,
       
       #collapse by amino acid change
       logInfo("Collapsing amino acid changes...")
-      flooredAA <- collapseByAA(scoreTable,params,sCond,"score.floored","sd.floored",srOverride,bnOverride)
-      unflooredAA <- collapseByAA(scoreTable,params,sCond,"score","score.sd",srOverride,bnOverride)
+      flooredAA <- collapseByAA(scoreTable,params,sCond,"score.floored","se.floored",srOverride,bnOverride)
+      unflooredAA <- collapseByAA(scoreTable,params,sCond,"score","score.se",srOverride,bnOverride)
       
       logInfo("Writing AA-centric table to file.")
       outFile <- paste0(outDir,sCond,"_t",tp,"_simple_aa_floored.csv")
@@ -405,15 +405,15 @@ enactScale <- function(msc,aac,sdThreshold,overrides=c(syn=NA,non=NA)) {
   
   #apply filter
   mscFiltered <- msc[is.na(msc$filter),]
-  if (!all(is.na(mscFiltered$bce.sd))) {
+  if (!all(is.na(mscFiltered$bce.se))) {
     # #here we use residual error to decide which variants to use to calculate the syn/non medians as pivots
     # resErr <- residualError(mscFiltered$bce,mscFiltered$bce.sd,mirror=TRUE,wtX=1)
     # mscFiltered$resErr <- resErr+min(resErr,na.rm=TRUE)
     # #but since that isn't reliable yet, we'll default to the total error
-    mscFiltered$resErr <- mscFiltered$bce.sd
+    mscFiltered$resErr <- mscFiltered$bce.se
     numNsSurvive <- with(mscFiltered,sum(is.na(filter) & resErr < sdThreshold & type == "nonsense",na.rm=TRUE))
     if (numNsSurvive >= 10) {
-      with(mscFiltered,mscFiltered[which(is.na(filter) & resErr < sdThreshold),])
+      mscFiltered <- with(mscFiltered,mscFiltered[which(is.na(filter) & resErr < sdThreshold),])
     } else {
       nonsenseSDs <- with(mscFiltered,resErr[is.na(filter) & type=="nonsense"])
       # q10Threshold <- quantile(with(msc,bce.sd[is.na(filter) & type=="nonsense"]),0.1)
@@ -436,13 +436,13 @@ enactScale <- function(msc,aac,sdThreshold,overrides=c(syn=NA,non=NA)) {
   logInfo(sprintf("Auto-detected nonsense median: %.03f",nonsenseMedian))
   logInfo(sprintf("Auto-detected synonymous median: %.03f",synonymousMedian))
   
-  #FIXME: If manual pivot points are provided, this check is moot!
-  if (is.na(nonsenseMedian) || is.na(synonymousMedian)) {
+  if ((is.na(overrides[["non"]]) && is.na(nonsenseMedian)) || 
+      (is.na(overrides[["syn"]]) && is.na(synonymousMedian))) {
     logWarn(
       "No nonsense or no synonymous variants of sufficient quality were found!\n",
-      "!!Scaling is impossible! Most downstream analyses will not work!!"
+      "!!Scaling with auto-pivots failed! Most downstream analyses will not work!!"
     )
-    return(data.frame(type=msc$type,score=NA,score.sd=NA))
+    return(data.frame(type=msc$type,score=NA,score.se=NA))
   }
   
   #apply any potential overrides
@@ -465,7 +465,7 @@ enactScale <- function(msc,aac,sdThreshold,overrides=c(syn=NA,non=NA)) {
   if (synonymousMedian > nonsenseMedian) {
     #use medians to normalize
     score <- (msc$bce - nonsenseMedian) / (synonymousMedian - nonsenseMedian)
-    score.sd <- msc$bce.sd / (synonymousMedian - nonsenseMedian)
+    score.se <- msc$bce.se / (synonymousMedian - nonsenseMedian)
   } else {
     #otherwise, we CANNOT assign a correct score!
     logWarn(paste(
@@ -474,10 +474,10 @@ enactScale <- function(msc,aac,sdThreshold,overrides=c(syn=NA,non=NA)) {
       " * Most downstream analyses will not work!",
       sep="\n"
     ))
-    score <- score.sd <- rep(NA,nrow(msc))
+    score <- score.se <- rep(NA,nrow(msc))
   }
   
-  return(data.frame(score=score,score.sd=score.sd))
+  return(data.frame(score=score,score.se=score.se))
 }
 
 #' Apply flooring and SD adjustment to negative scores
@@ -513,12 +513,12 @@ flooring <- function(msc,params) {
          }
   )
   score.floored <- msc$score
-  sd.floored <- msc$score.sd
+  se.floored <- msc$score.se
   score.floored[toFix] <- targetScore
   #the equivalent sds of a normal distribution with the target mean based on the above area
-  sd.floored[toFix] <- with(msc[toFix,], score.sd*(quantile-targetScore)/(quantile-score))
+  se.floored[toFix] <- with(msc[toFix,], score.se*(quantile-targetScore)/(quantile-score))
   
-  return(cbind(score.floored=score.floored,sd.floored=sd.floored))
+  return(cbind(score.floored=score.floored,se.floored=se.floored))
 }
 
 #' join multiple datapoints weighted by stdev
@@ -543,11 +543,11 @@ join.datapoints <- function(ms,sds,dfs,ws=(1/sds)/sum(1/sds)) {
 #' @param params the parameter object
 #' @param sCond the current selective condition
 #' @param scoreCol the name of the column containing the scores
-#' @param sdCol the name of the column containing the stdev
+#' @param seCol the name of the column containing the stderr
 #' @param sdOverride the sdOverride flag
 #' @return a \code{data.frame} containing the collapsed score table
 #' @export
-collapseByAA <- function(scoreTable,params,sCond,scoreCol="score",sdCol="score.sd",srOverride=FALSE,bnOverride=FALSE) {
+collapseByAA <- function(scoreTable,params,sCond,scoreCol="score",seCol="score.se",srOverride=FALSE,bnOverride=FALSE) {
   
   #configure filter level for export
   exportFilter <- if (bnOverride) {
@@ -560,32 +560,34 @@ collapseByAA <- function(scoreTable,params,sCond,scoreCol="score",sdCol="score.s
   
   if (!srOverride) {
     ## here we will be using the residual error instead of total error (once estimating it works properly)
-    # resErr <- residualError(filteredTable[,scoreCol],filteredTable[,sdCol],mirror=TRUE,wtX=1)
+    # resErr <- residualError(filteredTable[,scoreCol],filteredTable[,seCol],mirror=TRUE,wtX=1)
     # nerr <- resErr - min(resErr,na.rm=TRUE) + min(abs(resErr),na.rm=TRUE)
     ## but for now we use the total error (even though that biases against low scores)
-    nerr <- filteredTable[,sdCol]
+    nerr <- filteredTable[,seCol]
     aaTable <- as.df(tapply(1:nrow(filteredTable),filteredTable$hgvsp, function(is) {
       joint <- join.datapoints(
         ms=filteredTable[is,scoreCol],
-        sds=filteredTable[is,sdCol],
-        dfs=rep(params$numReplicates[[sCond]],length(is)),
+        sds=filteredTable[is,seCol],
+        # dfs=rep(params$numReplicates[[sCond]],length(is)),
+        dfs=filteredTable[is,"df"],
         ws=(1/nerr[is])/sum(1/nerr[is])
       )
       list(
         hgvs_pro=unique(filteredTable[is,"hgvsp"]),
         score=joint[["mj"]],
-        sd=joint[["sj"]],
-        df=joint[["dfj"]],
-        se=joint[["sj"]]/sqrt(joint[["dfj"]])
+        se=joint[["sj"]],
+        df=joint[["dfj"]]
+        # se=joint[["sj"]]/sqrt(joint[["dfj"]])
       )
     }))
   } else {
     aaTable <- as.df(tapply(1:nrow(filteredTable),filteredTable$hgvsp, function(is) {
+      scs <- fin(filteredTable[is,scoreCol])
       list(
         hgvs_pro=unique(filteredTable[is,"hgvsp"]),
-        score=mean(fin(filteredTable[is,scoreCol])),
-        sd=NA,
-        df=length(fin(filteredTable[is,scoreCol]))
+        score=mean(scs),
+        se=sd(scs)/sqrt(length(scs)),
+        df=length(scs)
       )
     }))
   }

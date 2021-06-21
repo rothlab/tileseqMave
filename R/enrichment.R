@@ -159,7 +159,7 @@ calcEnrichment <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"
 	depthTableFile <- paste0(inDir,"/sampleDepths.csv")
 	depthTable <- read.csv(depthTableFile)
 	#calculate drops in effective depth
-	depthDrops <- calcDepthDrops(marginalCounts,marginalCounts$tile,depthTable)
+	depthDrops <- calcDepthDrops(marginalCounts,marginalCounts$tile,depthTable,mc.cores)
 	rownames(depthDrops) <- marginalCounts$hgvsc
 	#TODO: eliminate individual replicates with excessive drops
 	#note variants for which all variants have been dropped as filtered
@@ -815,7 +815,7 @@ regularizeRaw <- function(msc,condNames,tiles,n,pseudo.n, modelFunctions,pessimi
 	return(regul)
 }
 
-# simulate from beta function using mean and sd
+# sample from beta distribution using mean and sd
 rbeta2 <- function(n,m,s) {
   maxVar <- m*(1-m)
   if (s^2 >= maxVar) {
@@ -867,7 +867,11 @@ calcPhiBootstrap <- function(msc,N=10000) {
   })
   sds <- apply(do.call(zbind,boot),c(1,2),function(x)sd(fin(x)))
   
-  return(data.frame(phi=phi,phi.se=sds[,"phi"],logPhi=logPhi,logPhi.se=sds[,"logPhi"]))
+  #estimate joint degrees of freedom
+  jdf <- rowSums(msc[,c("select.df","nonselect.df","selWT.df","nonWT.df")])-4
+  jdf <- sapply(jdf,max,1)
+  
+  return(data.frame(phi=phi,phi.se=sds[,"phi"],logPhi=logPhi,logPhi.se=sds[,"logPhi"],df=jdf))
   
 }
 
@@ -910,7 +914,7 @@ calcPhi <- function(msc) {
 	
 	logPhi.se <- logPhi.sd/sqrt(jdf)
 
-	return(data.frame(phi=phi,phi.se=phi.se,logPhi=logPhi,logPhi.se=logPhi.se))
+	return(data.frame(phi=phi,phi.se=phi.se,logPhi=logPhi,logPhi.se=logPhi.se,df=jdf))
 }
 
 #' Run read-frequecy bias correction on logPhi
