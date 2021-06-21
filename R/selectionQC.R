@@ -252,7 +252,7 @@ filterBreakdown <- function(scores,sCond,tp,params,outDir) {
                                   scorePos <= regSubsets$end[[ri]]),]
     
     ff <- factor(localScores$filter,levels=
-       c("frequency","bottleneck:rep","bottleneck:select","wt_excess")
+       c("frequency","depth","bottleneck:rep","bottleneck:select","wt_excess")
     )
     contab <- table(ff,useNA="a")
     names(contab)[is.na(names(contab))] <- "passed"
@@ -267,7 +267,7 @@ filterBreakdown <- function(scores,sCond,tp,params,outDir) {
   tagger <- pdftagger(paste(params$pdftagbase,"; selection condition:",sCond),cpp=1)
   opar <- par(oma=c(2,2,2,2),mar=c(2,4,1,1)+.1)
   
-  plotcols <- c("firebrick3","gold3","gold2","orange","chartreuse3")
+  plotcols <- c("firebrick3","firebrick2","gold2","gold1","orange","chartreuse3")
   ys <- apply(filterStacks,2,cumsum)
   labelYs <- apply(rbind(rep(0,ncol(ys)),ys),2,function(vs) sapply(2:length(vs),function(j)(vs[[j-1]]+vs[[j]])/2))
   xs <- barplot(filterStacks,border=NA,col=plotcols,ylab="#variants")
