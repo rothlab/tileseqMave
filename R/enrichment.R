@@ -555,7 +555,7 @@ mean.sd.count <- function(cond,regionalCounts,regionalDrops,tp,params) {
 	      m <- mean(fs[which(valid)])
 	      s <- sd(fs[which(valid)])
 	      list(mean=m,sd=s,cv=s/m,
-	        count=mean(counts[i,cols][which(valid)],na.rm=TRUE),
+	        count=mean(unlist(counts[i,cols][which(valid)]),na.rm=TRUE),
 	        df=sum(valid,na.rm=TRUE)
 	      )
 	    } else {
@@ -782,6 +782,12 @@ regularizeRaw <- function(msc,condNames,tiles,n,pseudo.n, modelFunctions,pessimi
 	}
 	#iterate over conditions and join as columns
 	regul <- do.call(cbind,lapply(condNames, function(cond) {
+	  #check if this a dummy condition
+	  if (all(msc[,paste0(cond,".mean")]==0)) {
+	    out <- cbind(sd.prior=rep(0,nrow(msc)),sd.bayes=rep(0,nrow(msc)))
+	    colnames(out) <- paste0(cond,c(".sd.prior",".sd.bayes"))
+	    return(out)
+	  }
 	  #determine pseudocount
 	  smallestSelect <- unique(sort(na.omit(msc[,paste0(cond,".mean")])))[[2]]
 	  pseudoCount <- 10^floor(log10(smallestSelect))
