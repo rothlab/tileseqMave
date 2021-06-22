@@ -161,9 +161,6 @@ calcEnrichment <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"
 	#calculate drops in effective depth
 	depthDrops <- calcDepthDrops(marginalCounts,marginalCounts$tile,depthTable,mc.cores)
 	rownames(depthDrops) <- marginalCounts$hgvsc
-	#TODO: eliminate individual replicates with excessive drops
-	#note variants for which all variants have been dropped as filtered
-	#adjust degrees of freedem as appropriate!
 
 	# iterate selection conditions -----------------------------------------------
 	for (sCond in selectConds) {
@@ -477,7 +474,11 @@ log.sd <- function(m1,sd1,base=10) {
 #'
 #' @param xs the input numerical vector
 #' @param bottom the minimum to which the vector will be forced.
-floor0 <- function(xs,bottom=0) sapply(xs, function(x) if (x < bottom) bottom else x)
+floor0 <- function(xs,bottom=0) sapply(xs, function(x) {
+  if (is.na(x)) NA
+  else if (x < bottom) bottom 
+  else x
+})
 
 #' Baldi & Long's formula
 #'
@@ -679,11 +680,11 @@ rawFilter <- function(msc,countThreshold,wtq=0.95,cvm=10,srOverride=FALSE,useWTf
 	
 	
 	mapply(function(ns,s,rf,w,d) {
-	  if (w) "wt_excess"
+	  if (d) "depth"
+	  else if (w) "wt_excess"
 	  else if (ns) "frequency" 
 	  else if (s) "bottleneck:select" 
 	  else if (rf) "bottleneck:rep"
-	  else if (d) "depth"
 	  else NA
 	},nsFilter,sFilter,rFilter,wFilter,dFilter)
 }
@@ -869,7 +870,7 @@ calcPhiBootstrap <- function(msc,N=10000) {
   
   #estimate joint degrees of freedom
   jdf <- rowSums(msc[,c("select.df","nonselect.df","selWT.df","nonWT.df")])-4
-  jdf <- sapply(jdf,max,1)
+  jdf <- sapply(jdf,max,0)
   
   return(data.frame(phi=phi,phi.se=sds[,"phi"],logPhi=logPhi,logPhi.se=sds[,"logPhi"],df=jdf))
   

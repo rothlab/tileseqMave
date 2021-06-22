@@ -1257,7 +1257,7 @@ countAttributes <- function(params,depthTable,inDir,outDir,pdftag) {
     ))
     values <- values[names(values) != "Comment"]
     values <- as.list(values)
-    isNum <- which(!is.na(as.numeric(values)))
+    isNum <- suppressWarnings(which(!is.na(as.numeric(values))))
     values[isNum] <- as.numeric(values[isNum])
     values
   }))
@@ -1359,7 +1359,7 @@ calcDepthDrops <- function(xCounts, xTiles, depthTable, mc.cores=6) {
   do.call(rbind,pbmclapply(1:nrow(xCounts), function(i) {
     # tile <- xTiles[[i]][[1]]
     tile <- names(which.max(table(xTiles[[i]])))
-    if (is.null(tile)) {
+    if (is.null(tile) || !(as.numeric(tile) %in% uniqueTiles)) {
       return(rep(NA,length(edcols)))
     }
     setNames(sapply(1:length(edcols), function(j){

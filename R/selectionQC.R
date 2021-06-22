@@ -714,7 +714,11 @@ regularizationQC <- function(scores,modelParams,params,sCond,tp,outDir) {
 			next
 		}
 
-		with(scores[which(tiles==tile),],{
+	  deepEnough <- sapply(1:nrow(scores), function(i) {
+	    is.na(scores$filter[[i]]) || scores$filter[[i]]!="depth"
+	  })
+	  
+		with(scores[which(tiles==tile & deepEnough),],{
 
 			theta <- modelParams[as.character(tile),paste0("nonselect.",c("static","additive","multiplicative"))]
 			cv.model <- function(count) {
