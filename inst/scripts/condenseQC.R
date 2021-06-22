@@ -91,6 +91,7 @@ if (length(reportFiles) > 0) {
     "-dNOPAUSE",
     "-sDEVICE=pdfwrite",
     paste0("-sOUTPUTFILE=",condensedFile),
+    "-dAutoRotatePages=/None",
     "-dBATCH",
     reportFiles
   )
