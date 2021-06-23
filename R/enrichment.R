@@ -527,9 +527,9 @@ mean.sd.count <- function(cond,regionalCounts,regionalDrops,tp,params) {
 	maxFactor <- params$scoring$cvDeviation
 	maxDrop <- params$varcaller$maxDrop
 	
-	freqs <- regionalCounts[,sprintf("%s.t%s.rep%d.frequency",cond,tp,1:params$numReplicates[[cond]])]
-	counts <- regionalCounts[,sprintf("%s.t%s.rep%d.count",cond,tp,1:params$numReplicates[[cond]])]
-	drops <- regionalDrops[,sprintf("%s.t%s.rep%d.effectiveDepth",cond,tp,1:params$numReplicates[[cond]])]
+	freqs <- regionalCounts[,sprintf("%s.t%s.rep%d.frequency",cond,tp,1:params$numReplicates[[cond]]),drop=FALSE]
+	counts <- regionalCounts[,sprintf("%s.t%s.rep%d.count",cond,tp,1:params$numReplicates[[cond]]),drop=FALSE]
+	drops <- regionalDrops[,sprintf("%s.t%s.rep%d.effectiveDepth",cond,tp,1:params$numReplicates[[cond]]),drop=FALSE]
 	dropFilter <- drops < maxDrop
 	
 	# mCount <- if(nrep>1)rowMeans(counts,na.rm=TRUE) else counts
