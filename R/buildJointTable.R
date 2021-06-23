@@ -385,11 +385,12 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,
       }
       
       #condense counts by equivalent HGVS
-      cCounts <- tapply(counts[,"count"],hash::values(cleanHGVS,counts$HGVS),sum,na.rm=TRUE)
-      rows <- names(cCounts)
-      
-      # out[rows,"count"] <- out[rows,"count"] + counts[,"count"]
-      out[rows,"count"] <- out[rows,"count"] + cCounts
+      if (nrow(counts) > 0) {
+        cCounts <- tapply(counts[,"count"],hash::values(cleanHGVS,counts$HGVS),sum,na.rm=TRUE)
+        rows <- names(cCounts)
+        # out[rows,"count"] <- out[rows,"count"] + counts[,"count"]
+        out[rows,"count"] <- out[rows,"count"] + cCounts
+      }
     }
     
     out$frequency <- out$count/out$effectiveDepth
