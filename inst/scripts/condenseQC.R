@@ -127,6 +127,7 @@ for (nsCond in nonSels) {
   			"-dNOPAUSE",
   			"-sDEVICE=pdfwrite",
   			paste0("-sOUTPUTFILE=",condensedFile),
+  			"-dAutoRotatePages=/None",
   			"-dBATCH",
   			reportFiles
   		)
@@ -163,6 +164,7 @@ for (sCond in getSelects(params)) {
 				"-dNOPAUSE",
 				"-sDEVICE=pdfwrite",
 				paste0("-sOUTPUTFILE=",condensedFile),
+				"-dAutoRotatePages=/None",
 				"-dBATCH",
 				reportFiles
 			)
