@@ -1352,7 +1352,9 @@ calcDepthDrops <- function(xCounts, xTiles, depthTable, mc.cores=6) {
         Tile.ID==tile & Condition==cond & 
           Time.point==tp & Replicate==repl
       ))
-      depthTable[k,"alignedreads"]
+      if (length(k) != 0) {
+        depthTable[k,"alignedreads"]
+      } else 0
     })
     setNames(ds,uniqueTiles)
   }))
