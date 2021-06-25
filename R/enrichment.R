@@ -672,6 +672,7 @@ rawFilter <- function(msc,countThreshold,wtq=0.95,cvm=10,srOverride=FALSE,useWTf
   	sel.cv <- msc$select.cv
   	#remove NAs caused by mean = 0 (their sd is also zero)
   	sel.cv[is.na(sel.cv)] <- 0
+  	non.cv[is.na(non.cv)] <- 0
 	  rFilter <- non.cv > cvm*non.cv.poisson | sel.cv > cvm*sel.cv.poisson
 	} else {
 	  #if single-replicate override is enabled, we can't use the replicate filter
