@@ -689,6 +689,12 @@ replicateCorrelation <- function(scores, marginalCounts, params, sCond, tp, outD
 #' @return NULL
 regularizationQC <- function(scores,modelParams,params,sCond,tp,outDir) {
 
+  plotNoData <- function(tile) {
+    plot.new()
+    rect(0,0,1,1,col="gray80",border="gray30",lty="dotted")
+    text(0.5,0.5,"no data")
+    mtext(paste0("Tile ",tile),side=3)
+  }
 	#calculate tile assignments
 	# tileStarts <- params$tiles[,"Start AA"]
 	positions <- as.integer(extract.groups(scores$codonChange,"(\\d+)")[,1])
@@ -706,11 +712,8 @@ regularizationQC <- function(scores,modelParams,params,sCond,tp,outDir) {
 		# 	NULL
 		# })
 		if (!(tile %in% tiles)) {
-			plot.new()
-			rect(0,0,1,1,col="gray80",border="gray30",lty="dotted")
-			text(0.5,0.5,"no data")
-			mtext(paste0("Tile ",tile),side=3)
-			tagger$cycle()
+		  plotNoData(tile)
+		  tagger$cycle()
 			next
 		}
 
@@ -720,46 +723,55 @@ regularizationQC <- function(scores,modelParams,params,sCond,tp,outDir) {
 	  
 		with(scores[which(tiles==tile & deepEnough),],{
 
-			theta <- modelParams[as.character(tile),paste0("nonselect.",c("static","additive","multiplicative"))]
-			cv.model <- function(count) {
-				10^sapply(log10(1/sqrt(count)),function(x) max(theta[[1]], theta[[2]] + theta[[3]]*x))
-			}
-
-			plot(nonselect.count,nonselect.cv,log="xy",main=paste("Tile",tile,"non-select"))
-			runningMean <- runningFunction(
-				nonselect.count,nonselect.cv,nbins=20,logScale=TRUE
-			)
-			nsSamples <- seq(1,max(nonselect.count,na.rm=TRUE),length.out=100)
-			lines(nsSamples,1/sqrt(nsSamples),col="chartreuse3",lty="dashed",lwd=2)
-			lines(runningMean,col="firebrick3",lwd=2)
-			
-			lines(nsSamples,cv.model(nsSamples),col="blue",lwd=2)
-			mtext(sprintf(
-				"stat.=%.02f; add.=%.02f; mult.=%.02f",
-				theta[[1]],theta[[2]],theta[[3]]
-			))
-			tagger$cycle()
-
-			theta <- modelParams[as.character(tile),paste0("select.",c("static","additive","multiplicative"))]
-			cv.model <- function(count) {
-				10^sapply(log10(1/sqrt(count)),function(x) max(theta[[1]], theta[[2]] + theta[[3]]*x))
-			}
-
-			plot(select.count,select.cv,log="xy",main=paste("Tile",tile,"select"))
-			runningMean <- runningFunction(
-				select.count,select.cv,nbins=20,logScale=TRUE
-			)
-			sSamples <- seq(1,max(select.count,na.rm=TRUE),length.out=100)
-			lines(sSamples,1/sqrt(sSamples),col="chartreuse3",lty="dashed",lwd=2)
-			lines(runningMean,col="firebrick3",lwd=2)
-			
-			lines(sSamples,cv.model(sSamples),col="blue",lwd=2)
-			mtext(sprintf(
-				"stat.=%.02f; add.=%.02f; mult.=%.02f",
-				theta[[1]],theta[[2]],theta[[3]]
-			))
-			tagger$cycle()
-
+		  if (all(is.na(nonselect.count)) || all(nonselect.count == 0)) {
+		    plotNoData(tile)
+		    tagger$cycle()
+		  } else {
+  			theta <- modelParams[as.character(tile),paste0("nonselect.",c("static","additive","multiplicative"))]
+  			cv.model <- function(count) {
+  				10^sapply(log10(1/sqrt(count)),function(x) max(theta[[1]], theta[[2]] + theta[[3]]*x))
+  			}
+  
+  			plot(nonselect.count,nonselect.cv,log="xy",main=paste("Tile",tile,"non-select"))
+  			runningMean <- runningFunction(
+  				nonselect.count,nonselect.cv,nbins=20,logScale=TRUE
+  			)
+  			nsSamples <- seq(1,max(nonselect.count,na.rm=TRUE),length.out=100)
+  			lines(nsSamples,1/sqrt(nsSamples),col="chartreuse3",lty="dashed",lwd=2)
+  			lines(runningMean,col="firebrick3",lwd=2)
+  			
+  			lines(nsSamples,cv.model(nsSamples),col="blue",lwd=2)
+  			mtext(sprintf(
+  				"stat.=%.02f; add.=%.02f; mult.=%.02f",
+  				theta[[1]],theta[[2]],theta[[3]]
+  			))
+  			tagger$cycle()
+		  }
+		  
+		  if (all(is.na(select.count)) || all(select.count == 0)) {
+		    plotNoData(tile)
+		    tagger$cycle()
+		  } else {
+  			theta <- modelParams[as.character(tile),paste0("select.",c("static","additive","multiplicative"))]
+  			cv.model <- function(count) {
+  				10^sapply(log10(1/sqrt(count)),function(x) max(theta[[1]], theta[[2]] + theta[[3]]*x))
+  			}
+  
+  			plot(select.count,select.cv,log="xy",main=paste("Tile",tile,"select"))
+  			runningMean <- runningFunction(
+  				select.count,select.cv,nbins=20,logScale=TRUE
+  			)
+  			sSamples <- seq(1,max(select.count,na.rm=TRUE),length.out=100)
+  			lines(sSamples,1/sqrt(sSamples),col="chartreuse3",lty="dashed",lwd=2)
+  			lines(runningMean,col="firebrick3",lwd=2)
+  			
+  			lines(sSamples,cv.model(sSamples),col="blue",lwd=2)
+  			mtext(sprintf(
+  				"stat.=%.02f; add.=%.02f; mult.=%.02f",
+  				theta[[1]],theta[[2]],theta[[3]]
+  			))
+  			tagger$cycle()
+      }
 			# nonselect.sd.poisson <- 1/sqrt(nonselect.count)*nonselect.mean
 			# nonselect.sd.poisson[which(nonselect.mean==0)] <- 0
 			# plot(nonselect.sd.poisson, nonselect.sd,log="xy")
