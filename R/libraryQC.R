@@ -258,22 +258,30 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
 	    # FILTER OUT VARIANTS AT INSUFFICIENT DEPTH ------------------------------
 	    
 	    if (file.exists(covTableFile)) {
-  	    regex <- paste(c(nsCond,getWTControlFor(nsCond,params)),collapse="|")
+	      logInfo("Checking for underpowered variants")
+  	    regex <- paste0(c(nsCond,getWTControlFor(nsCond,params)),".*effectiveDepth",collapse="|")
   	    relCols <- grep(regex,colnames(allDepthDrops))
-  	    filter <- sapply(1:nrow(allCounts), function(i) {
+  	    filter1 <- sapply(1:nrow(allCounts), function(i) {
   	      any(is.na(allDepthDrops[i,relCols])) || any(allDepthDrops[i,relCols] > params$varcaller$maxDrop)
   	    })
+  	    aasToCover <- median(params$tiles[,"End AA"]-params$tiles[,"Start AA"])*20
+  	    minDepth <- params$scoring$countThreshold*aasToCover
+  	    relCols <- grep(regex,colnames(allCounts))
+  	    filter2 <- do.call(c,pbmclapply(1:nrow(allCounts), function(i) {
+  	      any(is.na(allCounts[i,relCols])) || any(allCounts[i,relCols] < minDepth)
+  	    },mc.cores=mc.cores))
+  	    filter <- filter1 | filter2
   	    if (any(filter)) {
   	      if (sum(filter)/length(filter) > 0.1) {
   	        logWarn("
-  ################################################
-  MASSIVE SEQUENCING ERROR CONTAMINATION DETECTED!
-       ! These results are likely unusable !
-  ################################################"
+  #########################################
+  MASSIVE SEQUENCING DATA ANOMALY DETECTED!
+      ! These results may be unusable !
+  #########################################"
   	                )
   	      }
   	      logWarn(sprintf(
-  	        "Removing %d variants (%.02f%%) with excessive drops in effective depth from analysis",
+  	        "Removing %d variants (%.02f%%) with insufficient effective depth from analysis",
   	        sum(filter),100*sum(filter)/length(filter)
   	      ))
   	      logWarn("Examples of dropped variants :\n   ",paste(head(allCounts$hgvsc[filter]),collapse="\n   "))
@@ -285,9 +293,15 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
   	    }
   	    
   	    relCols <- grep(regex,colnames(margDepthDrops))
-  	    filter <- sapply(1:nrow(marginalCounts), function(i) {
+  	    filter1 <- sapply(1:nrow(marginalCounts), function(i) {
   	      any(is.na(margDepthDrops[i,relCols])) || any(margDepthDrops[i,relCols] > params$varcaller$maxDrop)
   	    })
+  	    relCols <- grep(regex,colnames(marginalCounts))
+  	    filter2 <- do.call(c,pbmclapply(1:nrow(marginalCounts), function(i) {
+  	      any(is.na(marginalCounts[i,relCols])) || any(marginalCounts[i,relCols] < minDepth)
+  	    },mc.cores=mc.cores))
+  	    filter <- filter1 | filter2
+  	    
   	    if (any(filter)) {
   	      logWarn(sprintf(
   	        "Removing %d marginal variants (%.02f%%) with excessive drops in effective depth from analysis",

@@ -526,11 +526,16 @@ mean.sd.count <- function(cond,regionalCounts,regionalDrops,tp,params) {
 	
 	maxFactor <- params$scoring$cvDeviation
 	maxDrop <- params$varcaller$maxDrop
+	#the approx. number of AA changes that need to be covered per tile
+	aasToCover <- median(params$tiles[,"End AA"]-params$tiles[,"Start AA"])*20
+	#the minimum depth required per tile
+	minDepth <- params$scoring$countThreshold*aasToCover
 	
 	freqs <- regionalCounts[,sprintf("%s.t%s.rep%d.frequency",cond,tp,1:params$numReplicates[[cond]]),drop=FALSE]
 	counts <- regionalCounts[,sprintf("%s.t%s.rep%d.count",cond,tp,1:params$numReplicates[[cond]]),drop=FALSE]
+	depths <- regionalCounts[,sprintf("%s.t%s.rep%d.effectiveDepth",cond,tp,1:params$numReplicates[[cond]]),drop=FALSE]
 	drops <- regionalDrops[,sprintf("%s.t%s.rep%d.effectiveDepth",cond,tp,1:params$numReplicates[[cond]]),drop=FALSE]
-	dropFilter <- drops < maxDrop
+	dropFilter <- drops < maxDrop & depths > minDepth
 	
 	# mCount <- if(nrep>1)rowMeans(counts,na.rm=TRUE) else counts
 	# cvPois <- 1/sqrt(mCount+.1)
