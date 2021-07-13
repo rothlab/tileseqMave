@@ -32,8 +32,13 @@ parseCountFile <- function(filename) {
 	requiredFields <- c(
 		sample="#Sample",tile="#Tile",condition="#Condition",
 		# replicate="#Replicate",timepoint="#Timepoint",depth="#Read-depth (pairs) after merging R1 and R2"
-		replicate="#Replicate",timepoint="#Timepoint",depth="#Final read-depth",
-		wtpairs="#Number of read pairs without mutations",mutpairs="#Total read pairs with mutations"
+		replicate="#Replicate",timepoint="#Timepoint",
+		raw.depth="#Raw read depth",
+		depth="#Final read-depth",
+		wtpairs="#Number of read pairs without mutations",
+		mutpairs="#Total read pairs with mutations",
+		unmapped="#Number of read pairs did not map to gene",
+		mismapped="#Number of reads outside of the tile"
 	)
 	#otherwise throw error
 	if (any(!(requiredFields %in% names(header)))) {
