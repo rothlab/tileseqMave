@@ -190,7 +190,7 @@ scaleScores <- function(dataDir, scoreDir=NA, outDir=NA,
       
       #configure filter level for export
       exportFilter <- if (bnOverride) {
-        sapply(scoreTable$filter,function(f) is.na(f) || grepl(f=="bottleneck"))
+        sapply(scoreTable$filter,function(f) is.na(f) || grepl("bottleneck",f))
       } else {
         is.na(scoreTable$filter)
       }
@@ -551,7 +551,7 @@ collapseByAA <- function(scoreTable,params,sCond,scoreCol="score",seCol="score.s
   
   #configure filter level for export
   exportFilter <- if (bnOverride) {
-    sapply(scoreTable$filter,function(f) is.na(f) || f=="bottleneck")
+    sapply(scoreTable$filter,function(f) is.na(f) || grepl("bottleneck",f))
   } else {
     is.na(scoreTable$filter)
   }
