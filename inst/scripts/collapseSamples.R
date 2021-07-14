@@ -41,9 +41,12 @@ p <- arg_parser(
 p <- add_argument(p, "instructions", help="instructions csv file. Required columns: input.file1; input.file2; output.file")
 p <- add_argument(p, "--output", help="output directory. ",default="collapsed/")
 p <- add_argument(p, "--logfile", help="log file.",default="collapseSamples.log")
+p <- add_argument(p, "--noCoverage", help="do not use coverage data", flag=TRUE)
 # p <- add_argument(p, "--cores", default=6L, help="number of CPU cores to use in parallel for multi-threading")
 p <- add_argument(p, "--silent", help="Turn off message printing to stdout",flag=TRUE)
 args <- parse_args(p)
+
+outdir <- args$output
 
 if (!grepl("/$",outdir)) {
   outdir <- paste0(outdir,"/")
@@ -62,6 +65,7 @@ instructions <- read.csv(args$instructions)
 
 dir.create(outdir,recursive=TRUE,showWarnings=FALSE)
 
+logInfo("Validating input")
 #validate input instructions
 nInputs <- ncol(instructions)-1
 if (nInputs < 2) {
@@ -71,7 +75,7 @@ if (colnames(instructions)[[nInputs+1]] != "output.file") {
   stop("Last column in instructions file must be 'output.file'!")
 }
 inCols <- paste0("input.file",1:nInputs)
-if (colnames(instructions)[1:nInputs] != inCols) {
+if (any(colnames(instructions)[1:nInputs] != inCols)) {
   stop("Input columns must be called 'input.file1', 'input.file2', etc.!")
 }
 
@@ -87,26 +91,30 @@ invisible(lapply(inCols, function(inCol) {
   }
 }))
 
-#find the corresponding coverage files
-covInstrutions <- as.df(lapply(inCols, function(inCol) {
-  cfiles <- instructions[,inCol]
-  sapply(cfiles, function(cfile) {
-    if (is.na(cfile)) {
-      return(NA)
-    }
-    cdir <- dirname(cfile)
-    cname <- basename(cfile)
-    id <- gsub("^counts_sample_|\\.csv$","",cname)
-    covFile <- paste0(cdir,"/coverage_",id,".csv")
-    if (!yogitools::canRead(covFile)) {
-      stop("Cannot read coverage file ",covFile)
-    }
-    covFile
-  })
-}))
-colnames(covInstrutions) <- inCols
+if (!args$noCoverage) {
+  logInfo("Finding corresponding coverage data")
+  #find the corresponding coverage files
+  covInstructions <- data.frame(lapply(inCols, function(inCol) {
+    cfiles <- instructions[,inCol]
+    sapply(cfiles, function(cfile) {
+      if (is.na(cfile)) {
+        return(NA)
+      }
+      cdir <- dirname(cfile)
+      cname <- basename(cfile)
+      id <- gsub("^counts_sample_|\\.csv$","",cname)
+      covFile <- paste0(cdir,"/coverage_",id,".csv")
+      if (!yogitools::canRead(covFile)) {
+        stop("Cannot read coverage file ",covFile)
+      }
+      covFile
+    })
+  }))
+  colnames(covInstructions) <- inCols
+}
 
-writeCounts <- function(jointCouts,countOutFile) {
+#helper function to write joint counts to output file
+writeCounts <- function(jointCounts,countOutFile) {
   header <- sprintf("#Sample:%s
 #Tile:%d
 #Condition:%s
@@ -134,18 +142,18 @@ writeCounts <- function(jointCouts,countOutFile) {
   )
   con <- file(countOutFile,open="w")
   cat(header,file=con)
-  write.csv(jointCounts,con,row.names=FALSE)
+  write.csv(jointCounts,con,row.names=FALSE,quote=FALSE)
   close(con)
 }
 
 #process instructions
-lapply(1:nrow(instructions), function(i) {
+invisible(lapply(1:nrow(instructions), function(i) {
   #pull up relevant files
   countFiles <- instructions[i,inCols]
-  coverFiles <- covInstrutions[i,inCols]
-  countOutFile <- instructions[i,nInputs+1]
+  countOutFile <- paste0(outdir,instructions[i,nInputs+1])
   outId <- gsub("^counts_sample_|\\.csv$","",countOutFile)
-  coverOutFile <- sub("counts_sample_","coverage_",countOutFile)
+  
+  logInfo("Processing ",outId)
   
   #parse counts
   counts <- lapply(countFiles, parseCountFile)
@@ -190,21 +198,33 @@ lapply(1:nrow(instructions), function(i) {
   #write to file
   writeCounts(jointCounts,countOutFile)
   
-  coverages <- lapply(coverFiles, read.csv)
   
-  allPos <- sort(Reduce(union,lapply(coverages,`[[`,"pos")))
+  if (!args$noCoverage) {
+    coverFiles <- covInstructions[i,inCols]
+    
+    coverOutFile <- if (grepl("counts_sample_",countOutFile)) {
+      sub("counts_sample_","coverage_",countOutFile)
+    } else {
+      paste0(dirname(countOutFile),"/coverage_",basename(countOutFile))
+    }
   
-  covMatrix <- do.call(zbind,lapply(coverages, function(covi) {
-    rownames(covi) <- covi$pos
-    #FIXME: this might trigger the approx-match bug!!
-    as.matrix(covi[as.character(allPos),-1])
-  }))
-  covJoint <- apply(covMatrix,1:2,sum)
-  covOut <- data.frame(pos=allPos,covJoint)
+    coverages <- lapply(coverFiles, read.csv)
+    
+    allPos <- sort(Reduce(union,lapply(coverages,`[[`,"pos")))
+    
+    covMatrix <- do.call(zbind,lapply(coverages, function(covi) {
+      rownames(covi) <- covi$pos
+      #FIXME: this might trigger the approx-match bug!!
+      as.matrix(covi[as.character(allPos),-1])
+    }))
+    covJoint <- apply(covMatrix,1:2,sum)
+    covOut <- data.frame(pos=allPos,covJoint)
+    
+    #write to file
+    write.csv(covOut,coverOutFile,row.names=FALSE,quote=FALSE)
   
-  #write to file
-  write.csv(covOut,coverOutFile)
+  }
   
-})
+}))
 
-
+logInfo("Done!")
