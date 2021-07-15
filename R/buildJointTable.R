@@ -249,6 +249,10 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,
     })
   },mc.cores=mc.cores))
 
+  #save result for faster debugging
+  outfile <- paste0(outDir,"/transTable.rData")
+  save(transTable,file=outfile)
+  
   #Check for errors
   if (any(is.na(transTable[,3]))) {
     for (i in which(is.na(transTable[,3]))) {
@@ -532,12 +536,14 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,
           #pull up the relevant positional depths 
           relevPos <- intersect(colnames(positionalDepth),as.character(poss))
           ds <- positionalDepth[crid,relevPos]
-          #combine them using the formula
-          effDepth <- combineDepths(ds,rawDepth)
-          #and overwrite the old results
-          cnt <- marginalCounts[rowi,paste0(crid,".count")]
-          marginalCounts[rowi,paste0(crid,".effectiveDepth")] <- effDepth
-          marginalCounts[rowi,paste0(crid,".frequency")] <- cnt/effDepth
+          if (length(ds) > 0) {#skip invalid cases
+            #combine them using the formula
+            effDepth <- combineDepths(ds,rawDepth)
+            #and overwrite the old results
+            cnt <- marginalCounts[rowi,paste0(crid,".count")]
+            marginalCounts[rowi,paste0(crid,".effectiveDepth")] <- effDepth
+            marginalCounts[rowi,paste0(crid,".frequency")] <- cnt/effDepth
+          }
         }
       }
     }
