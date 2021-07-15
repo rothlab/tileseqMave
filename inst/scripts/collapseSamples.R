@@ -127,7 +127,8 @@ writeCounts <- function(jointCounts,countOutFile) {
 #Final read-depth:%d
 #Total read pairs with mutations:%d
 #Comment: Total read pairs with mutations = Read pairs with mutations that passed the posterior threshold
-#Comment: Final read-depth = raw read depth - reads didn't map to gene - reads mapped outside of the tile",
+#Comment: Final read-depth = raw read depth - reads didn't map to gene - reads mapped outside of the tile
+",
     attr(jointCounts,"sample"),
     as.integer(attr(jointCounts,"tile")),
     attr(jointCounts,"condition"),

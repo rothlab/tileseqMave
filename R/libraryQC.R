@@ -1258,7 +1258,7 @@ pdftagger <- function(tag, cpp=1) {
 }
 
 countAttributes <- function(params,depthTable,inDir,outDir,pdftag) {
-  countHeaders <- as.df(lapply(depthTable$countfile, function(cfile) {
+  countHeaders <- lapply(depthTable$countfile, function(cfile) {
     #rebase
     cfile <- paste0(inDir,basename(cfile))
     lines <- readLines(cfile,20)
@@ -1274,7 +1274,9 @@ countAttributes <- function(params,depthTable,inDir,outDir,pdftag) {
     isNum <- suppressWarnings(which(!is.na(as.numeric(values))))
     values[isNum] <- as.numeric(values[isNum])
     values
-  }))
+  })
+  commonFields <- Reduce(intersect,lapply(countHeaders,names))
+  countHeaders <- as.df(lapply(countHeaders,`[`,commonFields))
   rawdepth <- countHeaders$`Raw read depth`
   unmapped <- countHeaders$`Number of read pairs did not map to gene`
   offtile <- countHeaders$`Number of reads outside of the tile`
