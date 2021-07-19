@@ -42,6 +42,7 @@ p <- add_argument(p, "instructions", help="instructions csv file. Required colum
 p <- add_argument(p, "--output", help="output directory. ",default="collapsed/")
 p <- add_argument(p, "--logfile", help="log file.",default="collapseSamples.log")
 p <- add_argument(p, "--noCoverage", help="do not use coverage data", flag=TRUE)
+p <- add_argument(p, "--equalizeSampling", help="Downsample all merge groups to the lowest common denominator.",flag=TRUE)
 # p <- add_argument(p, "--cores", default=6L, help="number of CPU cores to use in parallel for multi-threading")
 p <- add_argument(p, "--silent", help="Turn off message printing to stdout",flag=TRUE)
 args <- parse_args(p)
@@ -113,6 +114,12 @@ if (!args$noCoverage) {
   colnames(covInstructions) <- inCols
 }
 
+#probabilistic rounding
+roundRnd <- function(xs) {
+  fxs <- floor(xs)
+  fxs+(runif(length(xs),0,1) < (xs-fxs))
+}
+
 #helper function to write joint counts to output file
 writeCounts <- function(jointCounts,countOutFile) {
   header <- sprintf("#Sample:%s
@@ -150,9 +157,11 @@ writeCounts <- function(jointCounts,countOutFile) {
 #process instructions
 invisible(lapply(1:nrow(instructions), function(i) {
   #pull up relevant files
-  countFiles <- instructions[i,inCols]
+  countFiles <- na.omit(instructions[i,inCols])
   countOutFile <- paste0(outdir,instructions[i,nInputs+1])
   outId <- gsub("^counts_sample_|\\.csv$","",countOutFile)
+  
+  n <- length(countFiles)
   
   logInfo("Processing ",outId)
   
@@ -161,24 +170,43 @@ invisible(lapply(1:nrow(instructions), function(i) {
   #exract header information
   countHeaders <- as.df(lapply(counts,function(cs) attributes(cs)[-(1:3)]))
   
+  lowestDepth <- min(as.numeric(countHeaders$depth))
+  sFactor <- as.numeric(countHeaders$depth)/lowestDepth
+  
   if (length(unique(countHeaders$tile)) > 1) {
     stop("Proposed merger is across different tiles!")
   }
   
   #construct joint header
-  outHeader <- list(
-    sample=outId,
-    tile=unique(countHeaders$tile),
-    condition=paste(unique(countHeaders$condition),collapse=""),
-    replicate=min(as.integer(countHeaders$replicate)),
-    timepoint=paste(unique(countHeaders$timepoint),collapse=""),
-    raw.depth=sum(as.numeric(countHeaders$raw.depth)),
-    depth=sum(as.numeric(countHeaders$depth)),
-    wtpairs=sum(as.numeric(countHeaders$wtpairs)),
-    mutpairs=sum(as.numeric(countHeaders$mutpairs)),
-    unmapped=sum(as.numeric(countHeaders$unmapped)),
-    mismapped=sum(as.numeric(countHeaders$mismapped))
-  )
+  if (args$equalizeSampling) {
+    outHeader <- list(
+      sample=outId,
+      tile=unique(countHeaders$tile),
+      condition=paste(unique(countHeaders$condition),collapse=""),
+      replicate=min(as.integer(countHeaders$replicate)),
+      timepoint=paste(unique(countHeaders$timepoint),collapse=""),
+      raw.depth=sum(roundRnd(as.numeric(countHeaders$raw.depth)/sFactor)),
+      depth=lowestDepth*n,
+      wtpairs=sum(roundRnd(as.numeric(countHeaders$wtpairs)/sFactor)),
+      mutpairs=sum(roundRnd(as.numeric(countHeaders$mutpairs)/sFactor)),
+      unmapped=sum(roundRnd(as.numeric(countHeaders$unmapped)/sFactor)),
+      mismapped=sum(roundRnd(as.numeric(countHeaders$mismapped)/sFactor))
+    )
+  } else {
+    outHeader <- list(
+      sample=outId,
+      tile=unique(countHeaders$tile),
+      condition=paste(unique(countHeaders$condition),collapse=""),
+      replicate=min(as.integer(countHeaders$replicate)),
+      timepoint=paste(unique(countHeaders$timepoint),collapse=""),
+      raw.depth=sum(as.numeric(countHeaders$raw.depth)),
+      depth=sum(as.numeric(countHeaders$depth)),
+      wtpairs=sum(as.numeric(countHeaders$wtpairs)),
+      mutpairs=sum(as.numeric(countHeaders$mutpairs)),
+      unmapped=sum(as.numeric(countHeaders$unmapped)),
+      mismapped=sum(as.numeric(countHeaders$mismapped))
+    )
+  }
   
   #extract all unique variants
   allHGVS <- Reduce(union,lapply(counts,`[[`,"HGVS"))
@@ -190,6 +218,10 @@ invisible(lapply(1:nrow(instructions), function(i) {
     cs[is.na(cs)] <- 0
     cs
   }))
+  #downsample if requested
+  if (args$equalizeSampling) {
+    allCounts <- t(apply(allCounts,1,function(x)roundRnd(x/sFactor)))
+  }
   jointCounts <- data.frame(
     HGVS=allHGVS,
     count=rowSums(allCounts, na.rm=TRUE)
@@ -218,6 +250,14 @@ invisible(lapply(1:nrow(instructions), function(i) {
       #FIXME: this might trigger the approx-match bug!!
       as.matrix(covi[as.character(allPos),-1])
     }))
+    #downsample if requested
+    if (args$equalizeSampling) {
+      for (i in 1:nrow(covMatrix)) {
+        for (j in 1:ncol(covMatrix)) {
+          covMatrix[i,j,] <- roundRnd(covMatrix[i,j,]/sFactor)
+        }
+      }
+    }
     covJoint <- apply(covMatrix,1:2,sum)
     covOut <- data.frame(pos=allPos,covJoint)
     
