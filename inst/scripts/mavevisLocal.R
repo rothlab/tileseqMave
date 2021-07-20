@@ -130,6 +130,11 @@ for (infile in infiles) {
   data <- cbind(mutdata,indata[,-1])
   
   cat("done!\n")
+
+  if (nrow(data)==0 || all(is.na(data$score))) {
+    warning("No (valid) data! Skipping...")
+    next
+  }
   
   #derive WT sequence
   cat("Deriving WT sequence...\n")
