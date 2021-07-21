@@ -4,10 +4,12 @@
 \alias{biasCorrection}
 \title{Run read-frequecy bias correction on logPhi}
 \usage{
-biasCorrection(msc)
+biasCorrection(msc, bcOverride = FALSE)
 }
 \arguments{
 \item{msc}{the enrichment table}
+
+\item{bcOverride}{flag for overriding the bias correction}
 }
 \value{
 the bias-corrected enrichment (bce) and its stddev

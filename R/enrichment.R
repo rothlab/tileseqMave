@@ -30,7 +30,7 @@
 #' @return NULL. Results are written to file.
 #' @export
 calcEnrichment <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"parameters.json"),
-	mc.cores=6, srOverride=FALSE, bnOverride=FALSE, useWTfilter=FALSE, nbs=1e4, pessimistic=TRUE,
+	mc.cores=6, srOverride=FALSE, bnOverride=FALSE, bcOverride=FALSE, useWTfilter=FALSE, nbs=1e4, pessimistic=TRUE,
 	useQuorum=FALSE) {
 
 	op <- options(stringsAsFactors=FALSE)
@@ -95,6 +95,12 @@ calcEnrichment <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"
 			"WARNING: Bottleneck override has been enabled!\n",
 			" --> The final scores will not be filtered for bottlenecked variants!"
 		)
+	}
+	
+	if (bcOverride) {
+	  logWarn(
+	    "Bias correction has been overridden!"
+	  )
 	}
 
 	
@@ -289,7 +295,7 @@ calcEnrichment <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"
 
 				# Bias correction -----------------------------
 				logInfo("Performing bias correction...")
-				msc <- cbind(msc,biasCorrection(msc))
+				msc <- cbind(msc,biasCorrection(msc,bcOverride))
 				
 				
 				# # Scaling to synonymous and nonsense medians -----------------------------
@@ -933,10 +939,11 @@ calcPhi <- function(msc) {
 #' Run read-frequecy bias correction on logPhi
 #'
 #' @param msc the enrichment table
+#' @param bcOverride flag for overriding the bias correction
 #'
 #' @return the bias-corrected enrichment (bce) and its stddev
 #' @export
-biasCorrection <- function(msc) {
+biasCorrection <- function(msc,bcOverride=FALSE) {
   
   #exclude non-depleted nonsense variants
   nonsenseF <- msc[with(msc,type=="nonsense" & is.na(filter) & logPhi < 0),]
@@ -947,21 +954,35 @@ biasCorrection <- function(msc) {
     return(data.frame(bce=rep(NA,nrow(msc)),bce.se=rep(NA,nrow(msc))))
   }
   
-  #simple linear regression
-  zns <- with(nonsenseF, lm(logPhi~log10(nonselect.mean)) )
-  zsyn <- with(synonymousF, lm(logPhi~log10(nonselect.mean)) )
-  
-  #calculate pivot points for each variant based on their read frequency (=nonselect.mean)
-  nsmean <- msc[,"nonselect.mean",drop=FALSE]
-  msc$esyn <- predict.lm(zsyn,nsmean)
-  msc$enon <- predict.lm(zns,nsmean)
-  msc$ediff <- with(msc,floor0(esyn-enon))
-  
-  bces <- as.df(lapply(1:nrow(msc), function(i) with(msc[i,],{
-    c(
-      bce=(logPhi-enon)/ediff,
-      bce.se=logPhi.se/abs(ediff)
-    )
-  })))
-  return(bces)
+  if (bcOverride) {
+    
+    nsmed <- with(nonsenseF, median(logPhi,na.rm=TRUE))
+    synmed <- with(synonymousF, median(logPhi,na.rm=TRUE))
+    mediff <- synmed-nsmed
+    bces <- with(msc,data.frame(
+      bce=(logPhi-nsmed)/mediff,
+      bce.se=logPhi.se/abs(mediff)
+    ))
+    return(bces)
+    
+  } else {
+    
+    #simple linear regression
+    zns <- with(nonsenseF, lm(logPhi~log10(nonselect.mean)) )
+    zsyn <- with(synonymousF, lm(logPhi~log10(nonselect.mean)) )
+    
+    #calculate pivot points for each variant based on their read frequency (=nonselect.mean)
+    nsmean <- msc[,"nonselect.mean",drop=FALSE]
+    msc$esyn <- predict.lm(zsyn,nsmean)
+    msc$enon <- predict.lm(zns,nsmean)
+    msc$ediff <- with(msc,floor0(esyn-enon))
+    
+    bces <- as.df(lapply(1:nrow(msc), function(i) with(msc[i,],{
+      c(
+        bce=(logPhi-enon)/ediff,
+        bce.se=logPhi.se/abs(ediff)
+      )
+    })))
+    return(bces)
+  }
 }

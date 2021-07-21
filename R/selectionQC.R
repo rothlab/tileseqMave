@@ -513,6 +513,9 @@ logPhiBias <- function(scores,params,sCond,tp,outDir) {
     zns <- with(nonsenseF, lm(logPhi~log10(nonselect.mean)) )
     zsyn <- with(synonymousF, lm(logPhi~log10(nonselect.mean)) )
     
+    nsmed <- with(nonsenseF, median(logPhi,na.rm=TRUE))
+    synmed <- with(synonymousF, median(logPhi,na.rm=TRUE))
+    
     trns <- with(nonsenseF, yogitools::runningFunction(log10(nonselect.mean),logPhi,nbins=20))
     trsyn <- with(synonymousF, yogitools::runningFunction(log10(nonselect.mean),logPhi,nbins=20))
     with(rbind(nonsenseF,synonymousF), plot(
@@ -523,6 +526,7 @@ logPhiBias <- function(scores,params,sCond,tp,outDir) {
       yogitools::errorBars(log10(nonselect.mean),logPhi,logPhi.se,col="firebrick3")
     })
     abline(zns,col="firebrick2",lty="dashed")
+    abline(h=nsmed,col="firebrick2",lty="dotted")
     # abline(a=thetaNon[[1]],b=thetaNon[[2]],col="firebrick2")
     lines(trns,col="firebrick2",lwd=2)
     
@@ -531,6 +535,7 @@ logPhiBias <- function(scores,params,sCond,tp,outDir) {
       yogitools::errorBars(log10(nonselect.mean),logPhi,logPhi.se,col="chartreuse3")
     })
     abline(zsyn,col="chartreuse2",lty="dashed")
+    abline(h=synmed,col="chartreuse2",lty="dotted")
     # abline(a=thetaSyn[[1]],b=thetaSyn[[2]],col="chartreuse2")
     lines(trsyn,col="chartreuse2",lwd=2)
     
