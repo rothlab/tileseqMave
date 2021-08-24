@@ -190,6 +190,21 @@ validateParameters <- function(params,srOverride=FALSE) {
 	  offender <- params$tiles[which(params$tiles[,"Start AA"] < 2),1]
 	  logWarn("Tile",paste(offender,collapse=", "),"includes start codon!!")
 	}
+	if (nrow(params$tiles) > 0) {
+	  for (i in 1:nrow(params$tiles)) {
+	    tl <- params$tiles[i,"End AA"]-params$tiles[i,"Start AA"]+1
+	    if (tl < 0) {
+	      stop(
+	        "Tile ",params$tiles[i,1],"'s end position is smaller than start position!"
+	      )
+	    }
+	    if (tl < 2) {
+	      logWarn(
+	        "Tile ",params$tiles[i,1],"is less than 2AA long! Please double-check!"
+	      )
+	    }
+	  }
+	}
 	if (nrow(params$tiles) > 1) {
 	  for (i in 2:nrow(params$tiles)) {
 	    for (j in 1:(i-1)) {
@@ -218,6 +233,22 @@ validateParameters <- function(params,srOverride=FALSE) {
 	if (any(params$regions[,"Start AA"] < 2)) {
 	  offender <- params$regions[which(params$regions[,"Start AA"] < 2),1]
 	  logWarn("Region",paste(offender,collapse=", "),"includes start codon!!")
+	}
+	
+	if (nrow(params$regions) > 0) {
+	  for (i in 1:nrow(params$regions)) {
+	    tl <- params$regions[i,"End AA"]-params$regions[i,"Start AA"]+1
+	    if (tl < 0) {
+	      stop(
+	        "Region ",params$regions[i,1],"'s end position is smaller than start position!"
+	      )
+	    }
+	    if (tl < 2) {
+	      logWarn(
+	        "Region ",params$regions[i,1],"is less than 2AA long! Please double-check!"
+	      )
+	    }
+	  }
 	}
 	if (nrow(params$regions) > 1) {
 	  for (i in 2:nrow(params$regions)) {
