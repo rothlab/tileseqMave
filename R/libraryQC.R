@@ -1310,13 +1310,19 @@ plotSeqErrorRates <- function(inDir,outDir,pdftag) {
   
   if (length(phredFiles) > 0) {
     sampleIDs <- sub("_calibrate_phred.csv$","",basename(phredFiles))
-    phredTables <- setNames(lapply(phredFiles,read.csv),sampleIDs)
-    
+    phredTables <- setNames(lapply(phredFiles,read.csv),sampleIDs)  
     
     allPhreds <- cbind(phredTables[[1]][,1:2],do.call(cbind,lapply(phredTables,function(tbl)tbl$observed)))
-    labels <- na.omit(allPhreds)[,1]
-    probs <- na.omit(allPhreds)[,-1]
-    
+    nafilter <- apply(allPhreds[,-(1:2)],1,function(x)!all(is.na(x)))
+
+    # labels <- na.omit(allPhreds)[,1]
+    # probs <- na.omit(allPhreds)[,-1]
+    probs <- as.matrix(allPhreds[nafilter,-1][-1,])
+    labels <- allPhreds[nafilter,1][-1]
+
+    #any zero probabilities are the result of undersampling, so we remove them
+	probs[probs==0] <- NA
+
     if (nrow(probs)==0) {
       logWarn("Invalid PHRED error rate data. Skipping analysis...")
       return(NULL)
@@ -1327,9 +1333,9 @@ plotSeqErrorRates <- function(inDir,outDir,pdftag) {
     tagger <- pdftagger(paste(pdftag),cpp=1)
     op <- par(mar=c(5,4,1,1),oma=c(2,2,2,2))
     plotCols <- gray.colors(length(sampleIDs)+1)
-    barplot(t(as.matrix(probs)),
+    barplot(t(probs),
       beside=TRUE,col=plotCols,border=NA,ylab="error rate",
-      xlab="Quality score",names.arg=labels,log="y",ylim=c(1e-4,1)
+      xlab="Quality score",names.arg=labels,log="y",ylim=c(1e-5,1)
     )
     grid(NA,NULL)
     legend("topright",c("PHRED spec",sampleIDs),fill=plotCols,border=NA)
