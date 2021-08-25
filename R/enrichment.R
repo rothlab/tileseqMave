@@ -945,9 +945,14 @@ calcPhi <- function(msc) {
 #' @export
 biasCorrection <- function(msc,bcOverride=FALSE) {
   
+  pseudoCount <- 10^floor(log10(sort(unique(msc$nonselect.mean))[[2]]))
+  floorPC <- function(xs,bot=pseudoCount) sapply(xs, max, bot)
+  
   #exclude non-depleted nonsense variants
   nonsenseF <- msc[with(msc,type=="nonsense" & is.na(filter) & logPhi < 0),]
+  nonsenseF$lognsCorr <- with(nonsenseF,log10(floorPC(nonselect.mean-nonWT.mean)))
   synonymousF <- msc[with(msc,type=="synonymous" & is.na(filter)),]
+  synonymousF$lognsCorr <- with(synonymousF,log10(floorPC(nonselect.mean-nonWT.mean)))
   
   if (nrow(nonsenseF) == 0 || nrow(synonymousF)==0) {
     logWarn("Unable to perform bias correction, due to insufficient reference data!")
@@ -968,11 +973,13 @@ biasCorrection <- function(msc,bcOverride=FALSE) {
   } else {
     
     #simple linear regression
-    zns <- with(nonsenseF, lm(logPhi~log10(nonselect.mean)) )
-    zsyn <- with(synonymousF, lm(logPhi~log10(nonselect.mean)) )
+    zns <- with(nonsenseF, lm(logPhi~lognsCorr) )
+    zsyn <- with(synonymousF, lm(logPhi~lognsCorr) )
     
-    #calculate pivot points for each variant based on their read frequency (=nonselect.mean)
-    nsmean <- msc[,"nonselect.mean",drop=FALSE]
+    #calculate pivot points for each variant based on their 
+    #normalized read frequency (= nonselect.mean - WT)
+    nsmean <- log10(floorPC(msc[,"nonselect.mean"] - msc[,"nonWT.mean"]))
+    nsmean <- data.frame(lognsCorr=nsmean)
     msc$esyn <- predict.lm(zsyn,nsmean)
     msc$enon <- predict.lm(zns,nsmean)
     msc$ediff <- with(msc,floor0(esyn-enon))

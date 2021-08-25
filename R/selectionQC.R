@@ -507,23 +507,29 @@ logPhiBias <- function(scores,params,sCond,tp,outDir) {
       next
     }
     
-    nonsenseF <- scores[with(scores,type=="nonsense" & is.na(filter) & logPhi < 0 & region==currRegion),]
-    synonymousF <- scores[with(scores,type=="synonymous" & is.na(filter) & region==currRegion),]
+    pseudoCount <- 10^floor(log10(sort(unique(scores$nonselect.mean))[[2]]))
+    floor0 <- function(xs,bot=pseudoCount) sapply(xs, max, bot)
     
-    zns <- with(nonsenseF, lm(logPhi~log10(nonselect.mean)) )
-    zsyn <- with(synonymousF, lm(logPhi~log10(nonselect.mean)) )
+    nonsenseF <- scores[with(scores,type=="nonsense" & is.na(filter) & logPhi < 0 & region==currRegion),]
+    nonsenseF$lognsCorr <- with(nonsenseF,log10(floor0(nonselect.mean-nonWT.mean)))
+    synonymousF <- scores[with(scores,type=="synonymous" & is.na(filter) & region==currRegion),]
+    synonymousF$lognsCorr <- with(synonymousF,log10(floor0(nonselect.mean-nonWT.mean)))
+    
+    zns <- with(nonsenseF, lm(logPhi~lognsCorr) )
+    zsyn <- with(synonymousF, lm(logPhi~lognsCorr) )
     
     nsmed <- with(nonsenseF, median(logPhi,na.rm=TRUE))
     synmed <- with(synonymousF, median(logPhi,na.rm=TRUE))
     
-    trns <- with(nonsenseF, yogitools::runningFunction(log10(nonselect.mean),logPhi,nbins=20))
-    trsyn <- with(synonymousF, yogitools::runningFunction(log10(nonselect.mean),logPhi,nbins=20))
+    trns <- with(nonsenseF, yogitools::runningFunction(lognsCorr,logPhi,nbins=20))
+    trsyn <- with(synonymousF, yogitools::runningFunction(lognsCorr,logPhi,nbins=20))
     with(rbind(nonsenseF,synonymousF), plot(
-      log10(nonselect.mean),logPhi, type="n", main=paste("Region",currRegion)
+      lognsCorr,logPhi, type="n", main=paste("Region",currRegion),
+      xlab="log10(nonselect-wt)"
     ))
     with(nonsenseF, {
-      points(log10(nonselect.mean),logPhi,col="firebrick3",pch=20)
-      yogitools::errorBars(log10(nonselect.mean),logPhi,logPhi.se,col="firebrick3")
+      points(lognsCorr,logPhi,col="firebrick3",pch=20)
+      yogitools::errorBars(lognsCorr,logPhi,logPhi.se,col="firebrick3")
     })
     abline(zns,col="firebrick2",lty="dashed")
     abline(h=nsmed,col="firebrick2",lty="dotted")
@@ -531,8 +537,8 @@ logPhiBias <- function(scores,params,sCond,tp,outDir) {
     lines(trns,col="firebrick2",lwd=2)
     
     with(synonymousF, {
-      points(log10(nonselect.mean),logPhi,col="chartreuse3",pch=20)
-      yogitools::errorBars(log10(nonselect.mean),logPhi,logPhi.se,col="chartreuse3")
+      points(lognsCorr,logPhi,col="chartreuse3",pch=20)
+      yogitools::errorBars(lognsCorr,logPhi,logPhi.se,col="chartreuse3")
     })
     abline(zsyn,col="chartreuse2",lty="dashed")
     abline(h=synmed,col="chartreuse2",lty="dotted")
