@@ -145,7 +145,7 @@ scaleScores <- function(dataDir, scoreDir=NA, outDir=NA,
         msc <- cbind(msc,enactScale(
           msc, aac=msc$aaChange,
           sdThreshold=params$scoring$sdThreshold, 
-          overrides=normOvr
+          overrides=normOvr,lastFuncPos=params$scoring$lastFuncPos
         ))
         
         # flooring only where more than one replicate exists ----
@@ -393,7 +393,8 @@ checkPivots <- function(params) {
 #' @param sdThreshold stdev threshold for finding the syn/stop means
 #' @return data.frame with variant type, score and stdev
 #' @export
-enactScale <- function(msc,aac,sdThreshold,overrides=c(syn=NA,non=NA)) {
+enactScale <- function(msc,aac,sdThreshold,
+                       overrides=c(syn=NA,non=NA),lastFuncPos=Inf) {
   
   # #determine mutation types
   # fromAA <- substr(aac,1,1)
@@ -404,7 +405,7 @@ enactScale <- function(msc,aac,sdThreshold,overrides=c(syn=NA,non=NA)) {
   # 
   
   #apply filter
-  mscFiltered <- msc[is.na(msc$filter),]
+  mscFiltered <- msc[is.na(msc$filter) & msc$position <= lastFuncPos,]
   if (!all(is.na(mscFiltered$bce.se))) {
     # #here we use residual error to decide which variants to use to calculate the syn/non medians as pivots
     # resErr <- residualError(mscFiltered$bce,mscFiltered$bce.sd,mirror=TRUE,wtX=1)

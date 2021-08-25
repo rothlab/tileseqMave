@@ -4,7 +4,13 @@
 \alias{enactScale}
 \title{Calculate scores by scaling bce values to syn/nonsense medians}
 \usage{
-enactScale(msc, aac, sdThreshold, overrides = c(syn = NA, non = NA))
+enactScale(
+  msc,
+  aac,
+  sdThreshold,
+  overrides = c(syn = NA, non = NA),
+  lastFuncPos = Inf
+)
 }
 \arguments{
 \item{msc}{data.frame containing the enrichment ratios (phi) and log(phi)}

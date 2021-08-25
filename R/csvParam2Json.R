@@ -382,7 +382,10 @@ validateParameters <- function(params,srOverride=FALSE) {
 	  logWarn("Maximum depth drop is set unusually high! Are you sure about this?")
 	}
 	
-	expected <- c("countThreshold","pseudo.n","sdThreshold","wtQuantile","cvDeviation")
+	expected <- c(
+	  "countThreshold","pseudo.n","sdThreshold","wtQuantile",
+	  "cvDeviation","lastFuncPos"
+	)
 	if (!all(expected %in% names(params$scoring))) {
 	  stop("Parameter sheet JSON file is out of date with software version!\n",
 	       "Please re-run csv2json.R !")
@@ -416,6 +419,19 @@ validateParameters <- function(params,srOverride=FALSE) {
 	}
 	if (params$scoring$cvDeviation < 1) {
 	  stop("Replicate disagreement factor (cvDevation) must be greater than 1!")
+	}
+	if (is.na(params$scoring$lastFuncPos)) {
+	  stop ("'Last functional AA position' must be numeric or 'Inf'!")
+	}
+	if (params$scoring$lastFuncPos < 1 ) {
+	  stop("'Last functional AA position' must be a positive number!")
+	}
+	#protein length
+	plen <- (params$template$cds_end-params$template$cds_start+1)/3
+	if (params$scoring$lastFuncPos < plen/2) {
+	  logWarn("'Last functional AA position' is set very low! Are you sure?")
+	} else if (is.finite(params$scoring$lastFuncPos) && params$scoring$lastFuncPos > plen) {
+	  logWarn("'Last functional AA position' is beyond protein length! Did you mean 'Inf'?")
 	}
 
 	#validate pivots table
@@ -677,6 +693,11 @@ csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",infile),
 	  logWarn("No replicate disagreement factor specified. Defaulting to 10.")
 	  output$scoring$cvDeviation <- 10
 	}
+	if (hasRow("Last functional AA position:")) {
+	  output$scoring$lastFuncPos <- as.numeric(csv[[getRow("Last functional AA position:")]][[2]])
+	} else {
+	  output$scoring$lastFuncPos <- Inf
+	}
 	
 	#Extract scale pivots
 	output$pivots <- list()
@@ -699,6 +720,8 @@ csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",infile),
 	logInfo("Writing output to",outfile,"\n")
 	
 	con <- file(outfile,open="w")
+	#workaround for RJSONIO's inability to deal with infinity values
+	output$scoring$lastFuncPos <- as.character(output$scoring$lastFuncPos)
 	writeLines(toJSON(output),con)
 	close(con)
 
@@ -765,6 +788,8 @@ parseParameters <- function(filename,srOverride=FALSE) {
 	#make sure lists remain lists
 	params$varcaller <- as.list(params$varcaller)
 	params$scoring <- as.list(params$scoring)
+	#workaround for bug in RJSONIO (dealing with 'Inf' values)
+	params$scoring$lastFuncPos <- as.numeric(params$scoring$lastFuncPos)
 
 	#run full validation of the parameter object
 	validateParameters(params,srOverride=srOverride)

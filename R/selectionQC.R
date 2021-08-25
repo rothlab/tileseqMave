@@ -807,7 +807,10 @@ regularizationQC <- function(scores,modelParams,params,sCond,tp,outDir) {
 #' @return NULL
 scoreDistributions <- function(scores,sCond,tp,outDir,params,srOverride) {
   
-  filteredScores <- scores[is.na(scores$filter),]
+  #enact filters and last functional AA cutoff
+  spos <- as.integer(gsub("\\D+","",scores$aaChange))
+  filteredScores <- scores[is.na(scores$filter) & spos <= params$scoring$lastFuncPos,]
+  
   if (!srOverride) {
     # #residual error isn't really reliable yet, so this will just have to be total error for now.
     # resErr <- residualError(filteredScores$bce,filteredScores$bce.sd,mirror=TRUE,wtX=1)
