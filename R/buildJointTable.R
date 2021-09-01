@@ -161,13 +161,18 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,
     })
     #re-organize the positional depth by condition timepoint and replicate
     condRID <- with(sampleTable,sprintf("%s.t%s.rep%d",Condition,`Time point`,Replicate))
+    allPos <- sort(as.integer(Reduce(union,lapply(positionalDepth,names))))
     positionalDepth <- do.call(rbind,tapply(1:nrow(sampleTable),condRID,function(is) {
       pds <- do.call(c,positionalDepth[is])
       if (any(duplicated(names(pds)))) {
         stop("Overlapping tiles in coverage data!")
       }
-      pds[order(as.integer(names(pds)))]
+      # pds[order(as.integer(names(pds)))]
+      setNames(pds[as.character(allPos)],allPos)
     }))
+    if (any(is.na(positionalDepth))) {
+      positionalDepth[which(is.na(positionalDepth))] <- 0
+    }
     
       
   }
