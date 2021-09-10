@@ -93,7 +93,7 @@ if (length(reportFiles) > 0) {
     paste0("-sOUTPUTFILE=",condensedFile),
     "-dAutoRotatePages=/None",
     "-dBATCH",
-    reportFiles
+    paste0("'",reportFiles,"'")
   )
   retVal <- system2("gs",gsArgs,stdout=FALSE)
   if (retVal == 0 && !args$retainSingles) {
@@ -129,7 +129,7 @@ for (nsCond in nonSels) {
   			paste0("-sOUTPUTFILE=",condensedFile),
   			"-dAutoRotatePages=/None",
   			"-dBATCH",
-  			reportFiles
+  			paste0("'",reportFiles,"'")
   		)
   		retVal <- system2("gs",gsArgs,stdout=FALSE)
   		if (retVal == 0 && !args$retainSingles) {
@@ -166,7 +166,7 @@ for (sCond in getSelects(params)) {
 				paste0("-sOUTPUTFILE=",condensedFile),
 				"-dAutoRotatePages=/None",
 				"-dBATCH",
-				reportFiles
+				paste0("'",reportFiles,"'")
 			)
 			retVal <- system2("gs",gsArgs,stdout=FALSE)
 			if (retVal == 0 && !args$retainSingles) {
