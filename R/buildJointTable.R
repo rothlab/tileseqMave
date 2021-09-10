@@ -243,9 +243,10 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,
   builder <- new.hgvs.builder.p(aacode=3)
   cbuilder <- new.hgvs.builder.c()
   # transTable <- as.df(pbmclapply(allVars, translateHGVS, params, builder, cbuilder, mc.cores=mc.cores))
+  cdsSeq <- params$template$cdsSeq
   transTable <- as.df(pbmclapply(allVars, function(mut) {
     tryCatch({
-      translateHGVS(mut, params, builder, cbuilder)
+      hgvsParseR::translateHGVS(mut, cdsSeq, builder, cbuilder)
     },error=function(e){
       c(
         hgvsc=mut,hgvsp=as.character(e),codonChanges=NA,codonHGVS=NA,
@@ -297,8 +298,8 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,
       culprits <- which(sapply(bestTiles,length)>1)
       for (culprit in culprits) {
         logWarn("The following variant positions cross tile-boundaries: ",
-                names(posGroups)[[culprit]],"\n(",
-                sapply(posGroups[[culprit]],paste,collapse=","),")"
+                names(posGroups)[[culprit]]
+                # ,"\n(",sapply(posGroups[[culprit]],paste,collapse=","),")"
         )
       }
     }
