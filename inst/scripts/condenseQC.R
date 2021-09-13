@@ -90,7 +90,7 @@ if (length(reportFiles) > 0) {
   gsArgs <- c(
     "-dNOPAUSE",
     "-sDEVICE=pdfwrite",
-    paste0("-sOUTPUTFILE=",condensedFile),
+    paste0("-sOUTPUTFILE='",condensedFile,"'"),
     "-dAutoRotatePages=/None",
     "-dBATCH",
     paste0("'",reportFiles,"'")
@@ -126,7 +126,7 @@ for (nsCond in nonSels) {
   		gsArgs <- c(
   			"-dNOPAUSE",
   			"-sDEVICE=pdfwrite",
-  			paste0("-sOUTPUTFILE=",condensedFile),
+  			paste0("-sOUTPUTFILE='",condensedFile,"'"),
   			"-dAutoRotatePages=/None",
   			"-dBATCH",
   			paste0("'",reportFiles,"'")
@@ -163,7 +163,7 @@ for (sCond in getSelects(params)) {
 			gsArgs <- c(
 				"-dNOPAUSE",
 				"-sDEVICE=pdfwrite",
-				paste0("-sOUTPUTFILE=",condensedFile),
+				paste0("-sOUTPUTFILE='",condensedFile,"'"),
 				"-dAutoRotatePages=/None",
 				"-dBATCH",
 				paste0("'",reportFiles,"'")
