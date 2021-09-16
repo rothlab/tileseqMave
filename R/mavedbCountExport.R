@@ -23,115 +23,115 @@
 #' @export
 mavedbCountExport <-  function(countfile,outdir,logger=NULL) {
 
-	library(hgvsParseR)
-	# library(yogilog)
-	library(yogitools)
+  library(hgvsParseR)
+  # library(yogilog)
+  library(yogitools)
 
-	options(stringsAsFactors=FALSE)
+  options(stringsAsFactors=FALSE)
 
-	if (!is.null(logger)) {
-		stopifnot(inherits(logger,"yogilogger"))
-	}
+  if (!is.null(logger)) {
+    stopifnot(inherits(logger,"yogilogger"))
+  }
 
-	logInfo <- function(...) {
-		if (!is.null(logger)) {
-			logger$info(...)
-		} else {
-			do.call(cat,c(list(...),"\n"))
-		}
-	}
-	logWarn <- function(...) {
-		if (!is.null(logger)) {
-			logger$warning(...)
-		} else {
-			do.call(cat,c("Warning:",list(...),"\n"))
-		}
-	}
+  logInfo <- function(...) {
+    if (!is.null(logger)) {
+      logger$info(...)
+    } else {
+      do.call(cat,c(list(...),"\n"))
+    }
+  }
+  logWarn <- function(...) {
+    if (!is.null(logger)) {
+      logger$warning(...)
+    } else {
+      do.call(cat,c("Warning:",list(...),"\n"))
+    }
+  }
 
-	##############
-	# Read and validate input data
-	##############
+  ##############
+  # Read and validate input data
+  ##############
 
-	#countfile <- "/home/jweile/projects/ccbr2hgvs/HMGCR_S_resultfile/rawData.txt"
-	canRead <- function(filename) file.access(filename,mode=4) == 0
-	stopifnot(
-		canRead(countfile)
-	)
+  #countfile <- "/home/jweile/projects/ccbr2hgvs/HMGCR_S_resultfile/rawData.txt"
+  canRead <- function(filename) file.access(filename,mode=4) == 0
+  stopifnot(
+    canRead(countfile)
+  )
 
-	rawCounts <- read.delim(countfile)
+  rawCounts <- read.delim(countfile)
 
-	stopifnot(
-		c(
-			"wt_codon","pos","mut_codon","wt_aa","mut_aa",
-			"nonselect1","nonselect2","select1","select2",
-			"controlNS1","controlNS2","controlS1","controlS2"
-		) %in% colnames(rawCounts)
-	)
+  stopifnot(
+    c(
+      "wt_codon","pos","mut_codon","wt_aa","mut_aa",
+      "nonselect1","nonselect2","select1","select2",
+      "controlNS1","controlNS2","controlS1","controlS2"
+    ) %in% colnames(rawCounts)
+  )
 
-	#make sure outdir ends with a "/"
-	if (!grepl("/$",outdir)) {
-		outdir <- paste0(outdir,"/")
-	}
-	#and if it doesn't exist, create it
-	if (!dir.exists(outdir)) {
-		dir.create(outdir,recursive=TRUE)
-	}
+  #make sure outdir ends with a "/"
+  if (!grepl("/$",outdir)) {
+    outdir <- paste0(outdir,"/")
+  }
+  #and if it doesn't exist, create it
+  if (!dir.exists(outdir)) {
+    dir.create(outdir,recursive=TRUE)
+  }
 
-	##################
-	# Build HGVS variant descriptor strings
-	##################
+  ##################
+  # Build HGVS variant descriptor strings
+  ##################
 
-	#for nucleotide level descriptors
-	cbuilder <- new.hgvs.builder.c()
-	#for protein-level descriptors
-	pbuilder <- new.hgvs.builder.p(aacode=3)
+  #for nucleotide level descriptors
+  cbuilder <- new.hgvs.builder.c()
+  #for protein-level descriptors
+  pbuilder <- new.hgvs.builder.p(aacode=3)
 
-	#for nucleotide level descriptors
-	hgvsc <- apply(rawCounts,1,function(row) {
-		pos <- as.numeric(row["pos"])
-		#codon start indices
-		cstart <- pos*3-2
-		wt <- row["wt_codon"]
-		mut <- row["mut_codon"]
-		#calculate differences between codons
-		diffs <- sapply(1:3,function(i)substr(wt,i,i)!=substr(mut,i,i))
-		ndiff <- sum(diffs)
-		if (ndiff == 1) { #one difference is a SNV
-			offset <- which(diffs)
-			wtbase <- substr(wt,offset,offset)
-			mutbase <- substr(mut,offset,offset)
-			snvpos <- cstart+offset-1
-			return(cbuilder$substitution(snvpos,wtbase,mutbase))
-		} else if (ndiff > 1) { #multiple differences is a delIns
-			return(cbuilder$delins(cstart,cstart+2,mut))
-		} else {
-			stop("mutation must differ from wt!")
-		}
-	})
+  #for nucleotide level descriptors
+  hgvsc <- apply(rawCounts,1,function(row) {
+    pos <- as.numeric(row["pos"])
+    #codon start indices
+    cstart <- pos*3-2
+    wt <- row["wt_codon"]
+    mut <- row["mut_codon"]
+    #calculate differences between codons
+    diffs <- sapply(1:3,function(i)substr(wt,i,i)!=substr(mut,i,i))
+    ndiff <- sum(diffs)
+    if (ndiff == 1) { #one difference is a SNV
+      offset <- which(diffs)
+      wtbase <- substr(wt,offset,offset)
+      mutbase <- substr(mut,offset,offset)
+      snvpos <- cstart+offset-1
+      return(cbuilder$substitution(snvpos,wtbase,mutbase))
+    } else if (ndiff > 1) { #multiple differences is a delIns
+      return(cbuilder$delins(cstart,cstart+2,mut))
+    } else {
+      stop("mutation must differ from wt!")
+    }
+  })
 
-	hgvsp <- apply(rawCounts,1,function(row) {
-		pos <- as.numeric(row["pos"])
-		wt <- row["wt_aa"]
-		mut <- row["mut_aa"]
-		if (mut=="_") mut <- "*" #correct stop character
-		if (wt == mut) {
-			return(pbuilder$synonymous(pos,wt))
-		} else {
-			return(pbuilder$substitution(pos,wt,mut))
-		}
-	})
+  hgvsp <- apply(rawCounts,1,function(row) {
+    pos <- as.numeric(row["pos"])
+    wt <- row["wt_aa"]
+    mut <- row["mut_aa"]
+    if (mut=="_") mut <- "*" #correct stop character
+    if (wt == mut) {
+      return(pbuilder$synonymous(pos,wt))
+    } else {
+      return(pbuilder$substitution(pos,wt,mut))
+    }
+  })
 
-	logInfo(sprintf(
-		"Parsed data for %d variants covering %d amino acid changes",
-		length(hgvsc),length(unique(hgvsp))
-	))
+  logInfo(sprintf(
+    "Parsed data for %d variants covering %d amino acid changes",
+    length(hgvsc),length(unique(hgvsp))
+  ))
 
-	logInfo("Writing output to file.")
+  logInfo("Writing output to file.")
 
-	outTable <- cbind(hgvs_nt=hgvsc,hgvs_pro=hgvsp,rawCounts[,-(1:6)])
+  outTable <- cbind(hgvs_nt=hgvsc,hgvs_pro=hgvsp,rawCounts[,-(1:6)])
 
-	outfile <- paste0(outdir,"mavedb_counts_perNt.csv")
-	write.csv(outTable,outfile,row.names=FALSE)
+  outfile <- paste0(outdir,"mavedb_counts_perNt.csv")
+  write.csv(outTable,outfile,row.names=FALSE)
 
 }
 

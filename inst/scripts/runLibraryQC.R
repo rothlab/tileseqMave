@@ -22,8 +22,8 @@
 #####################################################
 
 options(
-	stringsAsFactors=FALSE,
-	ignore.interactive=TRUE
+  stringsAsFactors=FALSE,
+  ignore.interactive=TRUE
 )
 
 #load libraries
@@ -33,8 +33,8 @@ library(yogilog)
 
 #process command line arguments
 p <- arg_parser(
-	"Performs a library QC analysis on the output of joinCounts.R, yielding informative plots.",
-	name="runLibraryQC.R"
+  "Performs a library QC analysis on the output of joinCounts.R, yielding informative plots.",
+  name="runLibraryQC.R"
 )
 p <- add_argument(p, "--workspace", help="workspace data directory. Defaults to current working directory")
 p <- add_argument(p, "--input", help="input directory containing the count data. Defaults to subdirectory with latest timestamp ending in _mut_count")
@@ -52,13 +52,13 @@ args <- parse_args(p)
 #Manully validate wmThreshold as part of workaround
 args$wmThreshold <- as.numeric(args$wmThreshold)
 if (is.na(args$wmThreshold)) {
-	stop("argument --wmThreshold must be numeric!")
+  stop("argument --wmThreshold must be numeric!")
 }
 
 #Workaround for bug in future package, that re-uses command line arguments:
 #Override commandArgs function with dummy that returns nothing
 commandArgs <- function(trailingOnly=FALSE) {
-	character()
+  character()
 }
 
 #ensure datadir ends in "/" and exists
@@ -68,11 +68,11 @@ if (is.na(args$workspace)) {
   dataDir <- args$workspace
 }
 if (!grepl("/$",dataDir)) {
-	dataDir <- paste0(dataDir,"/")
+  dataDir <- paste0(dataDir,"/")
 }
 if (!dir.exists(dataDir)) {
-	#logger cannot initialize without dataDirectory, so just a simple exception here.
-	stop("Data folder does not exist!")
+  #logger cannot initialize without dataDirectory, so just a simple exception here.
+  stop("Data folder does not exist!")
 }
 paramfile <- if (is.na(args$parameters)) paste0(dataDir,"parameters.json") else args$parameters
 logfile <- if (is.na(args$logfile)) paste0(dataDir,"libraryQC.log") else args$logfile
@@ -86,9 +86,9 @@ logVersion()
 
 #run the actual function
 invisible(
-	libraryQC(dataDir,inDir=args$input,outDir=args$output,paramfile,mc.cores,
-	          srOverride=args$srOverride,wmThreshold=args$wmThreshold,
-	          allCondOverride=args$allConditions
-	)
+  libraryQC(dataDir,inDir=args$input,outDir=args$output,paramfile,mc.cores,
+            srOverride=args$srOverride,wmThreshold=args$wmThreshold,
+            allCondOverride=args$allConditions
+  )
 )
 

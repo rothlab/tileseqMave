@@ -23,9 +23,9 @@
 
 
 options(
-	stringsAsFactors=FALSE,
-	ignore.interactive=TRUE,
-	future.cmdargs=c()
+  stringsAsFactors=FALSE,
+  ignore.interactive=TRUE,
+  future.cmdargs=c()
 )
 
 #load libraries
@@ -35,8 +35,8 @@ library(yogilog)
 
 #process command line arguments
 p <- arg_parser(
-	"Performs a selection QC analysis on the output of runScoring.R, yielding informative plots.",
-	name="runSelectionQC.R"
+  "Performs a selection QC analysis on the output of runScoring.R, yielding informative plots.",
+  name="runSelectionQC.R"
 )
 p <- add_argument(p, "--workspace", help="workspace data directory. Defaults to current working directory")
 p <- add_argument(p, "--counts", help="input directory containing the count data. Defaults to subdirectory with latest timestamp ending in _mut_count")
@@ -51,7 +51,7 @@ args <- parse_args(p)
 #Workaround for bug in future package, that re-uses command line arguments:
 #Override commandArgs function with dummy that returns nothing
 commandArgs <- function(trailingOnly=FALSE) {
-	character()
+  character()
 }
 
 #ensure datadir ends in "/" and exists
@@ -61,11 +61,11 @@ if (is.na(args$workspace)) {
   dataDir <- args$workspace
 }
 if (!grepl("/$",dataDir)) {
-	dataDir <- paste0(dataDir,"/")
+  dataDir <- paste0(dataDir,"/")
 }
 if (!dir.exists(dataDir)) {
-	#logger cannot initialize without dataDirectory, so just a simple exception here.
-	stop("Data folder does not exist!")
+  #logger cannot initialize without dataDirectory, so just a simple exception here.
+  stop("Data folder does not exist!")
 }
 paramFile <- if (is.na(args$parameters)) paste0(dataDir,"parameters.json") else args$parameters
 logfile <- if (is.na(args$logfile)) paste0(dataDir,"selectionQC.log") else args$logfile
@@ -78,10 +78,10 @@ logVersion()
 
 #run the actual function
 invisible(
-	selectionQC(
-		dataDir, countDir=args$counts, scoreDir=args$scores, outDir=args$output, 
-		paramFile=paramFile, srOverride=args$srOverride
-	)
+  selectionQC(
+    dataDir, countDir=args$counts, scoreDir=args$scores, outDir=args$output, 
+    paramFile=paramFile, srOverride=args$srOverride
+  )
 )
 
 

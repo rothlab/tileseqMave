@@ -22,8 +22,8 @@
 #####################################################
 
 options(
-	stringsAsFactors=FALSE,
-	ignore.interactive=TRUE
+  stringsAsFactors=FALSE,
+  ignore.interactive=TRUE
 )
 
 #load libraries
@@ -33,8 +33,8 @@ library(yogilog)
 
 #process command line arguments
 p <- arg_parser(
-	"Exports count data in MaveDB-compatible format.",
-	name="exportCounts.R"
+  "Exports count data in MaveDB-compatible format.",
+  name="exportCounts.R"
 )
 p <- add_argument(p, "--workspace", help="workspace data directory. Defaults to current working directory")
 p <- add_argument(p, "--input", help="either input file or input directory containing the count data. Defaults to subdirectory with latest timestamp ending in _mut_count")

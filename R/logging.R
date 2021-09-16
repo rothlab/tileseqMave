@@ -21,8 +21,8 @@
 #' @return nothing
 #' @export
 registerLogger <- function(logger) {
-	stopifnot(inherits(logger,"yogilogger"))
-	options(tileseqMave.logger=logger)
+  stopifnot(inherits(logger,"yogilogger"))
+  options(tileseqMave.logger=logger)
 }
 
 #' convenience logging function at INFO level
@@ -34,12 +34,12 @@ registerLogger <- function(logger) {
 #' @return nothing
 #' @export
 logInfo <- function(...) {
-	logger <- getOption("tileseqMave.logger")
-	if (!is.null(logger)) {
-		logger$info(...)
-	} else {
-		do.call(cat,c(list(...),"\n"))
-	}
+  logger <- getOption("tileseqMave.logger")
+  if (!is.null(logger)) {
+    logger$info(...)
+  } else {
+    do.call(cat,c(list(...),"\n"))
+  }
 }
 
 #' convenience logging function at WARN level
@@ -51,18 +51,18 @@ logInfo <- function(...) {
 #' @return nothing
 #' @export
 logWarn <- function(...) {
-	logger <- getOption("tileseqMave.logger")
-	if (!is.null(logger)) {
-		logger$warning(...)
-	} else {
-		do.call(cat,c("Warning:",list(...),"\n"))
-	}
+  logger <- getOption("tileseqMave.logger")
+  if (!is.null(logger)) {
+    logger$warning(...)
+  } else {
+    do.call(cat,c("Warning:",list(...),"\n"))
+  }
 }
 
 #' Convenience function for recording the package version into the logfile.
 #' @export
 logVersion <- function() {
-	logInfo("Running tileseqMave version",packageVersion("tileseqMave"))
+  logInfo("Running tileseqMave version",packageVersion("tileseqMave"))
 }
 
 #There is no convenience method for error level, as errors should always be thrown

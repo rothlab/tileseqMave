@@ -30,8 +30,8 @@ library(yogilog)
 
 #process command line arguments
 p <- arg_parser(
-	"Checks TileSeq parameter CSV file for validity and converts it to JSON format.",
-	name="csv2json.R"
+  "Checks TileSeq parameter CSV file for validity and converts it to JSON format.",
+  name="csv2json.R"
 )
 p <- add_argument(p, "infile", help="input file")
 p <- add_argument(p, "--outfile", help="output file. Defaults to parameters.json in the same directory.")
@@ -50,6 +50,6 @@ logVersion()
 
 #run the actual function
 invisible(
-	# csvParam2Json(args$infile,outfile,logger,srOverride=args$srOverride)
-	csvParam2Json(args$infile,outfile,srOverride=args$srOverride)
+  # csvParam2Json(args$infile,outfile,logger,srOverride=args$srOverride)
+  csvParam2Json(args$infile,outfile,srOverride=args$srOverride)
 )

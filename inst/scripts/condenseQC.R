@@ -22,8 +22,8 @@
 #####################################################
 
 options(
-	stringsAsFactors=FALSE,
-	ignore.interactive=TRUE
+  stringsAsFactors=FALSE,
+  ignore.interactive=TRUE
 )
 
 #load libraries
@@ -33,8 +33,8 @@ library(argparser)
 
 #process command line arguments
 p <- arg_parser(
-	"Condenser for PDF QC reports",
-	name="condenseQC.R"
+  "Condenser for PDF QC reports",
+  name="condenseQC.R"
 )
 p <- add_argument(p, "--workspace", help="workspace data directory. Defaults to current working directory")
 p <- add_argument(p, "--input", help="input directory containing the QC documents. Defaults to subdirectory with latest timestamp ending in _QC")
@@ -50,11 +50,11 @@ if (is.na(args$workspace)) {
   dataDir <- args$workspace
 }
 if (!grepl("/$",dataDir)) {
-	dataDir <- paste0(dataDir,"/")
+  dataDir <- paste0(dataDir,"/")
 }
 if (!dir.exists(dataDir)) {
-	#logger cannot initialize without dataDirectory, so just a simple exception here.
-	stop("Data folder does not exist!")
+  #logger cannot initialize without dataDirectory, so just a simple exception here.
+  stop("Data folder does not exist!")
 }
 paramfile <- if (is.na(args$parameters)) paste0(dataDir,"parameters.json") else args$parameters
 
@@ -112,31 +112,31 @@ fcount <- 0
 cat("Condensing library QC plots...")
 for (nsCond in nonSels) {
   for (tp in params$timepoints$`Time point name`) {
-  	#list report files in order
-  	reportFiles <- sprintf("%s/%s_t%s_%s.pdf",qcDir,nsCond,tp,c(
-  		"coverage","census","wellmeasured",
-  		"tileRepCorr","WTlevels","jackpot",
-  		"complexity","mutationtypes","nucleotide_bias","fsMap"
-  	))
-  	#discard those that don't exist or are unreadable
-  	reportFiles <- reportFiles[which(canRead(reportFiles))]
-  	#if more than one file is applicable, merge them
-  	if (length(reportFiles) > 0) {
-  		condensedFile <- sprintf("%s/%s_t%s_libraryQC.pdf",qcDir,nsCond,tp)
-  		gsArgs <- c(
-  			"-dNOPAUSE",
-  			"-sDEVICE=pdfwrite",
-  			paste0("-sOUTPUTFILE='",condensedFile,"'"),
-  			"-dAutoRotatePages=/None",
-  			"-dBATCH",
-  			paste0("'",reportFiles,"'")
-  		)
-  		retVal <- system2("gs",gsArgs,stdout=FALSE)
-  		if (retVal == 0 && !args$retainSingles) {
-  			file.remove(reportFiles)
-  		}
-  	}
-  	fcount <- fcount+length(reportFiles)
+    #list report files in order
+    reportFiles <- sprintf("%s/%s_t%s_%s.pdf",qcDir,nsCond,tp,c(
+      "coverage","census","wellmeasured",
+      "tileRepCorr","WTlevels","jackpot",
+      "complexity","mutationtypes","nucleotide_bias","fsMap"
+    ))
+    #discard those that don't exist or are unreadable
+    reportFiles <- reportFiles[which(canRead(reportFiles))]
+    #if more than one file is applicable, merge them
+    if (length(reportFiles) > 0) {
+      condensedFile <- sprintf("%s/%s_t%s_libraryQC.pdf",qcDir,nsCond,tp)
+      gsArgs <- c(
+        "-dNOPAUSE",
+        "-sDEVICE=pdfwrite",
+        paste0("-sOUTPUTFILE='",condensedFile,"'"),
+        "-dAutoRotatePages=/None",
+        "-dBATCH",
+        paste0("'",reportFiles,"'")
+      )
+      retVal <- system2("gs",gsArgs,stdout=FALSE)
+      if (retVal == 0 && !args$retainSingles) {
+        file.remove(reportFiles)
+      }
+    }
+    fcount <- fcount+length(reportFiles)
   }
 }
 if (fcount > 0) {
@@ -149,32 +149,32 @@ if (fcount > 0) {
 fcount <- 0
 cat("Condensing selection QC plots...")
 for (sCond in getSelects(params)) {
-	for (tp in params$timepoints[,1]) {
-		#list report files in order
-		reportFiles <- sprintf("%s/%s_t%s_%s.pdf",qcDir,sCond,tp,c(
-			"ns_replicates","phi_replicates","replicates","logPhiBias","codonCorr","filtering",
-			"filtering2","synNonDiff","logPhiDistribution","errorModel","errorProfile"
-		))
-		#discard those that don't exist or are unreadable
-		reportFiles <- reportFiles[which(canRead(reportFiles))]
-		#if more than one file is applicable, merge them
-		if (length(reportFiles) > 0) {
-			condensedFile <- sprintf("%s/%s_t%s_selectionQC.pdf",qcDir,sCond,tp)
-			gsArgs <- c(
-				"-dNOPAUSE",
-				"-sDEVICE=pdfwrite",
-				paste0("-sOUTPUTFILE='",condensedFile,"'"),
-				"-dAutoRotatePages=/None",
-				"-dBATCH",
-				paste0("'",reportFiles,"'")
-			)
-			retVal <- system2("gs",gsArgs,stdout=FALSE)
-			if (retVal == 0 && !args$retainSingles) {
-				file.remove(reportFiles)
-			}
-		}
-	  fcount <- fcount+length(reportFiles)
-	}
+  for (tp in params$timepoints[,1]) {
+    #list report files in order
+    reportFiles <- sprintf("%s/%s_t%s_%s.pdf",qcDir,sCond,tp,c(
+      "ns_replicates","phi_replicates","replicates","logPhiBias","codonCorr","filtering",
+      "filtering2","synNonDiff","logPhiDistribution","errorModel","errorProfile"
+    ))
+    #discard those that don't exist or are unreadable
+    reportFiles <- reportFiles[which(canRead(reportFiles))]
+    #if more than one file is applicable, merge them
+    if (length(reportFiles) > 0) {
+      condensedFile <- sprintf("%s/%s_t%s_selectionQC.pdf",qcDir,sCond,tp)
+      gsArgs <- c(
+        "-dNOPAUSE",
+        "-sDEVICE=pdfwrite",
+        paste0("-sOUTPUTFILE='",condensedFile,"'"),
+        "-dAutoRotatePages=/None",
+        "-dBATCH",
+        paste0("'",reportFiles,"'")
+      )
+      retVal <- system2("gs",gsArgs,stdout=FALSE)
+      if (retVal == 0 && !args$retainSingles) {
+        file.remove(reportFiles)
+      }
+    }
+    fcount <- fcount+length(reportFiles)
+  }
 }
 if (fcount > 0) {
   cat(sprintf("%d files.\n",fcount))

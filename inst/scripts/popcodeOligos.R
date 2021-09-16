@@ -1,8 +1,8 @@
 #!/usr/bin/env Rscript
 
 options(
-	stringsAsFactors=FALSE,
-	ignore.interactive=TRUE
+  stringsAsFactors=FALSE,
+  ignore.interactive=TRUE
 )
 
 library(TmCalculator)
@@ -16,8 +16,8 @@ data(trtable)
 
 #process command line arguments
 p <- arg_parser(
-	"Popcode oligo designer",
-	name="popcodeOligos.R"
+  "Popcode oligo designer",
+  name="popcodeOligos.R"
 )
 p <- add_argument(p, "fasta", help="input FASTA file. Must contain prefix, ORF, and suffix entries")
 p <- add_argument(p, "--length", help="Oligo length to aim for",default=33L)
@@ -37,23 +37,23 @@ stopifnot(!is.null(outfile), !is.na(outfile))
 
 #helper function to read FASTA files
 readMultiFASTA <- function(infile) {
-	lines <- readLines(infile)
-	headerLines <- grep("^>",lines)
-	ids <- sub("^>","",lines[headerLines])
-	bodyStarts <- headerLines+1
-	bodyEnds <- c(headerLines[-1]-1,length(lines))
-	setNames(lapply(1:length(ids),function(i) paste(lines[bodyStarts[[i]]:bodyEnds[[i]]],collapse="")),ids)
+  lines <- readLines(infile)
+  headerLines <- grep("^>",lines)
+  ids <- sub("^>","",lines[headerLines])
+  bodyStarts <- headerLines+1
+  bodyEnds <- c(headerLines[-1]-1,length(lines))
+  setNames(lapply(1:length(ids),function(i) paste(lines[bodyStarts[[i]]:bodyEnds[[i]]],collapse="")),ids)
 }
 
 #helper function to write FASTA files
 writeMultiFasta <- function(oligos,filename) {
-	lines <- do.call(c,lapply(1:length(oligos),function(i) {
-		c(
-			paste0(">",names(oligos)[[i]]),
-			oligos[[i]]
-		)
-	}))
-	writeLines(lines,filename)
+  lines <- do.call(c,lapply(1:length(oligos),function(i) {
+    c(
+      paste0(">",names(oligos)[[i]]),
+      oligos[[i]]
+    )
+  }))
+  writeLines(lines,filename)
 }
 
 seqs <- readMultiFASTA(args$fasta)
@@ -63,23 +63,23 @@ cat("Exploring possible oligos...\n")
 codon.starts <- nchar(seqs$prefix) + seq(1+3,nchar(seqs$ORF),3)
 n.choices <- length(codon.starts) * (2*wiggle+1)^2
 oligo.choices <- as.df(do.call(c,pbmclapply(codon.starts, function(codon.start) {
-	do.call(c,lapply(-wiggle:wiggle, function(left.offset) {
-		lapply(-wiggle:wiggle, function(right.offset) {
-			start <- codon.start + 1 - floor(oligo.length/2) + left.offset
-			end <- codon.start + 1 + floor(oligo.length/2) + right.offset
-			sequence <- substr(seqs$construct,start,end)
-			list(
-				codon.start.in.construct=codon.start,
-				codon.start.in.oligo=codon.start-start+1,
-				oligo.start=start,
-				oligo.end=end,
-				sequence=sequence,
-				tm.tot=calcTm(sequence),
-				tm.left=calcTm(substr(sequence,1,codon.start-start)),
-				tm.right=calcTm(substr(sequence,codon.start-start+4,nchar(sequence)))
-			)
-		})
-	}))
+  do.call(c,lapply(-wiggle:wiggle, function(left.offset) {
+    lapply(-wiggle:wiggle, function(right.offset) {
+      start <- codon.start + 1 - floor(oligo.length/2) + left.offset
+      end <- codon.start + 1 + floor(oligo.length/2) + right.offset
+      sequence <- substr(seqs$construct,start,end)
+      list(
+        codon.start.in.construct=codon.start,
+        codon.start.in.oligo=codon.start-start+1,
+        oligo.start=start,
+        oligo.end=end,
+        sequence=sequence,
+        tm.tot=calcTm(sequence),
+        tm.left=calcTm(substr(sequence,1,codon.start-start)),
+        tm.right=calcTm(substr(sequence,codon.start-start+4,nchar(sequence)))
+      )
+    })
+  }))
 },mc.cores=8)))
 
 cat("Optimizing melting temperatures...\n")
@@ -94,25 +94,25 @@ cat("Plotting offset distribution...\n")
 
 png(paste0(outfile,".png"),width=600,height=300)
 op <- par(mfrow=c(1,2),cex=.9)
-	
+  
 offset.counts <- table(best.oligos$codon.start.in.oligo-1-floor((oligo.length-3)/2))
 
 barplot(
-	offset.counts,
-	xlab="Offset",
-	ylab="Frequency",
-	col="gold2",
-	border="gold4"
+  offset.counts,
+  xlab="Offset",
+  ylab="Frequency",
+  col="gold2",
+  border="gold4"
 )
 grid(nx=NA,ny=NULL)
 
 hist(
-	best.oligos$tm.tot,
-	breaks=20,
-	col="steelblue3",
-	border="steelblue4",
-	xlab="Melting temperature (C)",
-	main=""
+  best.oligos$tm.tot,
+  breaks=20,
+  col="steelblue3",
+  border="steelblue4",
+  xlab="Melting temperature (C)",
+  main=""
 )
 grid(nx=NA,ny=NULL)
 tmm <- median(best.oligos$tm.tot)
@@ -125,21 +125,21 @@ invisible(dev.off())
 
 cat("inserting NNKs...\n")
 oligos <- do.call(c, lapply(1:nrow(best.oligos), function(i) {
-	with(best.oligos[i,], {
-		codon <- substr(sequence, codon.start.in.oligo, codon.start.in.oligo+2)
-		# aa <- as.character(translate(DNAString(codon)))
-		aa <- trtable[[codon]]
-		outseq <- sequence
-		substr(outseq, codon.start.in.oligo, codon.start.in.oligo+2) <- "NNK"
-		outseqs <- outseq
-		names(outseqs) <- paste(aa,i,"X",sep="")
-		# cat(i,"\t",substr(sequence,1,1),"\t",substr(sequence,nchar(sequence),nchar(sequence)),"\n")
-		outseqs
-	})
+  with(best.oligos[i,], {
+    codon <- substr(sequence, codon.start.in.oligo, codon.start.in.oligo+2)
+    # aa <- as.character(translate(DNAString(codon)))
+    aa <- trtable[[codon]]
+    outseq <- sequence
+    substr(outseq, codon.start.in.oligo, codon.start.in.oligo+2) <- "NNK"
+    outseqs <- outseq
+    names(outseqs) <- paste(aa,i,"X",sep="")
+    # cat(i,"\t",substr(sequence,1,1),"\t",substr(sequence,nchar(sequence),nchar(sequence)),"\n")
+    outseqs
+  })
 }))
 
 outTable <- data.frame(id=names(oligos),sequence=oligos,
-	tm.tot=best.oligos$tm.tot,tm.left=best.oligos$tm.left,tm.right=best.oligos$tm.right
+  tm.tot=best.oligos$tm.tot,tm.left=best.oligos$tm.left,tm.right=best.oligos$tm.right
 )
 
 cat("Writing output...\n\n")

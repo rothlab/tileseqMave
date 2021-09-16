@@ -18,15 +18,15 @@
 #' Generates the the startup message
 startupMessage <- function() {
   #generated with 'figlet -f smslant TileseqPro'
-	logo <- 
+  logo <- 
 " _______ __                 ___         
 /_  __(_) /__ ___ ___ ___ _/ _ \\_______ 
  / / / / / -_|_-</ -_) _ `/ ___/ __/ _ \\
 /_/ /_/_/\\__/___/\\__/\\_, /_/  /_/  \\___/
                       /_/       "
-	return(paste0(
-		logo,"v",packageVersion("tileseqMave"),"\n"
-	))
+  return(paste0(
+    logo,"v",packageVersion("tileseqMave"),"\n"
+  ))
 }
 
 #' Show message at startup

@@ -29,209 +29,209 @@ selectionQC <- function(dataDir,countDir=NA, scoreDir=NA, outDir=NA,
                         srOverride=FALSE) {
 
 
-	op <- options(stringsAsFactors=FALSE)
+  op <- options(stringsAsFactors=FALSE)
 
-	library(yogitools)
-	library(hgvsParseR)
-	library(pbmcapply)
-	# library(optimization)
+  library(yogitools)
+  library(hgvsParseR)
+  library(pbmcapply)
+  # library(optimization)
 
-	#make sure data exists and ends with a "/"
-	if (!grepl("/$",dataDir)) {
-		dataDir <- paste0(dataDir,"/")
-	}
-	if (!dir.exists(dataDir)) {
-		#we don't use the logger here, assuming that whichever script wraps our function
-		#catches the exception and writes to the logger (or uses the log error handler)
-		stop("Data folder does not exist!")
-	}
-	if (!canRead(paramFile)) {
-		stop("Unable to read parameter file!")
-	}
+  #make sure data exists and ends with a "/"
+  if (!grepl("/$",dataDir)) {
+    dataDir <- paste0(dataDir,"/")
+  }
+  if (!dir.exists(dataDir)) {
+    #we don't use the logger here, assuming that whichever script wraps our function
+    #catches the exception and writes to the logger (or uses the log error handler)
+    stop("Data folder does not exist!")
+  }
+  if (!canRead(paramFile)) {
+    stop("Unable to read parameter file!")
+  }
 
 
-	logInfo("Reading parameters from",normalizePath(paramFile))
-	params <- withCallingHandlers(
-		parseParameters(paramFile,srOverride=srOverride),
-		warning=function(w)logWarn(conditionMessage(w))
-	)
-	
-	#find counts folder
-	if (is.na(countDir)) {
-	  latest <- latestSubDir(parentDir=dataDir,pattern="_mut_call$|mut_count$")
-	  countDir <- latest[["dir"]]
-	  timeStamp <- latest[["timeStamp"]]
-	  runLabel <- latest[["label"]]
-	} else { #if custom input dir was provided
-	  #make sure it exists
-	  if (!dir.exists(countDir)) {
-	    stop("Input count folder ",countDir," does not exist!")
-	  }
-	  #try to extract a timestamp and label
-	  lt <- extract.groups(countDir,"([^/]+_)?(\\d{4}-\\d{2}-\\d{2}-\\d{2}-\\d{2}-\\d{2})")[1,]
-	  if (!any(is.na(lt))) {
-	    runLabel <- lt[[1]]
-	    timeStamp <- lt[[2]]
-	  } else {
-	    #if none can be extracted, use current time and no tag
-	    timeStamp <- format(Sys.time(), "%Y-%m-%d-%H-%M-%S")
-	    runLabel <- ""
-	  }
-	}
-	#make sure it ends in "/"
-	if (!grepl("/$",countDir)) {
-	  countDir <- paste0(countDir,"/")
-	}
-	
-	#if no score directory was provided
-	if (is.na(scoreDir)) {
-	  #try to guess its name
-	  if (grepl("_mut_count/$",countDir)) {
-	    scoreDir <- sub("_mut_count/$","_scores/",countDir)
-	  } else {
-	    scoreDir <- sub("/$","_scores/",countDir)
-	  }
-	  if (!dir.exists(scoreDir)) {
-	    stop("No matching score directory found for ",countDir,"!\n",
-	         "(Expecting ",scoreDir,")\n",
-	         "Use --scores option to define explicitly."
-	    )
-	  }
-	} else {
-	  if (!dir.exists(scoreDir)) {
-	    stop("Score directory ",scoreDir," does not exist!")
-	  }
-	}
-	#make sure it ends in "/"
-	if (!grepl("/$",scoreDir)) {
-	  scoreDir <- paste0(scoreDir,"/")
-	}
-	
-	#if not output directory was defined
-	if (is.na(outDir)) {
-	  #derive one from the input
-	  if (grepl("_mut_count/$",countDir)) {
-	    outDir <- sub("_mut_count/$","_QC/",countDir)
-	  } else {
-	    outDir <- sub("/$","_QC/",countDir)
-	  }
-	} 
-	#make sure it ends in "/"
-	if (!grepl("/$",outDir)) {
-	  outDir <- paste0(outDir,"/")
-	}
-	
-	#make sure outdir exists
-	dir.create(outDir,recursive=TRUE,showWarnings=FALSE)
-	
-	logInfo("Using count directory",countDir,
-	        "score directory", scoreDir,
-	        "and output directory",outDir
-	)
-	#create PDF tag
-	tsmVersion <- sub(".9000$","",as.character(packageVersion("tileseqMave")))
-	pdftag <- with(params,sprintf("tileseqPro v%s|%s (%s): %s%s",
-	                              tsmVersion,project,template$geneName,
-	                              runLabel,timeStamp
-	))
-	params$pdftagbase <- pdftag
+  logInfo("Reading parameters from",normalizePath(paramFile))
+  params <- withCallingHandlers(
+    parseParameters(paramFile,srOverride=srOverride),
+    warning=function(w)logWarn(conditionMessage(w))
+  )
+  
+  #find counts folder
+  if (is.na(countDir)) {
+    latest <- latestSubDir(parentDir=dataDir,pattern="_mut_call$|mut_count$")
+    countDir <- latest[["dir"]]
+    timeStamp <- latest[["timeStamp"]]
+    runLabel <- latest[["label"]]
+  } else { #if custom input dir was provided
+    #make sure it exists
+    if (!dir.exists(countDir)) {
+      stop("Input count folder ",countDir," does not exist!")
+    }
+    #try to extract a timestamp and label
+    lt <- extract.groups(countDir,"([^/]+_)?(\\d{4}-\\d{2}-\\d{2}-\\d{2}-\\d{2}-\\d{2})")[1,]
+    if (!any(is.na(lt))) {
+      runLabel <- lt[[1]]
+      timeStamp <- lt[[2]]
+    } else {
+      #if none can be extracted, use current time and no tag
+      timeStamp <- format(Sys.time(), "%Y-%m-%d-%H-%M-%S")
+      runLabel <- ""
+    }
+  }
+  #make sure it ends in "/"
+  if (!grepl("/$",countDir)) {
+    countDir <- paste0(countDir,"/")
+  }
+  
+  #if no score directory was provided
+  if (is.na(scoreDir)) {
+    #try to guess its name
+    if (grepl("_mut_count/$",countDir)) {
+      scoreDir <- sub("_mut_count/$","_scores/",countDir)
+    } else {
+      scoreDir <- sub("/$","_scores/",countDir)
+    }
+    if (!dir.exists(scoreDir)) {
+      stop("No matching score directory found for ",countDir,"!\n",
+           "(Expecting ",scoreDir,")\n",
+           "Use --scores option to define explicitly."
+      )
+    }
+  } else {
+    if (!dir.exists(scoreDir)) {
+      stop("Score directory ",scoreDir," does not exist!")
+    }
+  }
+  #make sure it ends in "/"
+  if (!grepl("/$",scoreDir)) {
+    scoreDir <- paste0(scoreDir,"/")
+  }
+  
+  #if not output directory was defined
+  if (is.na(outDir)) {
+    #derive one from the input
+    if (grepl("_mut_count/$",countDir)) {
+      outDir <- sub("_mut_count/$","_QC/",countDir)
+    } else {
+      outDir <- sub("/$","_QC/",countDir)
+    }
+  } 
+  #make sure it ends in "/"
+  if (!grepl("/$",outDir)) {
+    outDir <- paste0(outDir,"/")
+  }
+  
+  #make sure outdir exists
+  dir.create(outDir,recursive=TRUE,showWarnings=FALSE)
+  
+  logInfo("Using count directory",countDir,
+          "score directory", scoreDir,
+          "and output directory",outDir
+  )
+  #create PDF tag
+  tsmVersion <- sub(".9000$","",as.character(packageVersion("tileseqMave")))
+  pdftag <- with(params,sprintf("tileseqPro v%s|%s (%s): %s%s",
+                                tsmVersion,project,template$geneName,
+                                runLabel,timeStamp
+  ))
+  params$pdftagbase <- pdftag
 
-	
-	logInfo("Reading count data")
-	marginalCountFile <- paste0(countDir,"/marginalCounts.csv")
-	if (!file.exists(marginalCountFile)) {
-	  stop("Invalid counts directory ",countDir,"! Must contain marginalCounts.csv!")
-	}
-	marginalCounts <- read.csv(marginalCountFile,comment.char="#")
-	rownames(marginalCounts) <- marginalCounts$hgvsc
+  
+  logInfo("Reading count data")
+  marginalCountFile <- paste0(countDir,"/marginalCounts.csv")
+  if (!file.exists(marginalCountFile)) {
+    stop("Invalid counts directory ",countDir,"! Must contain marginalCounts.csv!")
+  }
+  marginalCounts <- read.csv(marginalCountFile,comment.char="#")
+  rownames(marginalCounts) <- marginalCounts$hgvsc
 
-	#filter out frameshifts and indels
-	toAA <- extract.groups(marginalCounts$aaChange,"\\d+(.*)$")
-	indelIdx <- which(toAA=="-" | nchar(toAA) > 1)
-	silentIdx <- which(marginalCounts$aaChange=="silent")
-	if (length(union(indelIdx,silentIdx)) > 0) {
-	  marginalCounts <- marginalCounts[-union(indelIdx,silentIdx),]
-	}
+  #filter out frameshifts and indels
+  toAA <- extract.groups(marginalCounts$aaChange,"\\d+(.*)$")
+  indelIdx <- which(toAA=="-" | nchar(toAA) > 1)
+  silentIdx <- which(marginalCounts$aaChange=="silent")
+  if (length(union(indelIdx,silentIdx)) > 0) {
+    marginalCounts <- marginalCounts[-union(indelIdx,silentIdx),]
+  }
 
-	#iterate over conditions
-	for (sCond in getSelects(params)) {
+  #iterate over conditions
+  for (sCond in getSelects(params)) {
 
-		#iterate over timepoints
-		for (tp in params$timepoints$`Time point name`) {
+    #iterate over timepoints
+    for (tp in params$timepoints$`Time point name`) {
 
-			logInfo("Processing condition",sCond, "; time",tp)
+      logInfo("Processing condition",sCond, "; time",tp)
 
-			#load score table for this condition
-			scoreFile <- paste0(scoreDir,"/",sCond,"_t",tp,"_enrichment.csv")
-			if (!file.exists(scoreFile)) {
-				logWarn("No score file found! Skipping...")
-				next
-			}
-			scores <- read.csv(scoreFile,comment.char="#")
-			
-			if (all(is.na(scores$bce))) {
-			  scores$bce <- scores$logPhi
-			  scores$bce.se <- scores$logPhi.se
-			}
+      #load score table for this condition
+      scoreFile <- paste0(scoreDir,"/",sCond,"_t",tp,"_enrichment.csv")
+      if (!file.exists(scoreFile)) {
+        logWarn("No score file found! Skipping...")
+        next
+      }
+      scores <- read.csv(scoreFile,comment.char="#")
+      
+      if (all(is.na(scores$bce))) {
+        scores$bce <- scores$logPhi
+        scores$bce.se <- scores$logPhi.se
+      }
 
-			#ordering should match scores
-			rownames(scores) <- scores$hgvsc
-			# scores <- scores[marginalCounts$hgvsc,]
-			marginalSubset <- marginalCounts[scores$hgvsc,]
+      #ordering should match scores
+      rownames(scores) <- scores$hgvsc
+      # scores <- scores[marginalCounts$hgvsc,]
+      marginalSubset <- marginalCounts[scores$hgvsc,]
 
-			#Score distributions & syn/non medians
-			logInfo("Plotting score distributions")
-			scoreDistributions(scores,sCond,tp,outDir,params,srOverride)
-			
-			#plot logPhi bias vs marginal frequency
-			logInfo("Plotting log(phi) bias")
-			logPhiBias(scores,params,sCond,tp,outDir)
+      #Score distributions & syn/non medians
+      logInfo("Plotting score distributions")
+      scoreDistributions(scores,sCond,tp,outDir,params,srOverride)
+      
+      #plot logPhi bias vs marginal frequency
+      logInfo("Plotting log(phi) bias")
+      logPhiBias(scores,params,sCond,tp,outDir)
 
-			#filter progression graph
-			logInfo("Plotting filter progression")
-			filterProgression(scores,sCond,tp,params,outDir)
-			filterBreakdown(scores,sCond,tp,params,outDir)
-			
-			#examine codon agreement for same amino acids
-			logInfo("Plotting codon agreement")
-			codonAgreement(scores,sCond,tp,params,outDir,srOverride)
-			
-			#running mean of synonymous, stop and their difference
-			logInfo("Plotting synonymous-nonsense deltas")
-			synNonDelta(scores,sCond,tp,params,outDir,srOverride)
+      #filter progression graph
+      logInfo("Plotting filter progression")
+      filterProgression(scores,sCond,tp,params,outDir)
+      filterBreakdown(scores,sCond,tp,params,outDir)
+      
+      #examine codon agreement for same amino acids
+      logInfo("Plotting codon agreement")
+      codonAgreement(scores,sCond,tp,params,outDir,srOverride)
+      
+      #running mean of synonymous, stop and their difference
+      logInfo("Plotting synonymous-nonsense deltas")
+      synNonDelta(scores,sCond,tp,params,outDir,srOverride)
 
-			#all of these analyses require more than one replicate
-			# if (params$numReplicates[[sCond]] > 1) {
-			if (!srOverride) {
+      #all of these analyses require more than one replicate
+      # if (params$numReplicates[[sCond]] > 1) {
+      if (!srOverride) {
 
-				#run replicate correlation analysis
-			  logInfo("Plotting replicate correlations")
-				replicateCorrelation(scores, marginalSubset, params, sCond, tp, outDir)
+        #run replicate correlation analysis
+        logInfo("Plotting replicate correlations")
+        replicateCorrelation(scores, marginalSubset, params, sCond, tp, outDir)
 
-				#load error model file
-				modelFile <- paste0(scoreDir,"/",sCond,"_t",tp,"_errorModel.csv")
-				if (!file.exists(modelFile)) {
-					logWarn("No error model file found. Skipping regularization QC.")
-				} else {
-					#Regularization analysis
-				  logInfo("Visualizing regularization model fits")
-					modelParams <- read.csv(modelFile,row.names=1)
-					regularizationQC(scores,modelParams,params,sCond,tp,outDir)
-				}
-			
-				#If scores could not be assigned due to synonymous-nonsense median failure
-				#then we can't run an error profile analysis
-				if (!all(is.na(scores$logPhi)) && !any(scores$logPhi.se < 0,na.rm=TRUE)) {
-					#Error profile
-				  logInfo("Plotting error profile")
-					errorProfile(scores,sCond,tp,outDir,params)
-				} else {
-					logWarn("Cannot plot error profiles: logPhi values are not available!")
-				}
-			}
+        #load error model file
+        modelFile <- paste0(scoreDir,"/",sCond,"_t",tp,"_errorModel.csv")
+        if (!file.exists(modelFile)) {
+          logWarn("No error model file found. Skipping regularization QC.")
+        } else {
+          #Regularization analysis
+          logInfo("Visualizing regularization model fits")
+          modelParams <- read.csv(modelFile,row.names=1)
+          regularizationQC(scores,modelParams,params,sCond,tp,outDir)
+        }
+      
+        #If scores could not be assigned due to synonymous-nonsense median failure
+        #then we can't run an error profile analysis
+        if (!all(is.na(scores$logPhi)) && !any(scores$logPhi.se < 0,na.rm=TRUE)) {
+          #Error profile
+          logInfo("Plotting error profile")
+          errorProfile(scores,sCond,tp,outDir,params)
+        } else {
+          logWarn("Cannot plot error profiles: logPhi values are not available!")
+        }
+      }
 
-		}
-	}
+    }
+  }
 
 }
 
@@ -301,93 +301,93 @@ filterProgression <- function(scores,sCond,tp,params,outDir) {
   )
   
   
-	#get reachable AA changes
-	#(this includes stop, but not synonymous)
-	reachable <- reachableChanges(params)
-	
-	#prep plot
-	outfile <- paste0(outDir,sCond,"_t",tp,"_filtering.pdf")
-	pdf(outfile,11,8.5)
-	tagger <- pdftagger(paste(params$pdftagbase,"; selection condition:",sCond),cpp=4)
-	opar <- par(oma=c(2,2,2,2),mar=c(1,1,4,1)+.1,mfrow=c(2,2))
-	
-	for (ri in 1:nrow(regSubsets)) {
-	  
-	  #and extract reachable codon changes
-	  reachableCCs <- do.call(c,with(reachable,mapply(function(w,p,ms){
-	    if (p >= regSubsets$start[[ri]] && p <= regSubsets$end[[ri]]) {
-	      paste0(w,p,ms)
-	    } else NULL
-	  },wtcodon,pos,strsplit(mutcodons,"\\|"))))
-	  
-	  reachableAAs <- reachable[with(reachable,pos >= regSubsets$start[[ri]] & pos <= regSubsets$end[[ri]]),]
-	  
-	  #make filtered subsets of the score table
-	  scorePos <- as.integer(gsub("\\D","",scores$aaChange))
-	  localScores <- scores[which(scorePos >= regSubsets$start[[ri]] & 
-	                                scorePos <= regSubsets$end[[ri]]),]
-	  filteredScores <- scores[which(is.na(scores$filter) & scorePos >= regSubsets$start[[ri]] & 
-	                             scorePos <= regSubsets$end[[ri]]),]
-	  hqScores <- filteredScores[which(filteredScores$bce.se < params$scoring$sdThreshold),]
-	  
-  	#calculate filter census
-  	census <- rbind(
-  		possible = c(
-  		  AllCCs = regSubsets$len[[ri]] * (4^3-1),
-  			ReachCCs = length(reachableCCs),
-  			AllAACs = regSubsets$len[[ri]] * (19+1),
-  			ReachAACs = nrow(reachableAAs)
-  		),
-  		found = c(
-  			AllCCs = nrow(localScores),
-  			ReachCCs = length(intersect(localScores$codonChange, reachableCCs)),
-  			AllAACs = length(unique(localScores$hgvsp[scores$type != "synonymous"])),
-  			ReachAACs = length(intersect(unique(localScores$hgvsp),reachable$hgvsp))
-  		),
-  		filtered = c(
-  			AllCCs = nrow(filteredScores),
-  			ReachCCs = length(intersect(filteredScores$codonChange, reachableCCs)),
-  			AllAACs = length(unique(filteredScores$hgvsp[filteredScores$type != "synonymous"])),
-  			ReachAACs = length(intersect(unique(filteredScores$hgvsp),reachable$hgvsp))
-  		),
-  		hiQual = c(
-  			AllCCs = nrow(hqScores),
-  			ReachCCs = length(intersect(hqScores$codonChange, reachableCCs)),
-  			AllAACs = length(unique(hqScores$hgvsp[hqScores$type != "synonymous"])),
-  			ReachAACs = length(intersect(unique(hqScores$hgvsp),reachable$hgvsp))
-  		)
-  	)
+  #get reachable AA changes
+  #(this includes stop, but not synonymous)
+  reachable <- reachableChanges(params)
   
-  	#draw plot
-  	widths <- census/max(census)
-  	percentages <- apply(census,2,function(xs)xs/xs[[1]])*100
-  	
-  	plotCols <- c("steelblue2","steelblue3","gold2","gold3")
-  	ylabels <- c("All possible","Detected","Passed filter","High Quality")
-  	xlabels <- c("All","SNV-reachable","All","SNV-reachable")
-  	toplabels <- c("Codon changes","AA changes")
-  	title <- if (regSubsets$set[[ri]]=="all") "Entire Construct" else {
-  	  paste0("Region #",regSubsets$set[[ri]])
-  	}
-  	cex <- 0.8
-  	
-  	plot(NA,type="n",xlim=c(-.5,4.5),ylim=c(1,5),xlab="",ylab="",axes=FALSE,main=title)
-  	abline(h=1:4,col="gray",lty="dotted")
-  	text(-0.5,4:1,ylabels,pos=4,cex=cex)
-  	text(1:4,4.4,xlabels,cex=cex)
-  	text(c(1.5,3.5),4.8,toplabels,cex=cex)
-  	invisible(lapply(1:4, function(cati) {
-  		polygon(
-  			c(cati-widths[,cati]/2,rev(cati+widths[,cati]/2)),
-  			c(4:1,1:4),col=plotCols[[cati]], border=NA
-  		)
-  		text(cati,4:1,sprintf("%d (%.02f%%)",census[,cati],percentages[,cati]),cex=cex)
-  	}))
-  	tagger$cycle()
-	
-	}
-	par(opar)
-	invisible(dev.off())
+  #prep plot
+  outfile <- paste0(outDir,sCond,"_t",tp,"_filtering.pdf")
+  pdf(outfile,11,8.5)
+  tagger <- pdftagger(paste(params$pdftagbase,"; selection condition:",sCond),cpp=4)
+  opar <- par(oma=c(2,2,2,2),mar=c(1,1,4,1)+.1,mfrow=c(2,2))
+  
+  for (ri in 1:nrow(regSubsets)) {
+    
+    #and extract reachable codon changes
+    reachableCCs <- do.call(c,with(reachable,mapply(function(w,p,ms){
+      if (p >= regSubsets$start[[ri]] && p <= regSubsets$end[[ri]]) {
+        paste0(w,p,ms)
+      } else NULL
+    },wtcodon,pos,strsplit(mutcodons,"\\|"))))
+    
+    reachableAAs <- reachable[with(reachable,pos >= regSubsets$start[[ri]] & pos <= regSubsets$end[[ri]]),]
+    
+    #make filtered subsets of the score table
+    scorePos <- as.integer(gsub("\\D","",scores$aaChange))
+    localScores <- scores[which(scorePos >= regSubsets$start[[ri]] & 
+                                  scorePos <= regSubsets$end[[ri]]),]
+    filteredScores <- scores[which(is.na(scores$filter) & scorePos >= regSubsets$start[[ri]] & 
+                               scorePos <= regSubsets$end[[ri]]),]
+    hqScores <- filteredScores[which(filteredScores$bce.se < params$scoring$sdThreshold),]
+    
+    #calculate filter census
+    census <- rbind(
+      possible = c(
+        AllCCs = regSubsets$len[[ri]] * (4^3-1),
+        ReachCCs = length(reachableCCs),
+        AllAACs = regSubsets$len[[ri]] * (19+1),
+        ReachAACs = nrow(reachableAAs)
+      ),
+      found = c(
+        AllCCs = nrow(localScores),
+        ReachCCs = length(intersect(localScores$codonChange, reachableCCs)),
+        AllAACs = length(unique(localScores$hgvsp[scores$type != "synonymous"])),
+        ReachAACs = length(intersect(unique(localScores$hgvsp),reachable$hgvsp))
+      ),
+      filtered = c(
+        AllCCs = nrow(filteredScores),
+        ReachCCs = length(intersect(filteredScores$codonChange, reachableCCs)),
+        AllAACs = length(unique(filteredScores$hgvsp[filteredScores$type != "synonymous"])),
+        ReachAACs = length(intersect(unique(filteredScores$hgvsp),reachable$hgvsp))
+      ),
+      hiQual = c(
+        AllCCs = nrow(hqScores),
+        ReachCCs = length(intersect(hqScores$codonChange, reachableCCs)),
+        AllAACs = length(unique(hqScores$hgvsp[hqScores$type != "synonymous"])),
+        ReachAACs = length(intersect(unique(hqScores$hgvsp),reachable$hgvsp))
+      )
+    )
+  
+    #draw plot
+    widths <- census/max(census)
+    percentages <- apply(census,2,function(xs)xs/xs[[1]])*100
+    
+    plotCols <- c("steelblue2","steelblue3","gold2","gold3")
+    ylabels <- c("All possible","Detected","Passed filter","High Quality")
+    xlabels <- c("All","SNV-reachable","All","SNV-reachable")
+    toplabels <- c("Codon changes","AA changes")
+    title <- if (regSubsets$set[[ri]]=="all") "Entire Construct" else {
+      paste0("Region #",regSubsets$set[[ri]])
+    }
+    cex <- 0.8
+    
+    plot(NA,type="n",xlim=c(-.5,4.5),ylim=c(1,5),xlab="",ylab="",axes=FALSE,main=title)
+    abline(h=1:4,col="gray",lty="dotted")
+    text(-0.5,4:1,ylabels,pos=4,cex=cex)
+    text(1:4,4.4,xlabels,cex=cex)
+    text(c(1.5,3.5),4.8,toplabels,cex=cex)
+    invisible(lapply(1:4, function(cati) {
+      polygon(
+        c(cati-widths[,cati]/2,rev(cati+widths[,cati]/2)),
+        c(4:1,1:4),col=plotCols[[cati]], border=NA
+      )
+      text(cati,4:1,sprintf("%d (%.02f%%)",census[,cati],percentages[,cati]),cex=cex)
+    }))
+    tagger$cycle()
+  
+  }
+  par(opar)
+  invisible(dev.off())
 
 }
 
@@ -589,105 +589,105 @@ replicateCorrelation <- function(scores, marginalCounts, params, sCond, tp, outD
   quads <- findQuads(params,sCond,tp)
   repMatrix <- quads$repMatrix
   
-	#check that labels match between tables
-	if (!all(scores$hgvsp == marginalCounts$hgvsp)) {
-	  stop("scores and marginal count files mismatch.")
-	}
-	
-	#extract replicate values for this condition
-	repValues <- lapply(1:sRep, function(repi) {
-	  selRaw <- marginalCounts[,repMatrix["select",repi]]
-	  selWTraw <- if (!is.na(repMatrix["selWT",repi])) {
-	    marginalCounts[,repMatrix["selWT",repi]]
-	  } else 0
-		selFreq <-floor0(selRaw - selWTraw)
-		
-		nonRaw <- marginalCounts[,repMatrix["nonselect",repi]]
-		nonWTraw <- if (!is.na(repMatrix["nonWT",repi])) {
-		  marginalCounts[,repMatrix["nonWT",repi]]
-		} else 0
-		nonFreq <-  floor0(nonRaw - nonWTraw)
-		
-		smallestSelect <- unique(sort(na.omit(selFreq)))[[2]]
-		pseudoCount <- 10^floor(log10(smallestSelect))
-		
-		logphi <- log10((selFreq+pseudoCount) / nonFreq)
-		data.frame(select=selFreq,nonselect=nonFreq,logphi=logphi)
-	})
-	names(repValues) <- as.character(1:sRep)
-	repValues <- do.call(cbind,repValues)
-	#apply filter from scoring function
-	repValues <- repValues[is.na(scores$filter),]
+  #check that labels match between tables
+  if (!all(scores$hgvsp == marginalCounts$hgvsp)) {
+    stop("scores and marginal count files mismatch.")
+  }
+  
+  #extract replicate values for this condition
+  repValues <- lapply(1:sRep, function(repi) {
+    selRaw <- marginalCounts[,repMatrix["select",repi]]
+    selWTraw <- if (!is.na(repMatrix["selWT",repi])) {
+      marginalCounts[,repMatrix["selWT",repi]]
+    } else 0
+    selFreq <-floor0(selRaw - selWTraw)
+    
+    nonRaw <- marginalCounts[,repMatrix["nonselect",repi]]
+    nonWTraw <- if (!is.na(repMatrix["nonWT",repi])) {
+      marginalCounts[,repMatrix["nonWT",repi]]
+    } else 0
+    nonFreq <-  floor0(nonRaw - nonWTraw)
+    
+    smallestSelect <- unique(sort(na.omit(selFreq)))[[2]]
+    pseudoCount <- 10^floor(log10(smallestSelect))
+    
+    logphi <- log10((selFreq+pseudoCount) / nonFreq)
+    data.frame(select=selFreq,nonselect=nonFreq,logphi=logphi)
+  })
+  names(repValues) <- as.character(1:sRep)
+  repValues <- do.call(cbind,repValues)
+  #apply filter from scoring function
+  repValues <- repValues[is.na(scores$filter),]
 
 
-	if (sRep == 2) {
-		outfile <- paste0(outDir,sCond,"_t",tp,"_replicates.pdf")
-		pdf(outfile,11,8.5)
-		tagger <- pdftagger(paste(params$pdftagbase,"; selection condition:",sCond),cpp=2)
-		layout(cbind(1,2))
-		opar <- par(oma=c(2,2,2,2),mar=c(15,4,4,1)+.1)
-		plot(
-			repValues[,"1.nonselect"],repValues[,"2.nonselect"],
-			xlab="Frequency Replicate 1", ylab="Frequency Replicate 2",
-			main=sprintf(
-				"non-select frequencies R = %.03f",
-				cor(fin(log10(repValues[,sprintf("%d.nonselect",1:2)])))[1,2]
-			),
-			pch=".",
-			log="xy"
-		)
-		tagger$cycle()
-		plot(
-			repValues[,"1.logphi"],repValues[,"2.logphi"],
-			xlab="log(phi) Replicate 1", ylab="log(phi) Replicate 2",
-			main=sprintf(
-				"select / nonselect log-ratio R = %.03f",
-				cor(fin(repValues[,sprintf("%d.logphi",1:2)]))[1,2]
-			),pch="."
-		)
-		par(opar)
-		invisible(dev.off())
-	} else {
-		panel.cor <- function(x, y,...){
-			usr <- par("usr"); on.exit(par(usr)); par(usr=c(0,1,0,1))
-			r <- cor(fin(cbind(x,y)))[1,2]
-			txt <- sprintf("R = %.02f",r)
-			# cex.cor <- 0.8/strwidth(txt)
-			text(0.5, 0.5, txt)
-		}
-		labels <- paste0("rep.",1:sRep)	
-		# imgSize <- max(4,sRep)
+  if (sRep == 2) {
+    outfile <- paste0(outDir,sCond,"_t",tp,"_replicates.pdf")
+    pdf(outfile,11,8.5)
+    tagger <- pdftagger(paste(params$pdftagbase,"; selection condition:",sCond),cpp=2)
+    layout(cbind(1,2))
+    opar <- par(oma=c(2,2,2,2),mar=c(15,4,4,1)+.1)
+    plot(
+      repValues[,"1.nonselect"],repValues[,"2.nonselect"],
+      xlab="Frequency Replicate 1", ylab="Frequency Replicate 2",
+      main=sprintf(
+        "non-select frequencies R = %.03f",
+        cor(fin(log10(repValues[,sprintf("%d.nonselect",1:2)])))[1,2]
+      ),
+      pch=".",
+      log="xy"
+    )
+    tagger$cycle()
+    plot(
+      repValues[,"1.logphi"],repValues[,"2.logphi"],
+      xlab="log(phi) Replicate 1", ylab="log(phi) Replicate 2",
+      main=sprintf(
+        "select / nonselect log-ratio R = %.03f",
+        cor(fin(repValues[,sprintf("%d.logphi",1:2)]))[1,2]
+      ),pch="."
+    )
+    par(opar)
+    invisible(dev.off())
+  } else {
+    panel.cor <- function(x, y,...){
+      usr <- par("usr"); on.exit(par(usr)); par(usr=c(0,1,0,1))
+      r <- cor(fin(cbind(x,y)))[1,2]
+      txt <- sprintf("R = %.02f",r)
+      # cex.cor <- 0.8/strwidth(txt)
+      text(0.5, 0.5, txt)
+    }
+    labels <- paste0("rep.",1:sRep) 
+    # imgSize <- max(4,sRep)
 
-		#TODO: This needs to be tested!
-		outfile <- paste0(outDir,sCond,"_t",tp,"_ns_replicates.pdf")
-		# pdf(outfile,imgSize,imgSize)
-		pdf(outfile,8.5,11)
-		# tagger <- pdftagger(paste(params$pdftagbase,"; selection condition:",sCond),cpp=2)
-		pairs(
-			repValues[,sprintf("%d.nonselect",1:sRep)],
-			lower.panel=panel.cor,pch=".",labels=labels,
-			main="non-select frequencies"
-		)
-		op <- par(oma=c(2,2,2,2))
-		mtext(paste(params$pdftagbase,"; selection condition:",sCond),side=1,outer=TRUE,line=0,cex=0.5)
-		par(op)
-		invisible(dev.off())
+    #TODO: This needs to be tested!
+    outfile <- paste0(outDir,sCond,"_t",tp,"_ns_replicates.pdf")
+    # pdf(outfile,imgSize,imgSize)
+    pdf(outfile,8.5,11)
+    # tagger <- pdftagger(paste(params$pdftagbase,"; selection condition:",sCond),cpp=2)
+    pairs(
+      repValues[,sprintf("%d.nonselect",1:sRep)],
+      lower.panel=panel.cor,pch=".",labels=labels,
+      main="non-select frequencies"
+    )
+    op <- par(oma=c(2,2,2,2))
+    mtext(paste(params$pdftagbase,"; selection condition:",sCond),side=1,outer=TRUE,line=0,cex=0.5)
+    par(op)
+    invisible(dev.off())
 
-		outfile <- paste0(outDir,sCond,"_t",tp,"_phi_replicates.pdf")
-		# pdf(outfile,imgSize,imgSize)
-		pdf(outfile,8.5,11)
-		pairs(
-			repValues[,sprintf("%d.nonselect",1:sRep)],
-			lower.panel=panel.cor,pch=".",labels=labels,
-			main="select / nonselect log-ratios"
-		)
-		op <- par(oma=c(2,2,2,2))
-		mtext(paste(params$pdftagbase,"; selection condition:",sCond),side=1,outer=TRUE,line=0,cex=0.5)
-		par(op)
-		invisible(dev.off())
-	}
+    outfile <- paste0(outDir,sCond,"_t",tp,"_phi_replicates.pdf")
+    # pdf(outfile,imgSize,imgSize)
+    pdf(outfile,8.5,11)
+    pairs(
+      repValues[,sprintf("%d.nonselect",1:sRep)],
+      lower.panel=panel.cor,pch=".",labels=labels,
+      main="select / nonselect log-ratios"
+    )
+    op <- par(oma=c(2,2,2,2))
+    mtext(paste(params$pdftagbase,"; selection condition:",sCond),side=1,outer=TRUE,line=0,cex=0.5)
+    par(op)
+    invisible(dev.off())
+  }
 
-	return(NULL)
+  return(NULL)
 }
 
 #' Draw error regulariztion model QC plots
@@ -706,101 +706,101 @@ regularizationQC <- function(scores,modelParams,params,sCond,tp,outDir) {
     text(0.5,0.5,"no data")
     mtext(paste0("Tile ",tile),side=3)
   }
-	#calculate tile assignments
-	# tileStarts <- params$tiles[,"Start AA"]
-	positions <- as.integer(extract.groups(scores$codonChange,"(\\d+)")[,1])
-	# tiles <- sapply(positions,function(pos) max(which(tileStarts <= pos)))
-	tiles <- params$pos2tile(positions)
-	
-	outfile <- paste0(outDir,sCond,"_t",tp,"_errorModel.pdf")
-	pdf(outfile,8.5,11)
-	tagger <- pdftagger(paste(params$pdftagbase,"; selection condition:",sCond),cpp=6)
-	opar <- par(mfrow=c(3,2),oma=c(2,2,2,2))
-	for (tile in params$tiles[,"Tile Number"]) {
-		# model.fit <- tryCatch({
-		# 	fit.cv.model(scores[which(tiles==tile),])
-		# },error=function(e) {
-		# 	NULL
-		# })
-		if (!(tile %in% tiles)) {
-		  plotNoData(tile)
-		  tagger$cycle()
-			next
-		}
-
-	  deepEnough <- sapply(1:nrow(scores), function(i) {
-	    is.na(scores$filter[[i]]) || scores$filter[[i]]!="depth"
-	  })
-	  
-		with(scores[which(tiles==tile & deepEnough),],{
-
-		  if (all(is.na(nonselect.count)) || all(nonselect.count == 0)) {
-		    plotNoData(tile)
-		    tagger$cycle()
-		  } else {
-  			theta <- modelParams[as.character(tile),paste0("nonselect.",c("static","additive","multiplicative"))]
-  			cv.model <- function(count) {
-  				10^sapply(log10(1/sqrt(count)),function(x) max(theta[[1]], theta[[2]] + theta[[3]]*x))
-  			}
+  #calculate tile assignments
+  # tileStarts <- params$tiles[,"Start AA"]
+  positions <- as.integer(extract.groups(scores$codonChange,"(\\d+)")[,1])
+  # tiles <- sapply(positions,function(pos) max(which(tileStarts <= pos)))
+  tiles <- params$pos2tile(positions)
   
-  			plot(nonselect.count,nonselect.cv,log="xy",main=paste("Tile",tile,"non-select"))
-  			runningMean <- runningFunction(
-  				nonselect.count,nonselect.cv,nbins=20,logScale=TRUE
-  			)
-  			nsSamples <- seq(1,max(nonselect.count,na.rm=TRUE),length.out=100)
-  			lines(nsSamples,1/sqrt(nsSamples),col="chartreuse3",lty="dashed",lwd=2)
-  			lines(runningMean,col="firebrick3",lwd=2)
-  			
-  			lines(nsSamples,cv.model(nsSamples),col="blue",lwd=2)
-  			mtext(sprintf(
-  				"stat.=%.02f; add.=%.02f; mult.=%.02f",
-  				theta[[1]],theta[[2]],theta[[3]]
-  			))
-  			tagger$cycle()
-		  }
-		  
-		  if (all(is.na(select.count)) || all(select.count == 0)) {
-		    plotNoData(tile)
-		    tagger$cycle()
-		  } else {
-  			theta <- modelParams[as.character(tile),paste0("select.",c("static","additive","multiplicative"))]
-  			cv.model <- function(count) {
-  				10^sapply(log10(1/sqrt(count)),function(x) max(theta[[1]], theta[[2]] + theta[[3]]*x))
-  			}
+  outfile <- paste0(outDir,sCond,"_t",tp,"_errorModel.pdf")
+  pdf(outfile,8.5,11)
+  tagger <- pdftagger(paste(params$pdftagbase,"; selection condition:",sCond),cpp=6)
+  opar <- par(mfrow=c(3,2),oma=c(2,2,2,2))
+  for (tile in params$tiles[,"Tile Number"]) {
+    # model.fit <- tryCatch({
+    #   fit.cv.model(scores[which(tiles==tile),])
+    # },error=function(e) {
+    #   NULL
+    # })
+    if (!(tile %in% tiles)) {
+      plotNoData(tile)
+      tagger$cycle()
+      next
+    }
+
+    deepEnough <- sapply(1:nrow(scores), function(i) {
+      is.na(scores$filter[[i]]) || scores$filter[[i]]!="depth"
+    })
+    
+    with(scores[which(tiles==tile & deepEnough),],{
+
+      if (all(is.na(nonselect.count)) || all(nonselect.count == 0)) {
+        plotNoData(tile)
+        tagger$cycle()
+      } else {
+        theta <- modelParams[as.character(tile),paste0("nonselect.",c("static","additive","multiplicative"))]
+        cv.model <- function(count) {
+          10^sapply(log10(1/sqrt(count)),function(x) max(theta[[1]], theta[[2]] + theta[[3]]*x))
+        }
   
-  			plot(select.count,select.cv,log="xy",main=paste("Tile",tile,"select"))
-  			runningMean <- runningFunction(
-  				select.count,select.cv,nbins=20,logScale=TRUE
-  			)
-  			sSamples <- seq(1,max(select.count,na.rm=TRUE),length.out=100)
-  			lines(sSamples,1/sqrt(sSamples),col="chartreuse3",lty="dashed",lwd=2)
-  			lines(runningMean,col="firebrick3",lwd=2)
-  			
-  			lines(sSamples,cv.model(sSamples),col="blue",lwd=2)
-  			mtext(sprintf(
-  				"stat.=%.02f; add.=%.02f; mult.=%.02f",
-  				theta[[1]],theta[[2]],theta[[3]]
-  			))
-  			tagger$cycle()
+        plot(nonselect.count,nonselect.cv,log="xy",main=paste("Tile",tile,"non-select"))
+        runningMean <- runningFunction(
+          nonselect.count,nonselect.cv,nbins=20,logScale=TRUE
+        )
+        nsSamples <- seq(1,max(nonselect.count,na.rm=TRUE),length.out=100)
+        lines(nsSamples,1/sqrt(nsSamples),col="chartreuse3",lty="dashed",lwd=2)
+        lines(runningMean,col="firebrick3",lwd=2)
+        
+        lines(nsSamples,cv.model(nsSamples),col="blue",lwd=2)
+        mtext(sprintf(
+          "stat.=%.02f; add.=%.02f; mult.=%.02f",
+          theta[[1]],theta[[2]],theta[[3]]
+        ))
+        tagger$cycle()
       }
-			# nonselect.sd.poisson <- 1/sqrt(nonselect.count)*nonselect.mean
-			# nonselect.sd.poisson[which(nonselect.mean==0)] <- 0
-			# plot(nonselect.sd.poisson, nonselect.sd,log="xy")
-			# runningMean <- runningFunction(
-			# 	nonselect.sd.poisson, nonselect.sd,nbins=20,logScale=TRUE
-			# )
-			# lines(runningMean,col="firebrick3",lwd=2)
-			# abline(0,1,col="chartreuse3",lty="dashed",lwd=2)
-			# depth <- mean(nonselect.count/nonselect.mean,na.rm=TRUE)
-			# lines(
-			# 	sqrt(nsSamples)/depth,
-			# 	cv.model(nsSamples)*(nsSamples/depth),
-			# 	col="blue",lwd=2
-			# )
-		})
-	}
-	par(opar)
-	invisible(dev.off())
+      
+      if (all(is.na(select.count)) || all(select.count == 0)) {
+        plotNoData(tile)
+        tagger$cycle()
+      } else {
+        theta <- modelParams[as.character(tile),paste0("select.",c("static","additive","multiplicative"))]
+        cv.model <- function(count) {
+          10^sapply(log10(1/sqrt(count)),function(x) max(theta[[1]], theta[[2]] + theta[[3]]*x))
+        }
+  
+        plot(select.count,select.cv,log="xy",main=paste("Tile",tile,"select"))
+        runningMean <- runningFunction(
+          select.count,select.cv,nbins=20,logScale=TRUE
+        )
+        sSamples <- seq(1,max(select.count,na.rm=TRUE),length.out=100)
+        lines(sSamples,1/sqrt(sSamples),col="chartreuse3",lty="dashed",lwd=2)
+        lines(runningMean,col="firebrick3",lwd=2)
+        
+        lines(sSamples,cv.model(sSamples),col="blue",lwd=2)
+        mtext(sprintf(
+          "stat.=%.02f; add.=%.02f; mult.=%.02f",
+          theta[[1]],theta[[2]],theta[[3]]
+        ))
+        tagger$cycle()
+      }
+      # nonselect.sd.poisson <- 1/sqrt(nonselect.count)*nonselect.mean
+      # nonselect.sd.poisson[which(nonselect.mean==0)] <- 0
+      # plot(nonselect.sd.poisson, nonselect.sd,log="xy")
+      # runningMean <- runningFunction(
+      #   nonselect.sd.poisson, nonselect.sd,nbins=20,logScale=TRUE
+      # )
+      # lines(runningMean,col="firebrick3",lwd=2)
+      # abline(0,1,col="chartreuse3",lty="dashed",lwd=2)
+      # depth <- mean(nonselect.count/nonselect.mean,na.rm=TRUE)
+      # lines(
+      #   sqrt(nsSamples)/depth,
+      #   cv.model(nsSamples)*(nsSamples/depth),
+      #   col="blue",lwd=2
+      # )
+    })
+  }
+  par(opar)
+  invisible(dev.off())
 }
 
 
@@ -824,76 +824,76 @@ scoreDistributions <- function(scores,sCond,tp,outDir,params,srOverride) {
     nerr <- filteredScores$bce.se
   }
   
-	#collapse by amino acid consequence and associate with regions
-	aaScores <- as.df(with(filteredScores,tapply(1:length(hgvsp),hgvsp, function(is) {
-		if (!srOverride && !any(is.na(bce.se[is]))) {
-			joint <- join.datapoints(
-			  ms=bce[is],
-			  sds=bce.se[is],
-			  #FIXME: Carry forward joint DF from enrichment step!!
-				dfs=rep(params$numReplicates[[sCond]],length(is)),
-				ws=(1/nerr[is])/sum(1/nerr[is])
-			)
-		} else {
-			#this is the case if srOverride is turned on and only
-			#one replicate was available
-			joint <- c(
-				mj=mean(bce[is],na.rm=TRUE),sj=NA,
-				dfj=params$numReplicates[[sCond]]*length(is)
-			)
-		}
-	  #extract AA position and derive region assignment
-		p <- unique(as.integer(extract.groups(aaChange[is],"(\\d+)")[,1]))
-		mutregion <- params$pos2reg(p)
-		list(
-			hgvsp=unique(hgvsp[is]),
-			bce=joint[["mj"]],
-			sd=joint[["sj"]],
-			df=joint[["dfj"]],
-			#FIXME: This is no longer correct
-			se=joint[["sj"]]/sqrt(joint[["dfj"]]),
-			pos=p,
-			region=mutregion
-		)
-	})))
-	
-	sdCutoff <- params$scoring$sdThreshold
+  #collapse by amino acid consequence and associate with regions
+  aaScores <- as.df(with(filteredScores,tapply(1:length(hgvsp),hgvsp, function(is) {
+    if (!srOverride && !any(is.na(bce.se[is]))) {
+      joint <- join.datapoints(
+        ms=bce[is],
+        sds=bce.se[is],
+        #FIXME: Carry forward joint DF from enrichment step!!
+        dfs=rep(params$numReplicates[[sCond]],length(is)),
+        ws=(1/nerr[is])/sum(1/nerr[is])
+      )
+    } else {
+      #this is the case if srOverride is turned on and only
+      #one replicate was available
+      joint <- c(
+        mj=mean(bce[is],na.rm=TRUE),sj=NA,
+        dfj=params$numReplicates[[sCond]]*length(is)
+      )
+    }
+    #extract AA position and derive region assignment
+    p <- unique(as.integer(extract.groups(aaChange[is],"(\\d+)")[,1]))
+    mutregion <- params$pos2reg(p)
+    list(
+      hgvsp=unique(hgvsp[is]),
+      bce=joint[["mj"]],
+      sd=joint[["sj"]],
+      df=joint[["dfj"]],
+      #FIXME: This is no longer correct
+      se=joint[["sj"]]/sqrt(joint[["dfj"]]),
+      pos=p,
+      region=mutregion
+    )
+  })))
+  
+  sdCutoff <- params$scoring$sdThreshold
 
-	#subdivide data into regions
-	# mutpos <- as.integer(extract.groups(scores$aaChange,"(\\d+)")[,1])
-	# mutregion <- with(as.data.frame(params$regions),sapply(mutpos,function(p) {
-	# 	which(p >= `Start AA` & p <= `End AA`)
-	# }))
+  #subdivide data into regions
+  # mutpos <- as.integer(extract.groups(scores$aaChange,"(\\d+)")[,1])
+  # mutregion <- with(as.data.frame(params$regions),sapply(mutpos,function(p) {
+  #   which(p >= `Start AA` & p <= `End AA`)
+  # }))
 
-	outfile <- paste0(outDir,sCond,"_t",tp,"_logPhiDistribution.pdf")
-	pdf(outfile,11,8.5)
-	opar <- par(oma=c(2,2,2,2))
-	tagger <- pdftagger(paste(params$pdftagbase,"; selection condition:",sCond),cpp=2)
-	layout(rbind(1,2,3,4),heights=c(1.2,1,1.2,1))
-	invisible(tapply(1:nrow(aaScores),aaScores$region, function(is) {
-		reg <- unique(aaScores$region[is])
-		drawDistributions(aaScores[is,],Inf,reg)
-		tagger$cycle()
-		if (!srOverride && !any(is.na(aaScores[is,"se"]))) {
-			drawDistributions(aaScores[is,],sdCutoff,reg)
-			tagger$cycle()
-		} else {
-		  plot.new()
-		  rect(0,0,1,1,col="gray80",border="gray30",lty="dotted")
-		  text(0.5,0.5,"unable to perform\nquality filtering")
-		  plot.new()
-		  tagger$cycle()
-		}
-		return(NULL)
-	}))
-	drawDistributions(aaScores,Inf,"all")
-	tagger$cycle()
-	if (!any(is.na(aaScores[,"se"]))) {
-		drawDistributions(aaScores,sdCutoff,"all")
-		tagger$cycle()
-	}
-	par(opar)
-	invisible(dev.off())
+  outfile <- paste0(outDir,sCond,"_t",tp,"_logPhiDistribution.pdf")
+  pdf(outfile,11,8.5)
+  opar <- par(oma=c(2,2,2,2))
+  tagger <- pdftagger(paste(params$pdftagbase,"; selection condition:",sCond),cpp=2)
+  layout(rbind(1,2,3,4),heights=c(1.2,1,1.2,1))
+  invisible(tapply(1:nrow(aaScores),aaScores$region, function(is) {
+    reg <- unique(aaScores$region[is])
+    drawDistributions(aaScores[is,],Inf,reg)
+    tagger$cycle()
+    if (!srOverride && !any(is.na(aaScores[is,"se"]))) {
+      drawDistributions(aaScores[is,],sdCutoff,reg)
+      tagger$cycle()
+    } else {
+      plot.new()
+      rect(0,0,1,1,col="gray80",border="gray30",lty="dotted")
+      text(0.5,0.5,"unable to perform\nquality filtering")
+      plot.new()
+      tagger$cycle()
+    }
+    return(NULL)
+  }))
+  drawDistributions(aaScores,Inf,"all")
+  tagger$cycle()
+  if (!any(is.na(aaScores[,"se"]))) {
+    drawDistributions(aaScores,sdCutoff,"all")
+    tagger$cycle()
+  }
+  par(opar)
+  invisible(dev.off())
 }
 
 #' Delegation function to draw score distribution plots with a given filter setting
@@ -906,96 +906,96 @@ drawDistributions <- function(aaScores,seCutoff=Inf,reg=NA) {
   if (seCutoff < Inf) {
     #check that the cutoff leaves at least 10 nonsense variants to work with
     #otherwise, make it more permissive
-  	numNsSurvive <- with(aaScores,sum(se < seCutoff & grepl("Ter$",hgvsp),na.rm=TRUE))
-  	if (numNsSurvive < 10) {
-  		nonsenseSDs <- with(aaScores,se[grepl("Ter$",hgvsp)])
-  		r10Threshold <- sort(nonsenseSDs)[[min(10,length(nonsenseSDs))]]
-  		logWarn(sprintf("sdThreshold %.03f is too restrictive! Using se < %.03f instead.",seCutoff,r10Threshold))
-  		seCutoff <- r10Threshold
-  	}
+    numNsSurvive <- with(aaScores,sum(se < seCutoff & grepl("Ter$",hgvsp),na.rm=TRUE))
+    if (numNsSurvive < 10) {
+      nonsenseSDs <- with(aaScores,se[grepl("Ter$",hgvsp)])
+      r10Threshold <- sort(nonsenseSDs)[[min(10,length(nonsenseSDs))]]
+      logWarn(sprintf("sdThreshold %.03f is too restrictive! Using se < %.03f instead.",seCutoff,r10Threshold))
+      seCutoff <- r10Threshold
+    }
   }
 
-	#extract filtered scores
-	if (!all(is.na(aaScores$se))) {
-		synScores <- fin(with(aaScores,bce[grepl("=$",hgvsp) & se < seCutoff ]))
-		stopScores <- fin(with(aaScores,bce[grepl("Ter$",hgvsp) & se < seCutoff]))
-		misScores <- fin(with(aaScores,bce[!grepl("Ter$|=$",hgvsp) & se < seCutoff]))
-	} else {
-		synScores <- fin(with(aaScores,bce[grepl("=$",hgvsp)]))
-		stopScores <- fin(with(aaScores,bce[grepl("Ter$",hgvsp)]))
-		misScores <- fin(with(aaScores,bce[!grepl("Ter$|=$",hgvsp)]))
-	}
-	allScores <- fin(c(synScores,stopScores,misScores))
+  #extract filtered scores
+  if (!all(is.na(aaScores$se))) {
+    synScores <- fin(with(aaScores,bce[grepl("=$",hgvsp) & se < seCutoff ]))
+    stopScores <- fin(with(aaScores,bce[grepl("Ter$",hgvsp) & se < seCutoff]))
+    misScores <- fin(with(aaScores,bce[!grepl("Ter$|=$",hgvsp) & se < seCutoff]))
+  } else {
+    synScores <- fin(with(aaScores,bce[grepl("=$",hgvsp)]))
+    stopScores <- fin(with(aaScores,bce[grepl("Ter$",hgvsp)]))
+    misScores <- fin(with(aaScores,bce[!grepl("Ter$|=$",hgvsp)]))
+  }
+  allScores <- fin(c(synScores,stopScores,misScores))
 
-	#calculate plot ranges to nearest integers
-	left <- floor(quantile(allScores,0.01,na.rm=TRUE))
-	right <- ceiling(quantile(allScores,0.99,na.rm=TRUE))
-	farleft <- floor(min(c(0,allScores),na.rm=TRUE))
-	farright <- ceiling(max(c(1,allScores),na.rm=TRUE))
-	#set histogram bins based on range (with extra space on the right)
-	breaks <- seq(farleft,farright+0.1,0.1)
-	#fill bins
-	synHist <- hist(synScores,breaks=breaks,plot=FALSE)
-	stopHist <- hist(stopScores,breaks=breaks,plot=FALSE)
-	misHist <- hist(misScores,breaks=breaks,plot=FALSE)
+  #calculate plot ranges to nearest integers
+  left <- floor(quantile(allScores,0.01,na.rm=TRUE))
+  right <- ceiling(quantile(allScores,0.99,na.rm=TRUE))
+  farleft <- floor(min(c(0,allScores),na.rm=TRUE))
+  farright <- ceiling(max(c(1,allScores),na.rm=TRUE))
+  #set histogram bins based on range (with extra space on the right)
+  breaks <- seq(farleft,farright+0.1,0.1)
+  #fill bins
+  synHist <- hist(synScores,breaks=breaks,plot=FALSE)
+  stopHist <- hist(stopScores,breaks=breaks,plot=FALSE)
+  misHist <- hist(misScores,breaks=breaks,plot=FALSE)
 
-	#draw top plot for syn/stop
-	op <- par(mar=c(2,4,2,1)+.1)
-	xs <- barplot(
-		rbind(synHist$density,stopHist$density),
-		beside=TRUE,col=c("darkolivegreen3","firebrick3"),
-		border=NA,ylab="density",space=c(0,0),
-		main=if (is.infinite(seCutoff)) {
-			paste("Region",reg,"; Unfiltered")
-		} else {
-			bquote("Region"~.(reg)~";"~sigma < .(seCutoff))
-		}
-	)
-	grid(NA,NULL)
-	#add x-axis
-	pips <- left:right
-	pipx <- colMeans(xs[,which(breaks %in% pips)])
-	axis(1,at=pipx,labels=pips)
-	#draw legend
-	legend("left",
-		c("nonsense","synonymous","missense"),
-		fill=c("firebrick3","darkolivegreen3","gray"),
-		border=NA,bty="n"
-	)
-	#draw bottom plot (for missense)
-	par(mar=c(1,4,0,1)+.1)
-	xs <- barplot(
-		-misHist$density,
-		border=NA,ylab="density",space=0,
-	)
-	grid(NA,NULL)
-	#establish user coordinate function on barplot
-	x0 <- xs[which(breaks==0),1]
-	x1 <- xs[which(breaks==1),1]
-	uCoord <- function(x)  x0 + x*(x1-x0)
-	#draw medians and percentile
-	abline(v=uCoord(median(synScores,na.rm=TRUE)),col="darkolivegreen4",lwd=2,lty="dotted")
-	abline(v=uCoord(median(stopScores,na.rm=TRUE)),col="firebrick3",lwd=2,lty="dotted")
-	abline(v=uCoord(quantile(misScores,0.1,na.rm=TRUE)),col="gray30",lwd=2,lty="dotted")
-	text(
-		uCoord(median(synScores,na.rm=TRUE)),
-		-max(misHist$density)/3,
-		sprintf("Synonymous median\n%.03f",median(synScores)),
-		col="darkolivegreen4"
-	)
-	text(
-		uCoord(median(stopScores,na.rm=TRUE)),
-		-2*max(misHist$density)/3,
-		sprintf("Nonsense median\n%.03f",median(stopScores)),
-		col="firebrick3"
-	)
-	text(
-		uCoord(quantile(misScores,0.1,na.rm=TRUE)),
-		-max(misHist$density)/2,
-		sprintf("10th percentile\n%.03f",quantile(misScores,0.1)),
-		col="gray30"
-	)
-	par(op)
+  #draw top plot for syn/stop
+  op <- par(mar=c(2,4,2,1)+.1)
+  xs <- barplot(
+    rbind(synHist$density,stopHist$density),
+    beside=TRUE,col=c("darkolivegreen3","firebrick3"),
+    border=NA,ylab="density",space=c(0,0),
+    main=if (is.infinite(seCutoff)) {
+      paste("Region",reg,"; Unfiltered")
+    } else {
+      bquote("Region"~.(reg)~";"~sigma < .(seCutoff))
+    }
+  )
+  grid(NA,NULL)
+  #add x-axis
+  pips <- left:right
+  pipx <- colMeans(xs[,which(breaks %in% pips)])
+  axis(1,at=pipx,labels=pips)
+  #draw legend
+  legend("left",
+    c("nonsense","synonymous","missense"),
+    fill=c("firebrick3","darkolivegreen3","gray"),
+    border=NA,bty="n"
+  )
+  #draw bottom plot (for missense)
+  par(mar=c(1,4,0,1)+.1)
+  xs <- barplot(
+    -misHist$density,
+    border=NA,ylab="density",space=0,
+  )
+  grid(NA,NULL)
+  #establish user coordinate function on barplot
+  x0 <- xs[which(breaks==0),1]
+  x1 <- xs[which(breaks==1),1]
+  uCoord <- function(x)  x0 + x*(x1-x0)
+  #draw medians and percentile
+  abline(v=uCoord(median(synScores,na.rm=TRUE)),col="darkolivegreen4",lwd=2,lty="dotted")
+  abline(v=uCoord(median(stopScores,na.rm=TRUE)),col="firebrick3",lwd=2,lty="dotted")
+  abline(v=uCoord(quantile(misScores,0.1,na.rm=TRUE)),col="gray30",lwd=2,lty="dotted")
+  text(
+    uCoord(median(synScores,na.rm=TRUE)),
+    -max(misHist$density)/3,
+    sprintf("Synonymous median\n%.03f",median(synScores)),
+    col="darkolivegreen4"
+  )
+  text(
+    uCoord(median(stopScores,na.rm=TRUE)),
+    -2*max(misHist$density)/3,
+    sprintf("Nonsense median\n%.03f",median(stopScores)),
+    col="firebrick3"
+  )
+  text(
+    uCoord(quantile(misScores,0.1,na.rm=TRUE)),
+    -max(misHist$density)/2,
+    sprintf("10th percentile\n%.03f",quantile(misScores,0.1)),
+    col="gray30"
+  )
+  par(op)
 
 }
 
@@ -1047,17 +1047,17 @@ errorProfile <- function(scores,sCond,tp,outDir,params) {
     tagger$cycle()
   }
   
-	outfile <- paste0(outDir,sCond,"_t",tp,"_errorProfile.pdf")
-	pdf(outfile,8.5,11)
-	layout(rbind(c(2,0),c(1,3)),widths=c(0.8,0.2),heights=c(0.2,0.8))
-	tagger <- pdftagger(paste(params$pdftagbase,"; selection condition:",sCond),cpp=4)
-	opar <- par(oma=c(24,6,2,6)) 
-	plotEP(scores,"logPhi",expression(log[10](phi)))
-	plotEP(scores,"bce","bias-corrected enrichment")
-	par(opar)
+  outfile <- paste0(outDir,sCond,"_t",tp,"_errorProfile.pdf")
+  pdf(outfile,8.5,11)
+  layout(rbind(c(2,0),c(1,3)),widths=c(0.8,0.2),heights=c(0.2,0.8))
+  tagger <- pdftagger(paste(params$pdftagbase,"; selection condition:",sCond),cpp=4)
+  opar <- par(oma=c(24,6,2,6)) 
+  plotEP(scores,"logPhi",expression(log[10](phi)))
+  plotEP(scores,"bce","bias-corrected enrichment")
+  par(opar)
 
-	invisible(dev.off())
-	
+  invisible(dev.off())
+  
 }
 
 

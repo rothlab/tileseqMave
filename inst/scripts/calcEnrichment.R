@@ -22,9 +22,9 @@
 #####################################################
 
 options(
-	stringsAsFactors=FALSE,
-	ignore.interactive=TRUE,
-	future.cmdargs=c()
+  stringsAsFactors=FALSE,
+  ignore.interactive=TRUE,
+  future.cmdargs=c()
 )
 
 #load libraries
@@ -34,8 +34,8 @@ library(yogilog)
 
 #process command line arguments
 p <- arg_parser(
-	"Calculates logPhi enrichments based on the output of joinCounts.R",
-	name="calcEnrichment.R"
+  "Calculates logPhi enrichments based on the output of joinCounts.R",
+  name="calcEnrichment.R"
 )
 p <- add_argument(p, "--workspace", help="workspace data directory. Defaults to current working directory")
 p <- add_argument(p, "--input", help="input directory containing the count data. Defaults to subdirectory with latest timestamp ending in _mut_count")
@@ -56,7 +56,7 @@ args <- parse_args(p)
 #Workaround for bug in future package, that re-uses command line arguments:
 #Override commandArgs function with dummy that returns nothing
 commandArgs <- function(trailingOnly=FALSE) {
-	character()
+  character()
 }
 
 #ensure datadir ends in "/" and exists
@@ -66,11 +66,11 @@ if (is.na(args$workspace)) {
   dataDir <- args$workspace
 }
 if (!grepl("/$",dataDir)) {
-	dataDir <- paste0(dataDir,"/")
+  dataDir <- paste0(dataDir,"/")
 }
 if (!dir.exists(dataDir)) {
-	#logger cannot initialize without dataDirectory, so just a simple exception here.
-	stop("Workspace folder ",dataDir," folder does not exist!")
+  #logger cannot initialize without dataDirectory, so just a simple exception here.
+  stop("Workspace folder ",dataDir," folder does not exist!")
 }
 paramFile <- if (is.na(args$parameters)) paste0(dataDir,"parameters.json") else args$parameters
 logfile <- if (is.na(args$logfile)) paste0(dataDir,"enrichment.log") else args$logfile
@@ -84,15 +84,15 @@ logVersion()
 #run the actual function
 invisible(
   calcEnrichment(
-		dataDir, inDir=args$input, outDir=args$output, paramFile=paramFile,
-		mc.cores=args$cores,
-		srOverride=args$srOverride,
-		bnOverride=args$bnOverride,
-		bcOverride=args$bcOverride,
-		useWTfilter=args$wtFilter,
-		nbs=args$bootstrap,
-		pessimistic=!args$optimistic,
-		useQuorum=args$useQuorum
-	)
+    dataDir, inDir=args$input, outDir=args$output, paramFile=paramFile,
+    mc.cores=args$cores,
+    srOverride=args$srOverride,
+    bnOverride=args$bnOverride,
+    bcOverride=args$bcOverride,
+    useWTfilter=args$wtFilter,
+    nbs=args$bootstrap,
+    pessimistic=!args$optimistic,
+    useQuorum=args$useQuorum
+  )
 )
 

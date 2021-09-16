@@ -215,10 +215,10 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,
           startStop <- as.integer(yogitools::extract.groups(chunk,"(\\d+)_(\\d+)")[1,])
           #for delins use the start + length of insertion
           if (grepl("delins",chunk)) {
-          	l <- nchar(gsub(".+delins|\\]","",chunk))
-          	startStop[[1]]:(startStop[[1]]+(l-1))
+            l <- nchar(gsub(".+delins|\\]","",chunk))
+            startStop[[1]]:(startStop[[1]]+(l-1))
           } else if (grepl("del",chunk)) {
-          	#for deletions, only the start counts
+            #for deletions, only the start counts
             startStop[[1]]
           } else {
             #for insertions, only the "end" indicates the actual position of the base

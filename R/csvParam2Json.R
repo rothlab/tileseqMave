@@ -23,439 +23,439 @@
 #' @export
 validateParameters <- function(params,srOverride=FALSE) {
 
-	if (srOverride) {
-		logWarn("SINGLE REPLICATE OVERRIDE HAS BEEN ENABLED. This means:
+  if (srOverride) {
+    logWarn("SINGLE REPLICATE OVERRIDE HAS BEEN ENABLED. This means:
  * No quality filtering can be performed!
  * The scoring function will be unable to generate error estimates!
  * The selectionQC function will be unable to create correlation plots!
  * Imputation and refinement will not be possible!
  * Downstream scripts and functions may be unable to process the data!
 ")
-	}
+  }
 
-	#Validate template sequence
-	if (is.na(params$template$cds_start) || is.na(params$template$cds_end)) {
-		stop("CDS start and end must be integer numbers!")
-	}
-	if (params$template$cds_start < 1 || params$template$cds_start > nchar(params$template$seq)) {
-		stop("CDS start is out of bounds!")
-	}
-	if (params$template$cds_end < 1 || params$template$cds_end > nchar(params$template$seq)) {
-		stop("CDS end is out of bounds!")
-	}
-	if (!grepl("^[ACGT]{3,}$",params$template$seq)) {
-		stop("Template sequence is not a valid DNA sequence!")
-	}
-	cdsLength <- params$template$cds_end - params$template$cds_start + 1
-	if (cdsLength %% 3 != 0) {
-		stop("CDS end is not in-frame with start position!")
-	}
-	startCodon <- substr(params$template$seq,params$template$cds_start,params$template$cds_start+2)
-	if (startCodon != "ATG") {
-		stop("CDS start position is not a start codon (ATG)")
-	}
+  #Validate template sequence
+  if (is.na(params$template$cds_start) || is.na(params$template$cds_end)) {
+    stop("CDS start and end must be integer numbers!")
+  }
+  if (params$template$cds_start < 1 || params$template$cds_start > nchar(params$template$seq)) {
+    stop("CDS start is out of bounds!")
+  }
+  if (params$template$cds_end < 1 || params$template$cds_end > nchar(params$template$seq)) {
+    stop("CDS end is out of bounds!")
+  }
+  if (!grepl("^[ACGT]{3,}$",params$template$seq)) {
+    stop("Template sequence is not a valid DNA sequence!")
+  }
+  cdsLength <- params$template$cds_end - params$template$cds_start + 1
+  if (cdsLength %% 3 != 0) {
+    stop("CDS end is not in-frame with start position!")
+  }
+  startCodon <- substr(params$template$seq,params$template$cds_start,params$template$cds_start+2)
+  if (startCodon != "ATG") {
+    stop("CDS start position is not a start codon (ATG)")
+  }
 
-	#Validate Uniprot Accession via Regex
-	uniprotRX <- "[OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9]([A-Z][A-Z0-9]{2}[0-9]){1,2}"
-	if (!grepl(uniprotRX,params$template$uniprot)) {
-		stop("Invalid Uniprot Accession!")
-	}
+  #Validate Uniprot Accession via Regex
+  uniprotRX <- "[OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9]([A-Z][A-Z0-9]{2}[0-9]){1,2}"
+  if (!grepl(uniprotRX,params$template$uniprot)) {
+    stop("Invalid Uniprot Accession!")
+  }
 
-	#Check assay parameters
-	if (!params$assay[["selection"]] %in% c("Positive","Negative")) {
-		stop("Assay Selection must be either 'Positive' or 'Negative'!")
-	}
+  #Check assay parameters
+  if (!params$assay[["selection"]] %in% c("Positive","Negative")) {
+    stop("Assay Selection must be either 'Positive' or 'Negative'!")
+  }
 
-	#check that at least one condition is defined
-	if (length(params$conditions$names) < 1) {
-		stop("Must define at least one condition!")
-	}
-	
-	#check that at all condition names are unique
-	if (any(duplicated(params$conditions$names))) {
-	  stop("All condition names must be unique!")
-	}
+  #check that at least one condition is defined
+  if (length(params$conditions$names) < 1) {
+    stop("Must define at least one condition!")
+  }
+  
+  #check that at all condition names are unique
+  if (any(duplicated(params$conditions$names))) {
+    stop("All condition names must be unique!")
+  }
 
-	if (!all(grepl("^[A-Za-z][A-Za-z0-9]*$",params$conditions$names))) {
-		stop("Condition names must be strictly alpha-numeric and start with a letter.")
-	}
+  if (!all(grepl("^[A-Za-z][A-Za-z0-9]*$",params$conditions$names))) {
+    stop("Condition names must be strictly alpha-numeric and start with a letter.")
+  }
 
-	#check condition table for validity
-	#for QC runs, no relationships are declared, but in any other case, the following rules must apply:
-	if (nrow(params$conditions$definitions) > 0) {
-		#check that definitions use valid condition names
-		defconds <- unique(c(
-			params$conditions$definitions[,"Condition 1"],
-			params$conditions$definitions[,"Condition 2"]
-		))
-		if (!all(defconds %in% params$conditions$names)) {
-			culprits <- defconds[which(!(defconds %in% params$conditions$names))]
-			stop("The following condition(s) listed in the relationship definitions was(were) not declared in the list of conditions: ",
-				paste(culprits,collapse=", ")
-			)
-		}
-		#and that they use valid relationship names
-		relationships <- c("is_selection_for","is_wt_control_for")
-		if (!all(params$conditions$definitions[,"Relationship"] %in% relationships)) {
-			rels <- params$conditions$definitions[,"Relationship"]
-			culprits <- unique(rels[which(!(rels %in% relationships))])
-			stop("Invalid relationship(s) in condition definitions: ",paste(culprits,collapse=", "))
-		}
-		#check that each condition has at least one relationship
-		used <- sapply(params$conditions$names, function(cname) {
-			cname %in% params$conditions$definitions[,"Condition 1"] || 
-			cname %in% params$conditions$definitions[,"Condition 2"]
-		})
-		if (!all(used)) {
-			stop(
-				"All conditions must have at least one defined relationship! Missing: ",
-				paste(params$conditions$names[!used],collapse=", ")
-			)
-		}
-		#at least one selection condition must be declared:
-		if (!("is_selection_for" %in% params$conditions$definitions[,"Relationship"])) {
-			logWarn("No select-nonselect relationship was defined! Is this a QC run?")
-		} else {
-  		#make sure that no selection condition has more than one nonselect partner
-  		numNS <- sapply(getSelects(params), function(sCond) length(getNonselectFor(sCond,params)))
-  		if (any(numNS > 1)) {
-  			culprits <- getSelects(params)[which(numNS > 1)]
-  			stop("Each selection conditon may only have one corresponding nonselect condition! Violations: ",culprits)
-  		}
-		}
-		#Check that each sel/nonsel condition has a WT control
-		mainConds <- c(getSelects(params),getNonselects(params))
-		hasWT <- sapply(mainConds, function(cond) {
-			length(getWTControlFor(cond,params)) > 0
-		})
-		if (!all(hasWT)) {
-			logWarn("No WT control defined for: ",paste(mainConds[!hasWT],collapse=", "))
-		}
-	} else {
-		logWarn("No condition definitions detected! Is this a QC run?")
-	}
-	
+  #check condition table for validity
+  #for QC runs, no relationships are declared, but in any other case, the following rules must apply:
+  if (nrow(params$conditions$definitions) > 0) {
+    #check that definitions use valid condition names
+    defconds <- unique(c(
+      params$conditions$definitions[,"Condition 1"],
+      params$conditions$definitions[,"Condition 2"]
+    ))
+    if (!all(defconds %in% params$conditions$names)) {
+      culprits <- defconds[which(!(defconds %in% params$conditions$names))]
+      stop("The following condition(s) listed in the relationship definitions was(were) not declared in the list of conditions: ",
+        paste(culprits,collapse=", ")
+      )
+    }
+    #and that they use valid relationship names
+    relationships <- c("is_selection_for","is_wt_control_for")
+    if (!all(params$conditions$definitions[,"Relationship"] %in% relationships)) {
+      rels <- params$conditions$definitions[,"Relationship"]
+      culprits <- unique(rels[which(!(rels %in% relationships))])
+      stop("Invalid relationship(s) in condition definitions: ",paste(culprits,collapse=", "))
+    }
+    #check that each condition has at least one relationship
+    used <- sapply(params$conditions$names, function(cname) {
+      cname %in% params$conditions$definitions[,"Condition 1"] || 
+      cname %in% params$conditions$definitions[,"Condition 2"]
+    })
+    if (!all(used)) {
+      stop(
+        "All conditions must have at least one defined relationship! Missing: ",
+        paste(params$conditions$names[!used],collapse=", ")
+      )
+    }
+    #at least one selection condition must be declared:
+    if (!("is_selection_for" %in% params$conditions$definitions[,"Relationship"])) {
+      logWarn("No select-nonselect relationship was defined! Is this a QC run?")
+    } else {
+      #make sure that no selection condition has more than one nonselect partner
+      numNS <- sapply(getSelects(params), function(sCond) length(getNonselectFor(sCond,params)))
+      if (any(numNS > 1)) {
+        culprits <- getSelects(params)[which(numNS > 1)]
+        stop("Each selection conditon may only have one corresponding nonselect condition! Violations: ",culprits)
+      }
+    }
+    #Check that each sel/nonsel condition has a WT control
+    mainConds <- c(getSelects(params),getNonselects(params))
+    hasWT <- sapply(mainConds, function(cond) {
+      length(getWTControlFor(cond,params)) > 0
+    })
+    if (!all(hasWT)) {
+      logWarn("No WT control defined for: ",paste(mainConds[!hasWT],collapse=", "))
+    }
+  } else {
+    logWarn("No condition definitions detected! Is this a QC run?")
+  }
+  
 
-	if (any(is.na(params$numReplicates))) {
-		stop("Number of replicates must be integer numbers for each condition!")
-	}
-	minRep <- if (!srOverride && nrow(params$conditions$definitions) > 0 && length(getSelects(params)) > 0) 2 else 1
-	if (any(params$numReplicates < minRep)) {
-		stop("Number of replicates must be at least ",minRep,"!")
-	}
+  if (any(is.na(params$numReplicates))) {
+    stop("Number of replicates must be integer numbers for each condition!")
+  }
+  minRep <- if (!srOverride && nrow(params$conditions$definitions) > 0 && length(getSelects(params)) > 0) 2 else 1
+  if (any(params$numReplicates < minRep)) {
+    stop("Number of replicates must be at least ",minRep,"!")
+  }
 
-	if (any(is.na(params$numTimepoints))) {
-		stop("Number of time points must be integer numbers for each condition!")
-	}
-	if (any(params$numTimepoints < 1)) {
-		stop("Each condition must have at least 1 timepoint!")
-	}
-	# if (!all(params$numTimepoints == params$numTimepoints[[1]])) {
-	# 	logWarn("Differing numbers of timepoints per condition are not yet supported for scoring!")
-	# }
-	for (sel in getSelects(params)) {
-	  selTP <- params$numTimepoints[[sel]]
-	  nsel <- getNonselectFor(sel,params)
-	  nselTP <- params$numTimepoints[[nsel]]
-	  if (nselTP > 1 && nselTP != selTP) {
-	    stop("nonselection condition \'",nsel,"\' must either have only one time point, ",
-	         "or as many as its paired selection condition \'",sel,"\' (",selTP,")"
-	    )
-	  }
-	}
-	for (cond in c(getSelects(params),getNonselects(params))) {
-	  condTP <- params$numTimepoints[[cond]]
-	  wt <- getWTControlFor(cond,params)
-	  if (length(wt) > 0) {
-  	  wtTP <- params$numTimepoints[[wt]]
-  	  if (wtTP > 1 && wtTP != condTP) {
-  	    stop("WT control condition \'",wt,"\' must either have only one time point, ",
-  	         "or as many as its paired primary condition \'",cond,"\' (",condTP,")"
-  	    )
-  	  }
-	  }
-	}
+  if (any(is.na(params$numTimepoints))) {
+    stop("Number of time points must be integer numbers for each condition!")
+  }
+  if (any(params$numTimepoints < 1)) {
+    stop("Each condition must have at least 1 timepoint!")
+  }
+  # if (!all(params$numTimepoints == params$numTimepoints[[1]])) {
+  #   logWarn("Differing numbers of timepoints per condition are not yet supported for scoring!")
+  # }
+  for (sel in getSelects(params)) {
+    selTP <- params$numTimepoints[[sel]]
+    nsel <- getNonselectFor(sel,params)
+    nselTP <- params$numTimepoints[[nsel]]
+    if (nselTP > 1 && nselTP != selTP) {
+      stop("nonselection condition \'",nsel,"\' must either have only one time point, ",
+           "or as many as its paired selection condition \'",sel,"\' (",selTP,")"
+      )
+    }
+  }
+  for (cond in c(getSelects(params),getNonselects(params))) {
+    condTP <- params$numTimepoints[[cond]]
+    wt <- getWTControlFor(cond,params)
+    if (length(wt) > 0) {
+      wtTP <- params$numTimepoints[[wt]]
+      if (wtTP > 1 && wtTP != condTP) {
+        stop("WT control condition \'",wt,"\' must either have only one time point, ",
+             "or as many as its paired primary condition \'",cond,"\' (",condTP,")"
+        )
+      }
+    }
+  }
 
-	#validate tiles
-	if (nrow(params$tiles) < 1) {
-	  stop("Must define at least one tile!")
-	}
-	if (!all(params$tiles%%1==0)) {
-	  stop("All Tile IDs must be integer numbers, as well as their starts and ends positions!")
-	}
-	if (any(duplicated(params$tiles[,1]))){
-	  stop("Tile IDs must be unique!")
-	}
-	if (any(params$tiles[,"Start AA"] < 2)) {
-	  offender <- params$tiles[which(params$tiles[,"Start AA"] < 2),1]
-	  logWarn("Tile",paste(offender,collapse=", "),"includes start codon!!")
-	}
-	if (nrow(params$tiles) > 0) {
-	  for (i in 1:nrow(params$tiles)) {
-	    tl <- params$tiles[i,"End AA"]-params$tiles[i,"Start AA"]+1
-	    if (tl < 0) {
-	      stop(
-	        "Tile ",params$tiles[i,1],"'s end position is smaller than start position!"
-	      )
-	    }
-	    if (tl < 2) {
-	      logWarn(
-	        "Tile ",params$tiles[i,1],"is less than 2AA long! Please double-check!"
-	      )
-	    }
-	  }
-	}
-	if (nrow(params$tiles) > 1) {
-	  for (i in 2:nrow(params$tiles)) {
-	    for (j in 1:(i-1)) {
-	      ji <- params$tiles[i,"Start AA"] > params$tiles[j,"End AA"]
-	      ij <- params$tiles[j,"Start AA"] > params$tiles[i,"End AA"]
-	      if (!(ji || ij)) {
-	        stop(
-	          "Tiles ",params$tiles[i,1]," and ",params$tiles[j,1]," are overlapping!\n",
-	          "Tiles must not overlap!"
-	        )
-	      }
-	    }
-	  }
-	}
-	
-	#validate regions
-	if (nrow(params$regions) < 1) {
-	  stop("Must define at least one region!")
-	}
-	if (!all(params$regions%%1==0)) {
-	  stop("Region IDs must be integer numbers, as well as their starts and ends!")
-	}
-	if (any(duplicated(params$regions[,1]))){
-	  stop("Region IDs must be unique!")
-	}
-	if (any(params$regions[,"Start AA"] < 2)) {
-	  offender <- params$regions[which(params$regions[,"Start AA"] < 2),1]
-	  logWarn("Region",paste(offender,collapse=", "),"includes start codon!!")
-	}
-	
-	if (nrow(params$regions) > 0) {
-	  for (i in 1:nrow(params$regions)) {
-	    tl <- params$regions[i,"End AA"]-params$regions[i,"Start AA"]+1
-	    if (tl < 0) {
-	      stop(
-	        "Region ",params$regions[i,1],"'s end position is smaller than start position!"
-	      )
-	    }
-	    if (tl < 2) {
-	      logWarn(
-	        "Region ",params$regions[i,1],"is less than 2AA long! Please double-check!"
-	      )
-	    }
-	  }
-	}
-	if (nrow(params$regions) > 1) {
-	  for (i in 2:nrow(params$regions)) {
-	    for (j in 1:(i-1)) {
-	      ji <- params$regions[i,"Start AA"] > params$regions[j,"End AA"]
-	      ij <- params$regions[j,"Start AA"] > params$regions[i,"End AA"]
-	      if (!(ji || ij)) {
-	        stop(
-	          "Regions ",params$regions[i,1]," and ",params$regions[j,1]," are overlapping!\n",
-	          "Regions must not overlap!"
-	        )
-	      }
-	    }
-	  }
-	}
-	
-	#validate time points
-	if (any(duplicated(params$timepoints[,"Time point name"]))) {
-	  stop("Time point names must be unique!")
-	}
-	if (any(is.na(params$timepoints[,"Time"]))) {
-	  stop("Time point values must be numeric!")
-	}
-	#TODO: Validate time units (w,d,h,m,s,ms)
+  #validate tiles
+  if (nrow(params$tiles) < 1) {
+    stop("Must define at least one tile!")
+  }
+  if (!all(params$tiles%%1==0)) {
+    stop("All Tile IDs must be integer numbers, as well as their starts and ends positions!")
+  }
+  if (any(duplicated(params$tiles[,1]))){
+    stop("Tile IDs must be unique!")
+  }
+  if (any(params$tiles[,"Start AA"] < 2)) {
+    offender <- params$tiles[which(params$tiles[,"Start AA"] < 2),1]
+    logWarn("Tile",paste(offender,collapse=", "),"includes start codon!!")
+  }
+  if (nrow(params$tiles) > 0) {
+    for (i in 1:nrow(params$tiles)) {
+      tl <- params$tiles[i,"End AA"]-params$tiles[i,"Start AA"]+1
+      if (tl < 0) {
+        stop(
+          "Tile ",params$tiles[i,1],"'s end position is smaller than start position!"
+        )
+      }
+      if (tl < 2) {
+        logWarn(
+          "Tile ",params$tiles[i,1],"is less than 2AA long! Please double-check!"
+        )
+      }
+    }
+  }
+  if (nrow(params$tiles) > 1) {
+    for (i in 2:nrow(params$tiles)) {
+      for (j in 1:(i-1)) {
+        ji <- params$tiles[i,"Start AA"] > params$tiles[j,"End AA"]
+        ij <- params$tiles[j,"Start AA"] > params$tiles[i,"End AA"]
+        if (!(ji || ij)) {
+          stop(
+            "Tiles ",params$tiles[i,1]," and ",params$tiles[j,1]," are overlapping!\n",
+            "Tiles must not overlap!"
+          )
+        }
+      }
+    }
+  }
+  
+  #validate regions
+  if (nrow(params$regions) < 1) {
+    stop("Must define at least one region!")
+  }
+  if (!all(params$regions%%1==0)) {
+    stop("Region IDs must be integer numbers, as well as their starts and ends!")
+  }
+  if (any(duplicated(params$regions[,1]))){
+    stop("Region IDs must be unique!")
+  }
+  if (any(params$regions[,"Start AA"] < 2)) {
+    offender <- params$regions[which(params$regions[,"Start AA"] < 2),1]
+    logWarn("Region",paste(offender,collapse=", "),"includes start codon!!")
+  }
+  
+  if (nrow(params$regions) > 0) {
+    for (i in 1:nrow(params$regions)) {
+      tl <- params$regions[i,"End AA"]-params$regions[i,"Start AA"]+1
+      if (tl < 0) {
+        stop(
+          "Region ",params$regions[i,1],"'s end position is smaller than start position!"
+        )
+      }
+      if (tl < 2) {
+        logWarn(
+          "Region ",params$regions[i,1],"is less than 2AA long! Please double-check!"
+        )
+      }
+    }
+  }
+  if (nrow(params$regions) > 1) {
+    for (i in 2:nrow(params$regions)) {
+      for (j in 1:(i-1)) {
+        ji <- params$regions[i,"Start AA"] > params$regions[j,"End AA"]
+        ij <- params$regions[j,"Start AA"] > params$regions[i,"End AA"]
+        if (!(ji || ij)) {
+          stop(
+            "Regions ",params$regions[i,1]," and ",params$regions[j,1]," are overlapping!\n",
+            "Regions must not overlap!"
+          )
+        }
+      }
+    }
+  }
+  
+  #validate time points
+  if (any(duplicated(params$timepoints[,"Time point name"]))) {
+    stop("Time point names must be unique!")
+  }
+  if (any(is.na(params$timepoints[,"Time"]))) {
+    stop("Time point values must be numeric!")
+  }
+  #TODO: Validate time units (w,d,h,m,s,ms)
 
-	#validate the sample sheet
-	if (!all(params$samples[,"Tile ID"] %in% params$tiles[,"Tile Number"])) {
-		tid <- params$samples[,"Tile ID"]
-		culprits <- unique(tid[which(!(tid %in% params$tiles[,"Tile Number"]))])
-		stop("Undeclared tiles found in sample sheet:",
-			paste(culprits,collapse=", "),
-			"\nPlease declare them in the Tile table!"
-		)
-	}
-	if (!all(grepl("^[A-Za-z0-9-]+$",params$samples[,"Sample ID"]))) {
-		sid <- params$samples[,"Sample ID"]
-		culprits <- sid[which(!grepl("^[A-Za-z0-9-]+$",sid))]
-		stop("Sample IDs must not contain special characters except minus signs!\n",
-			"Violations: ",paste(culprits,collapse=", ")
-		)
-	}
-	if (!all(params$samples[,"Condition"] %in% params$conditions$names)) {
-		cid <- params$samples[,"Condition"]
-		culprits <- unique(cid[which(!(cid %in% params$conditions$names))])
-		stop("Undeclared conditions found in sample sheet:",
-			paste(culprits,collapse=", "),
-			"\nPlease declare them in the list of conditions!"
-		)
-	}
-	if (!all(params$samples[,"Time point"] %in% params$timepoints[,"Time point name"])) {
-		tid <- params$samples[,"Time point"]
-		culprits <- unique(tid[which(!(tid %in% params$timepoints[,"Time point name"]))])
-		stop("Undeclared time points found in sample sheet:",
-			paste(culprits,collapse=", "),
-			"\nPlease declare them in the time point definition section!"
-		)
-	}
-	#check for duplicated sample ids
-	if (any(duplicated(params$samples$`Sample ID`))) {
-	  culprits <- params$samples[which(duplicated(params$samples$`Sample ID`)),"Sample ID"]
-	  logWarn(
-	    "Duplicated Sample IDs!!\n",
-	    "The following samples are used multiple times: ",
-	    paste(culprits,collapse = ", ")
-	 )
-	}
-	
-	#check for duplicated sample semantics
-	semStr <- with(params$samples, paste(`Tile ID`,Condition,`Time point`,Replicate,sep="."))
-	if (any(duplicated(semStr))) {
-	  culprits <- params$sample$`Sample ID`[which(duplicated(semStr))]
-	  stop(
-	    "Duplicated Sample definitions!!\n",
-	    "The following samples have identical definitions:",
-	    paste(culprits,collapse=", ")
-	  )
-	}
+  #validate the sample sheet
+  if (!all(params$samples[,"Tile ID"] %in% params$tiles[,"Tile Number"])) {
+    tid <- params$samples[,"Tile ID"]
+    culprits <- unique(tid[which(!(tid %in% params$tiles[,"Tile Number"]))])
+    stop("Undeclared tiles found in sample sheet:",
+      paste(culprits,collapse=", "),
+      "\nPlease declare them in the Tile table!"
+    )
+  }
+  if (!all(grepl("^[A-Za-z0-9-]+$",params$samples[,"Sample ID"]))) {
+    sid <- params$samples[,"Sample ID"]
+    culprits <- sid[which(!grepl("^[A-Za-z0-9-]+$",sid))]
+    stop("Sample IDs must not contain special characters except minus signs!\n",
+      "Violations: ",paste(culprits,collapse=", ")
+    )
+  }
+  if (!all(params$samples[,"Condition"] %in% params$conditions$names)) {
+    cid <- params$samples[,"Condition"]
+    culprits <- unique(cid[which(!(cid %in% params$conditions$names))])
+    stop("Undeclared conditions found in sample sheet:",
+      paste(culprits,collapse=", "),
+      "\nPlease declare them in the list of conditions!"
+    )
+  }
+  if (!all(params$samples[,"Time point"] %in% params$timepoints[,"Time point name"])) {
+    tid <- params$samples[,"Time point"]
+    culprits <- unique(tid[which(!(tid %in% params$timepoints[,"Time point name"]))])
+    stop("Undeclared time points found in sample sheet:",
+      paste(culprits,collapse=", "),
+      "\nPlease declare them in the time point definition section!"
+    )
+  }
+  #check for duplicated sample ids
+  if (any(duplicated(params$samples$`Sample ID`))) {
+    culprits <- params$samples[which(duplicated(params$samples$`Sample ID`)),"Sample ID"]
+    logWarn(
+      "Duplicated Sample IDs!!\n",
+      "The following samples are used multiple times: ",
+      paste(culprits,collapse = ", ")
+   )
+  }
+  
+  #check for duplicated sample semantics
+  semStr <- with(params$samples, paste(`Tile ID`,Condition,`Time point`,Replicate,sep="."))
+  if (any(duplicated(semStr))) {
+    culprits <- params$sample$`Sample ID`[which(duplicated(semStr))]
+    stop(
+      "Duplicated Sample definitions!!\n",
+      "The following samples have identical definitions:",
+      paste(culprits,collapse=", ")
+    )
+  }
 
-	repCombos <- apply(params$samples[,c("Tile ID","Condition","Time point")],1,paste,collapse="\t")
-	repPerCombo <- tapply(params$samples[,"Replicate"],repCombos,function(x)length(unique(x)))
-	comboCondition <- do.call(rbind,strsplit(names(repPerCombo),"\\t"))[,2]
-	if (any(repPerCombo != params$numReplicates[comboCondition])) {
-	  culprits <- which(repPerCombo != params$numReplicates[comboCondition])
-	  stop("The following tile-condition-time combination(s) do(es) not have ",
-	       "the correct set of replicates:\n",paste(names(repPerCombo)[culprits],collapse="\n"))
-	}
-	
-	tpCombos <- apply(params$samples[,c("Tile ID","Condition","Replicate")],1,paste,collapse="\t")
-	tpPerCombo <- tapply(params$samples[,"Time point"],tpCombos,function(x)length(unique(x)))
-	comboCondition <- do.call(rbind,strsplit(names(tpPerCombo),"\\t"))[,2]
-	if (any(tpPerCombo != params$numTimepoints[comboCondition])) {
-	  culprits <- which(tpPerCombo != params$numTimepoints[comboCondition])
-	  stop("The following tile-condition-replicate combination(s) do(es) not have ",
-	       "the correct set of time points:\n",paste(names(tpPerCombo)[culprits],collapse="\n"))
-	}
-	
-	#validate metaparameters
-	expected <- c("posteriorThreshold","minCover","mutRate","maxDrop")
-	if (!all(expected %in% names(params$varcaller))) {
-	  stop("Parameter sheet JSON file is out of date with software version!\n",
-	       "Please re-run csv2json.R !")
-	}
-	if (is.na(params$varcaller$posteriorThreshold)) {
-		stop("Posterior threshold must be numeric!")
-	}
-	if (params$varcaller$posteriorThreshold < 0.5 || params$varcaller$posteriorThreshold >= 1) {
-		stop("Posterior threshold must be within greater or equal to 0.5 and less than 1!")
-	}
-	if (is.na(params$varcaller$minCover)) {
-		stop("Minimum cover parameter must be numeric!")
-	}
-	if (params$varcaller$minCover < 0 || params$varcaller$minCover > 1) {
-		stop("Minimum cover must be between 0 and 1!")
-	}
-	if (is.na(params$varcaller$mutRate)) {
-		stop("Mutation rate must be numeric!")
-	}
-	if (params$varcaller$mutRate < 0 || params$varcaller$mutRate > 1) {
-		stop("Mutation rate must be between 0 and 1!")
-	}
-	if (params$varcaller$mutRate > 0.1) {
-		logWarn("Mutation rate parameter is set unusually high! Are you sure about this?")
-	}
-	if (params$varcaller$maxDrop < 0 || params$varcaller$maxDrop > 1) {
-	  stop("Maximum depth drop must be between 0 and 1!")
-	}
-	if (params$varcaller$maxDrop < 0.05) {
-	  logWarn("Maximum depth drop is set unusually low! Are you sure about this?")
-	}
-	if (params$varcaller$maxDrop > 0.5) {
-	  logWarn("Maximum depth drop is set unusually high! Are you sure about this?")
-	}
-	
-	expected <- c(
-	  "countThreshold","pseudo.n","sdThreshold","wtQuantile",
-	  "cvDeviation","lastFuncPos"
-	)
-	if (!all(expected %in% names(params$scoring))) {
-	  stop("Parameter sheet JSON file is out of date with software version!\n",
-	       "Please re-run csv2json.R !")
-	}
-	if (is.na(params$scoring$countThreshold)) {
-		stop("Minimum read count must be an integer!")
-	}
-	if (params$scoring$countThreshold < 1) {
-		stop("Minimum read count must be at least 1!")
-	}
-	if (is.na(params$scoring$pseudo.n)) {
-		stop("Pseudo-replicates must be an integer!")
-	}
-	if (params$scoring$pseudo.n < 1) {
-		stop("Pseudo-replicates must be at least 1!")
-	}
-	if (is.na(params$scoring$sdThreshold)) {
-		stop("SD threshold must be numeric!")
-	}
-	if (params$scoring$sdThreshold <= 0) {
-		stop("SD threshold must be greater than 0!")
-	}
-	if (is.na(params$scoring$wtQuantile)) {
-	  stop("WT filter quantile must be numeric!")
-	}
-	if (params$scoring$wtQuantile < 0.5 || params$scoring$wtQuantile >= 1) {
-	  stop("WT filter quantile only allows values from interval [0.5;1[ ")
-	}
-	if (is.na(params$scoring$cvDeviation)) {
-	  stop("Replicate disagreement factor (cvDeviation) must be numeric!")
-	}
-	if (params$scoring$cvDeviation < 1) {
-	  stop("Replicate disagreement factor (cvDevation) must be greater than 1!")
-	}
-	if (is.na(params$scoring$lastFuncPos)) {
-	  stop ("'Last functional AA position' must be numeric or 'Inf'!")
-	}
-	if (params$scoring$lastFuncPos < 1 ) {
-	  stop("'Last functional AA position' must be a positive number!")
-	}
-	#protein length
-	plen <- (params$template$cds_end-params$template$cds_start+1)/3
-	if (params$scoring$lastFuncPos < plen/2) {
-	  logWarn("'Last functional AA position' is set very low! Are you sure?")
-	} else if (is.finite(params$scoring$lastFuncPos) && params$scoring$lastFuncPos > plen) {
-	  logWarn("'Last functional AA position' is beyond protein length! Did you mean 'Inf'?")
-	}
+  repCombos <- apply(params$samples[,c("Tile ID","Condition","Time point")],1,paste,collapse="\t")
+  repPerCombo <- tapply(params$samples[,"Replicate"],repCombos,function(x)length(unique(x)))
+  comboCondition <- do.call(rbind,strsplit(names(repPerCombo),"\\t"))[,2]
+  if (any(repPerCombo != params$numReplicates[comboCondition])) {
+    culprits <- which(repPerCombo != params$numReplicates[comboCondition])
+    stop("The following tile-condition-time combination(s) do(es) not have ",
+         "the correct set of replicates:\n",paste(names(repPerCombo)[culprits],collapse="\n"))
+  }
+  
+  tpCombos <- apply(params$samples[,c("Tile ID","Condition","Replicate")],1,paste,collapse="\t")
+  tpPerCombo <- tapply(params$samples[,"Time point"],tpCombos,function(x)length(unique(x)))
+  comboCondition <- do.call(rbind,strsplit(names(tpPerCombo),"\\t"))[,2]
+  if (any(tpPerCombo != params$numTimepoints[comboCondition])) {
+    culprits <- which(tpPerCombo != params$numTimepoints[comboCondition])
+    stop("The following tile-condition-replicate combination(s) do(es) not have ",
+         "the correct set of time points:\n",paste(names(tpPerCombo)[culprits],collapse="\n"))
+  }
+  
+  #validate metaparameters
+  expected <- c("posteriorThreshold","minCover","mutRate","maxDrop")
+  if (!all(expected %in% names(params$varcaller))) {
+    stop("Parameter sheet JSON file is out of date with software version!\n",
+         "Please re-run csv2json.R !")
+  }
+  if (is.na(params$varcaller$posteriorThreshold)) {
+    stop("Posterior threshold must be numeric!")
+  }
+  if (params$varcaller$posteriorThreshold < 0.5 || params$varcaller$posteriorThreshold >= 1) {
+    stop("Posterior threshold must be within greater or equal to 0.5 and less than 1!")
+  }
+  if (is.na(params$varcaller$minCover)) {
+    stop("Minimum cover parameter must be numeric!")
+  }
+  if (params$varcaller$minCover < 0 || params$varcaller$minCover > 1) {
+    stop("Minimum cover must be between 0 and 1!")
+  }
+  if (is.na(params$varcaller$mutRate)) {
+    stop("Mutation rate must be numeric!")
+  }
+  if (params$varcaller$mutRate < 0 || params$varcaller$mutRate > 1) {
+    stop("Mutation rate must be between 0 and 1!")
+  }
+  if (params$varcaller$mutRate > 0.1) {
+    logWarn("Mutation rate parameter is set unusually high! Are you sure about this?")
+  }
+  if (params$varcaller$maxDrop < 0 || params$varcaller$maxDrop > 1) {
+    stop("Maximum depth drop must be between 0 and 1!")
+  }
+  if (params$varcaller$maxDrop < 0.05) {
+    logWarn("Maximum depth drop is set unusually low! Are you sure about this?")
+  }
+  if (params$varcaller$maxDrop > 0.5) {
+    logWarn("Maximum depth drop is set unusually high! Are you sure about this?")
+  }
+  
+  expected <- c(
+    "countThreshold","pseudo.n","sdThreshold","wtQuantile",
+    "cvDeviation","lastFuncPos"
+  )
+  if (!all(expected %in% names(params$scoring))) {
+    stop("Parameter sheet JSON file is out of date with software version!\n",
+         "Please re-run csv2json.R !")
+  }
+  if (is.na(params$scoring$countThreshold)) {
+    stop("Minimum read count must be an integer!")
+  }
+  if (params$scoring$countThreshold < 1) {
+    stop("Minimum read count must be at least 1!")
+  }
+  if (is.na(params$scoring$pseudo.n)) {
+    stop("Pseudo-replicates must be an integer!")
+  }
+  if (params$scoring$pseudo.n < 1) {
+    stop("Pseudo-replicates must be at least 1!")
+  }
+  if (is.na(params$scoring$sdThreshold)) {
+    stop("SD threshold must be numeric!")
+  }
+  if (params$scoring$sdThreshold <= 0) {
+    stop("SD threshold must be greater than 0!")
+  }
+  if (is.na(params$scoring$wtQuantile)) {
+    stop("WT filter quantile must be numeric!")
+  }
+  if (params$scoring$wtQuantile < 0.5 || params$scoring$wtQuantile >= 1) {
+    stop("WT filter quantile only allows values from interval [0.5;1[ ")
+  }
+  if (is.na(params$scoring$cvDeviation)) {
+    stop("Replicate disagreement factor (cvDeviation) must be numeric!")
+  }
+  if (params$scoring$cvDeviation < 1) {
+    stop("Replicate disagreement factor (cvDevation) must be greater than 1!")
+  }
+  if (is.na(params$scoring$lastFuncPos)) {
+    stop ("'Last functional AA position' must be numeric or 'Inf'!")
+  }
+  if (params$scoring$lastFuncPos < 1 ) {
+    stop("'Last functional AA position' must be a positive number!")
+  }
+  #protein length
+  plen <- (params$template$cds_end-params$template$cds_start+1)/3
+  if (params$scoring$lastFuncPos < plen/2) {
+    logWarn("'Last functional AA position' is set very low! Are you sure?")
+  } else if (is.finite(params$scoring$lastFuncPos) && params$scoring$lastFuncPos > plen) {
+    logWarn("'Last functional AA position' is beyond protein length! Did you mean 'Inf'?")
+  }
 
-	#validate pivots table
-	if (length(params$pivots) > 0 && nrow(params$pivots) > 0) {
-		if (!all(params$pivots$Condition %in% getSelects(params))) {
-			stop("Score scaling pivots can only be defined for selection conditions.")
-		}
-		if (!all(params$pivots$`Time point` %in% params$timepoints$`Time point name`)) {
-			stop("Invalid time-point in pivots table!")
-		}
-		if (!all(params$pivots$Region %in% params$regions$`Region Number`)) {
-			stop("Invalid region(s) in pivots table!")
-		}
-		if (!all(params$pivots$Type %in% c("synonymous","nonsense"))) {
-			stop("Invalid entries in pivots table: Type must be 'synonymous' or 'nonsense'!")
-		}
-		if (any(is.na(params$pivots$Value))) {
-			stop("Invalid entries in pivots table: Value must be numeric!")
-		}
-	}
+  #validate pivots table
+  if (length(params$pivots) > 0 && nrow(params$pivots) > 0) {
+    if (!all(params$pivots$Condition %in% getSelects(params))) {
+      stop("Score scaling pivots can only be defined for selection conditions.")
+    }
+    if (!all(params$pivots$`Time point` %in% params$timepoints$`Time point name`)) {
+      stop("Invalid time-point in pivots table!")
+    }
+    if (!all(params$pivots$Region %in% params$regions$`Region Number`)) {
+      stop("Invalid region(s) in pivots table!")
+    }
+    if (!all(params$pivots$Type %in% c("synonymous","nonsense"))) {
+      stop("Invalid entries in pivots table: Type must be 'synonymous' or 'nonsense'!")
+    }
+    if (any(is.na(params$pivots$Value))) {
+      stop("Invalid entries in pivots table: Value must be numeric!")
+    }
+  }
 
-	#TODO: Validate that the entire CDS in covered with tiles and regions
+  #TODO: Validate that the entire CDS in covered with tiles and regions
 
-	return(TRUE)
+  return(TRUE)
 }
 
 
@@ -501,234 +501,234 @@ checkCSV <- function(filename) {
 #' @export
 csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",infile),srOverride=FALSE) {
 
-	op <- options(stringsAsFactors=FALSE)
+  op <- options(stringsAsFactors=FALSE)
 
-	#for writing JSON output
-	library(RJSONIO)
-	#for helper functions
-	library(yogitools)
-
-
-	#check that the file is indeed a csv file and can be read
-	if (!canRead(infile)) {
-		stop("Input file cannot be read!")
-	}
-	checkCSV(infile)
-
-	#read the file into a list of lists
-	csv <- strsplit(scan(infile,what="character",sep="\n",quiet=TRUE),",")
-	#remove any potential quotes introduced by Excel
-	csv <- lapply(csv,function(row) {
-		sapply(row,function(cell) {
-			trimws(gsub("\"","",cell))
-		})
-	})
-	#Extract the first column
-	col1 <- sapply(csv,`[[`,1)
-
-	#Helper function to check if row exists
-	hasRow <- function(rowname) {
-		any(col1==rowname)
-	}
-
-	#helper function to locate a named row
-	getRow <- function(rowname) {
-		if (!hasRow(rowname)) {
-			stop("Parameter sheet is missing mandatory entry: ",rowname)
-		}
-		i <- which (col1==rowname)
-		if (is.null(i))  stop("Missing field: ",rowname)
-		return(i)
-	}
-
-	extractTable <- function(firstField,nextSection) {
-		iHead <- getRow(firstField)
-		#table header
-		headers <- csv[[iHead]]
-		headers <- headers[!(headers == "" | is.na(headers))]
-		#find the end of the table
-		iEnd <- iHead
-		while (iEnd < length(col1) && !(col1[[iEnd+1]] %in% c("",nextSection))) iEnd <- iEnd+1
-		#if the table is empty...
-		if (iEnd == iHead) {
-			return(data.frame())
-			# return(matrix(ncol=length(headers),nrow=0,dimnames=list(NULL,headers)))
-		} else {
-			#extract the table data and apply formatting
-			rawTable <- do.call(rbind,csv[(iHead+1):iEnd])
-			# formTable <- apply(rawTable[,1:length(headers)],c(1,2),as.integer)
-			formTable <- rawTable[,1:length(headers),drop=FALSE]
-			colnames(formTable) <- headers
-			return(formTable)
-		}
-	}
-
-	#prepare output data structure
-	output <- list()
-
-	#extract project name
-	output$project <- csv[[getRow("Project name:")]][[2]]
-
-	#extract template sequence
-	output$template <- list()
-	output$template$geneName <- csv[[getRow("Gene name:")]][[2]]
-	output$template$seq <- toupper(csv[[getRow("Sequence:")]][[2]])
-	output$template$cds_start <- as.integer(csv[[getRow("CDS start:")]][[2]])
-	output$template$cds_end <- as.integer(csv[[getRow("CDS end:")]][[2]])
-	output$template$uniprot <- csv[[getRow("Uniprot Accession:")]][[2]]
-
-	#extract assay parameters
-	output$assay <- list()
-	output$assay$name <- csv[[getRow("Assay Name:")]][[2]]
-	# output$assay$description <- csv[[getRow("Assay Description:")]][[2]]
-	output$assay$selection <- switch(csv[[getRow("Negative selection?")]][[2]],
-		Yes="Negative", No="Positive", stop("Negative selection must be 'Yes' or 'No'!")
-	)
-	
-
-	#extract conditions, replicates and timepoints
-	conditions <- csv[[getRow("Condition IDs:")]][-1]
-	conditions <- conditions[!(conditions=="" | is.na(conditions))]
-	output$conditions <- list()
-	output$conditions$names <- as.vector(conditions)
-	reps <- as.integer(csv[[getRow("Number of Replicates:")]][-1])
-	if (length(reps) < length(conditions)) {
-		stop("Replicate numbers missing for some conditions!")
-	}
-	reps <- setNames(reps[1:length(conditions)],conditions)
-	output$numReplicates <- reps
-	tps <- as.integer(csv[[getRow("Number of time points:")]][-1])
-	if (length(tps) < length(conditions)) {
-		stop("Replicate numbers missing for some conditions!")
-	}
-	tps <- setNames(tps[1:length(conditions)],conditions)
-	output$numTimepoints <- tps
-
-	#extract regions table
-	regionTable <- as.data.frame(extractTable(firstField="Region Number",nextSection="Sequencing Tiles"))
-	# regionTable <- apply(regionTable,2,as.integer)
-	regionTable$`Region Number` <- as.integer(regionTable$`Region Number`)
-	regionTable$`Start AA` <- as.integer(regionTable$`Start AA`)
-	regionTable$`End AA` <- as.integer(regionTable$`End AA`)
-	output$regions <- regionTable
-
-	#extract tile table
-	tileTable <- extractTable(firstField="Tile Number",nextSection="Condition definitions")
-	tileTable <- apply(tileTable,2,as.integer)
-	output$tiles <- tileTable
-
-	#extract condition definitions
-	if (!hasRow("Condition 1") || !hasRow("Condition definitions")) {
-	  stop("Parameter sheet is missing the mandatory table 'Condition definitions'!")
-	}
-	conditionTable <- extractTable(firstField="Condition 1",nextSection="Time point definitions")
-	output$conditions$definitions <- conditionTable
-
-	#Time point definitions
-	timeTable <- as.data.frame(extractTable(firstField="Time point name",nextSection="Sequencing samples"))
-	timeTable$Time <- as.numeric(timeTable$Time)
-	output$timepoints <- timeTable
+  #for writing JSON output
+  library(RJSONIO)
+  #for helper functions
+  library(yogitools)
 
 
-	#Extract sample sheet
-	sampleTable <- as.data.frame(extractTable(firstField="Sample ID",nextSection=""))
-	sampleTable$`Tile ID` <- as.integer(sampleTable$`Tile ID`)
-	sampleTable$Replicate <- as.integer(sampleTable$Replicate)
-	output$samples <- sampleTable
+  #check that the file is indeed a csv file and can be read
+  if (!canRead(infile)) {
+    stop("Input file cannot be read!")
+  }
+  checkCSV(infile)
 
-	#Extract meta-parameters
-	output$varcaller <- list()
-	if (hasRow("Posterior threshold:")) {
-		output$varcaller$posteriorThreshold <- as.numeric(csv[[getRow("Posterior threshold:")]][[2]])
-	} else {
-		logWarn("No posterior threshold specified. Defaulting to 0.5")
-		output$varcaller$posteriorThreshold <- 0.5
-	}
-	if (hasRow("Minimum coverage:")) {
-		output$varcaller$minCover <- as.numeric(csv[[getRow("Minimum coverage:")]][[2]])
-	} else {
-		logWarn("No minimum coverage specified. Defaulting to 0.6")
-		output$varcaller$minCover <- 0.6
-	}
-	if (hasRow("Per-base mutation rate:")) {
-		output$varcaller$mutRate <- as.numeric(csv[[getRow("Per-base mutation rate:")]][[2]])
-	} else {
-		logWarn("No mutation rate specified. Defaulting to 0.0025")
-		output$varcaller$mutRate <- 0.0025
-	}
-	if (hasRow("Maximum depth drop:")) {
-	  output$varcaller$maxDrop <- as.numeric(csv[[getRow("Maximum depth drop:")]][[2]])
-	} else {
-	  logWarn("No maximum depth drop specified. Defaulting to 0.2")
-	  output$varcaller$maxDrop <- 0.2
-	}
-	output$scoring <- list()
-	if (hasRow("Minimum read count:")) {
-		output$scoring$countThreshold <- as.integer(csv[[getRow("Minimum read count:")]][[2]])
-	} else {
-		logWarn("No minimum read count specified. Defaulting to 1")
-		output$scoring$countThreshold <- 1L
-	}
-	if (hasRow("Pseudo-replicates:")) {
-		output$scoring$pseudo.n <- as.integer(csv[[getRow("Pseudo-replicates:")]][[2]])
-	} else {
-		logWarn("No pseudo-replicates specified. Defaulting to 8")
-		output$scoring$pseudo.n <- 8L
-	}
-	if (hasRow("SD threshold:")) {
-		output$scoring$sdThreshold <- as.numeric(csv[[getRow("SD threshold:")]][[2]])
-	} else {
-		logWarn("No SD threshold specified. Defaulting to 0.3")
-		output$scoring$sdThreshold <- 0.3
-	}
-	if (hasRow("WT filter quantile:")) {
-	  output$scoring$wtQuantile <- as.numeric(csv[[getRow("WT filter quantile:")]][[2]])
-	} else {
-	  logWarn("No WT filter quantile specified. Defaulting to 0.95")
-	  output$scoring$wtQuantile <- 0.95
-	}
-	if (hasRow("Replicate disagreement factor:")) {
-	  output$scoring$cvDeviation <- as.numeric(csv[[getRow("Replicate disagreement factor:")]][[2]])
-	} else {
-	  logWarn("No replicate disagreement factor specified. Defaulting to 10.")
-	  output$scoring$cvDeviation <- 10
-	}
-	if (hasRow("Last functional AA position:")) {
-	  output$scoring$lastFuncPos <- as.numeric(csv[[getRow("Last functional AA position:")]][[2]])
-	} else {
-	  output$scoring$lastFuncPos <- Inf
-	}
-	
-	#Extract scale pivots
-	output$pivots <- list()
-	#Pivots table used to be called "Score normalization override", so we provide backwards compatibility here
-	if ((hasRow("Score normalization overrides") || hasRow("Score scaling pivots")) && hasRow("Condition")) {
-		overrideTable <- as.data.frame(extractTable(firstField="Condition",nextSection=""))
-		overrideTable$`Region` <- as.numeric(overrideTable$`Region`)
-		overrideTable$`Value` <- as.numeric(overrideTable$`Value`)
-		output$pivots <- overrideTable
-	}
+  #read the file into a list of lists
+  csv <- strsplit(scan(infile,what="character",sep="\n",quiet=TRUE),",")
+  #remove any potential quotes introduced by Excel
+  csv <- lapply(csv,function(row) {
+    sapply(row,function(cell) {
+      trimws(gsub("\"","",cell))
+    })
+  })
+  #Extract the first column
+  col1 <- sapply(csv,`[[`,1)
+
+  #Helper function to check if row exists
+  hasRow <- function(rowname) {
+    any(col1==rowname)
+  }
+
+  #helper function to locate a named row
+  getRow <- function(rowname) {
+    if (!hasRow(rowname)) {
+      stop("Parameter sheet is missing mandatory entry: ",rowname)
+    }
+    i <- which (col1==rowname)
+    if (is.null(i))  stop("Missing field: ",rowname)
+    return(i)
+  }
+
+  extractTable <- function(firstField,nextSection) {
+    iHead <- getRow(firstField)
+    #table header
+    headers <- csv[[iHead]]
+    headers <- headers[!(headers == "" | is.na(headers))]
+    #find the end of the table
+    iEnd <- iHead
+    while (iEnd < length(col1) && !(col1[[iEnd+1]] %in% c("",nextSection))) iEnd <- iEnd+1
+    #if the table is empty...
+    if (iEnd == iHead) {
+      return(data.frame())
+      # return(matrix(ncol=length(headers),nrow=0,dimnames=list(NULL,headers)))
+    } else {
+      #extract the table data and apply formatting
+      rawTable <- do.call(rbind,csv[(iHead+1):iEnd])
+      # formTable <- apply(rawTable[,1:length(headers)],c(1,2),as.integer)
+      formTable <- rawTable[,1:length(headers),drop=FALSE]
+      colnames(formTable) <- headers
+      return(formTable)
+    }
+  }
+
+  #prepare output data structure
+  output <- list()
+
+  #extract project name
+  output$project <- csv[[getRow("Project name:")]][[2]]
+
+  #extract template sequence
+  output$template <- list()
+  output$template$geneName <- csv[[getRow("Gene name:")]][[2]]
+  output$template$seq <- toupper(csv[[getRow("Sequence:")]][[2]])
+  output$template$cds_start <- as.integer(csv[[getRow("CDS start:")]][[2]])
+  output$template$cds_end <- as.integer(csv[[getRow("CDS end:")]][[2]])
+  output$template$uniprot <- csv[[getRow("Uniprot Accession:")]][[2]]
+
+  #extract assay parameters
+  output$assay <- list()
+  output$assay$name <- csv[[getRow("Assay Name:")]][[2]]
+  # output$assay$description <- csv[[getRow("Assay Description:")]][[2]]
+  output$assay$selection <- switch(csv[[getRow("Negative selection?")]][[2]],
+    Yes="Negative", No="Positive", stop("Negative selection must be 'Yes' or 'No'!")
+  )
+  
+
+  #extract conditions, replicates and timepoints
+  conditions <- csv[[getRow("Condition IDs:")]][-1]
+  conditions <- conditions[!(conditions=="" | is.na(conditions))]
+  output$conditions <- list()
+  output$conditions$names <- as.vector(conditions)
+  reps <- as.integer(csv[[getRow("Number of Replicates:")]][-1])
+  if (length(reps) < length(conditions)) {
+    stop("Replicate numbers missing for some conditions!")
+  }
+  reps <- setNames(reps[1:length(conditions)],conditions)
+  output$numReplicates <- reps
+  tps <- as.integer(csv[[getRow("Number of time points:")]][-1])
+  if (length(tps) < length(conditions)) {
+    stop("Replicate numbers missing for some conditions!")
+  }
+  tps <- setNames(tps[1:length(conditions)],conditions)
+  output$numTimepoints <- tps
+
+  #extract regions table
+  regionTable <- as.data.frame(extractTable(firstField="Region Number",nextSection="Sequencing Tiles"))
+  # regionTable <- apply(regionTable,2,as.integer)
+  regionTable$`Region Number` <- as.integer(regionTable$`Region Number`)
+  regionTable$`Start AA` <- as.integer(regionTable$`Start AA`)
+  regionTable$`End AA` <- as.integer(regionTable$`End AA`)
+  output$regions <- regionTable
+
+  #extract tile table
+  tileTable <- extractTable(firstField="Tile Number",nextSection="Condition definitions")
+  tileTable <- apply(tileTable,2,as.integer)
+  output$tiles <- tileTable
+
+  #extract condition definitions
+  if (!hasRow("Condition 1") || !hasRow("Condition definitions")) {
+    stop("Parameter sheet is missing the mandatory table 'Condition definitions'!")
+  }
+  conditionTable <- extractTable(firstField="Condition 1",nextSection="Time point definitions")
+  output$conditions$definitions <- conditionTable
+
+  #Time point definitions
+  timeTable <- as.data.frame(extractTable(firstField="Time point name",nextSection="Sequencing samples"))
+  timeTable$Time <- as.numeric(timeTable$Time)
+  output$timepoints <- timeTable
 
 
-	#Run validation on all parameters
-	withCallingHandlers(
-		validateParameters(output,srOverride=srOverride),
-		warning=function(w)logWarn(conditionMessage(w))
-	)
+  #Extract sample sheet
+  sampleTable <- as.data.frame(extractTable(firstField="Sample ID",nextSection=""))
+  sampleTable$`Tile ID` <- as.integer(sampleTable$`Tile ID`)
+  sampleTable$Replicate <- as.integer(sampleTable$Replicate)
+  output$samples <- sampleTable
 
-	#convert output to JSON and write to file
-	logInfo("Writing output to",outfile,"\n")
-	
-	con <- file(outfile,open="w")
-	#workaround for RJSONIO's inability to deal with infinity values
-	output$scoring$lastFuncPos <- as.character(output$scoring$lastFuncPos)
-	writeLines(toJSON(output),con)
-	close(con)
+  #Extract meta-parameters
+  output$varcaller <- list()
+  if (hasRow("Posterior threshold:")) {
+    output$varcaller$posteriorThreshold <- as.numeric(csv[[getRow("Posterior threshold:")]][[2]])
+  } else {
+    logWarn("No posterior threshold specified. Defaulting to 0.5")
+    output$varcaller$posteriorThreshold <- 0.5
+  }
+  if (hasRow("Minimum coverage:")) {
+    output$varcaller$minCover <- as.numeric(csv[[getRow("Minimum coverage:")]][[2]])
+  } else {
+    logWarn("No minimum coverage specified. Defaulting to 0.6")
+    output$varcaller$minCover <- 0.6
+  }
+  if (hasRow("Per-base mutation rate:")) {
+    output$varcaller$mutRate <- as.numeric(csv[[getRow("Per-base mutation rate:")]][[2]])
+  } else {
+    logWarn("No mutation rate specified. Defaulting to 0.0025")
+    output$varcaller$mutRate <- 0.0025
+  }
+  if (hasRow("Maximum depth drop:")) {
+    output$varcaller$maxDrop <- as.numeric(csv[[getRow("Maximum depth drop:")]][[2]])
+  } else {
+    logWarn("No maximum depth drop specified. Defaulting to 0.2")
+    output$varcaller$maxDrop <- 0.2
+  }
+  output$scoring <- list()
+  if (hasRow("Minimum read count:")) {
+    output$scoring$countThreshold <- as.integer(csv[[getRow("Minimum read count:")]][[2]])
+  } else {
+    logWarn("No minimum read count specified. Defaulting to 1")
+    output$scoring$countThreshold <- 1L
+  }
+  if (hasRow("Pseudo-replicates:")) {
+    output$scoring$pseudo.n <- as.integer(csv[[getRow("Pseudo-replicates:")]][[2]])
+  } else {
+    logWarn("No pseudo-replicates specified. Defaulting to 8")
+    output$scoring$pseudo.n <- 8L
+  }
+  if (hasRow("SD threshold:")) {
+    output$scoring$sdThreshold <- as.numeric(csv[[getRow("SD threshold:")]][[2]])
+  } else {
+    logWarn("No SD threshold specified. Defaulting to 0.3")
+    output$scoring$sdThreshold <- 0.3
+  }
+  if (hasRow("WT filter quantile:")) {
+    output$scoring$wtQuantile <- as.numeric(csv[[getRow("WT filter quantile:")]][[2]])
+  } else {
+    logWarn("No WT filter quantile specified. Defaulting to 0.95")
+    output$scoring$wtQuantile <- 0.95
+  }
+  if (hasRow("Replicate disagreement factor:")) {
+    output$scoring$cvDeviation <- as.numeric(csv[[getRow("Replicate disagreement factor:")]][[2]])
+  } else {
+    logWarn("No replicate disagreement factor specified. Defaulting to 10.")
+    output$scoring$cvDeviation <- 10
+  }
+  if (hasRow("Last functional AA position:")) {
+    output$scoring$lastFuncPos <- as.numeric(csv[[getRow("Last functional AA position:")]][[2]])
+  } else {
+    output$scoring$lastFuncPos <- Inf
+  }
+  
+  #Extract scale pivots
+  output$pivots <- list()
+  #Pivots table used to be called "Score normalization override", so we provide backwards compatibility here
+  if ((hasRow("Score normalization overrides") || hasRow("Score scaling pivots")) && hasRow("Condition")) {
+    overrideTable <- as.data.frame(extractTable(firstField="Condition",nextSection=""))
+    overrideTable$`Region` <- as.numeric(overrideTable$`Region`)
+    overrideTable$`Value` <- as.numeric(overrideTable$`Value`)
+    output$pivots <- overrideTable
+  }
 
-	options(op)
 
-	logInfo("Conversion successful!\n")
-	invisible(return(NULL))
+  #Run validation on all parameters
+  withCallingHandlers(
+    validateParameters(output,srOverride=srOverride),
+    warning=function(w)logWarn(conditionMessage(w))
+  )
+
+  #convert output to JSON and write to file
+  logInfo("Writing output to",outfile,"\n")
+  
+  con <- file(outfile,open="w")
+  #workaround for RJSONIO's inability to deal with infinity values
+  output$scoring$lastFuncPos <- as.character(output$scoring$lastFuncPos)
+  writeLines(toJSON(output),con)
+  close(con)
+
+  options(op)
+
+  logInfo("Conversion successful!\n")
+  invisible(return(NULL))
 }
 
 #' parse JSON parameter file
@@ -738,176 +738,176 @@ csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",infile),
 #' @export
 parseParameters <- function(filename,srOverride=FALSE) { 
 
-	op <- options(stringsAsFactors=FALSE)
+  op <- options(stringsAsFactors=FALSE)
 
-	#for writing JSON output
-	library(RJSONIO)
-	#for helper functions
-	library(yogitools)
+  #for writing JSON output
+  library(RJSONIO)
+  #for helper functions
+  library(yogitools)
 
-	#check that the file is indeed a json file and can be read
-	stopifnot(grepl("\\.json$",filename), canRead(filename))
+  #check that the file is indeed a json file and can be read
+  stopifnot(grepl("\\.json$",filename), canRead(filename))
 
-	#parse JSON to list of lists
-	params <- fromJSON(filename,nullValue=NA)
+  #parse JSON to list of lists
+  params <- fromJSON(filename,nullValue=NA)
 
-	#rebuild tables and dataframes from lists
-	params$conditions$definitions <- do.call(rbind,params$conditions$definitions)
-	if (is.null(params$conditions$definitions)) {
-		params$conditions$definitions <- matrix(nrow=0,ncol=3,dimnames=list(NULL,c("Condition 1","Relationship","Condition 2")))
-	}
-	# if (!inherits(params$regions,"list")) {
-	# 	params$regions <- list(params$regions)
-	# }
-	# params$regions <- do.call(rbind,params$regions)
-	# if (!inherits(params$tiles,"list")) {
-	# 	params$tiles <- list(params$tiles)
-	# }
-	regCols <- names(params$regions)
-	params$regions <- as.data.frame(as.list(params$regions))
-	colnames(params$regions) <- regCols
+  #rebuild tables and dataframes from lists
+  params$conditions$definitions <- do.call(rbind,params$conditions$definitions)
+  if (is.null(params$conditions$definitions)) {
+    params$conditions$definitions <- matrix(nrow=0,ncol=3,dimnames=list(NULL,c("Condition 1","Relationship","Condition 2")))
+  }
+  # if (!inherits(params$regions,"list")) {
+  #   params$regions <- list(params$regions)
+  # }
+  # params$regions <- do.call(rbind,params$regions)
+  # if (!inherits(params$tiles,"list")) {
+  #   params$tiles <- list(params$tiles)
+  # }
+  regCols <- names(params$regions)
+  params$regions <- as.data.frame(as.list(params$regions))
+  colnames(params$regions) <- regCols
 
-	params$tiles <- do.call(rbind,params$tiles)
+  params$tiles <- do.call(rbind,params$tiles)
 
-	timeCols <- names(params$timepoints)
-	params$timepoints <- as.data.frame(params$timepoints)
-	colnames(params$timepoints) <- timeCols
+  timeCols <- names(params$timepoints)
+  params$timepoints <- as.data.frame(params$timepoints)
+  colnames(params$timepoints) <- timeCols
 
-	sampleCols <- names(params$samples)
-	params$samples <- as.data.frame(params$samples)
-	colnames(params$samples) <- sampleCols
+  sampleCols <- names(params$samples)
+  params$samples <- as.data.frame(params$samples)
+  colnames(params$samples) <- sampleCols
 
-	if (length(params$pivots) > 0 && length(params$pivots[[1]]) > 0) {
-		pCols <- names(params$pivots)
-		params$pivots <- as.data.frame(params$pivots)
-		colnames(params$pivots) <- pCols
-	} else {
-		params$pivots <- NULL
-	}
+  if (length(params$pivots) > 0 && length(params$pivots[[1]]) > 0) {
+    pCols <- names(params$pivots)
+    params$pivots <- as.data.frame(params$pivots)
+    colnames(params$pivots) <- pCols
+  } else {
+    params$pivots <- NULL
+  }
 
-	#make sure lists remain lists
-	params$varcaller <- as.list(params$varcaller)
-	params$scoring <- as.list(params$scoring)
-	#workaround for bug in RJSONIO (dealing with 'Inf' values)
-	params$scoring$lastFuncPos <- as.numeric(params$scoring$lastFuncPos)
+  #make sure lists remain lists
+  params$varcaller <- as.list(params$varcaller)
+  params$scoring <- as.list(params$scoring)
+  #workaround for bug in RJSONIO (dealing with 'Inf' values)
+  params$scoring$lastFuncPos <- as.numeric(params$scoring$lastFuncPos)
 
-	#run full validation of the parameter object
-	validateParameters(params,srOverride=srOverride)
+  #run full validation of the parameter object
+  validateParameters(params,srOverride=srOverride)
 
-	#calculate CDS and protein sequence
-	cdsLength <- params$template$cds_end - params$template$cds_start + 1
-	cdsSeq <- substr(params$template$seq,params$template$cds_start,params$template$cds_end)
-	#calculate individual codons
-	codons <- sapply(seq(1,cdsLength,3),function(i) substr(cdsSeq,i,i+2))
-	
+  #calculate CDS and protein sequence
+  cdsLength <- params$template$cds_end - params$template$cds_start + 1
+  cdsSeq <- substr(params$template$seq,params$template$cds_start,params$template$cds_end)
+  #calculate individual codons
+  codons <- sapply(seq(1,cdsLength,3),function(i) substr(cdsSeq,i,i+2))
+  
   #translate to protein sequence
-	data(trtable)
-	# proteinSeq <- sapply(seq(1,cdsLength,3),function(pos) trtable[[substr(cdsSeq,pos,pos+2)]])
-	proteinSeq <- sapply(codons,function(cd) trtable[[cd]])
-	proteinLength <- length(proteinSeq)
-	if (proteinSeq[[proteinLength]] == "*") {
-		proteinSeq <- proteinSeq[-proteinLength]	
-		proteinLength <- proteinLength-1
-	}
+  data(trtable)
+  # proteinSeq <- sapply(seq(1,cdsLength,3),function(pos) trtable[[substr(cdsSeq,pos,pos+2)]])
+  proteinSeq <- sapply(codons,function(cd) trtable[[cd]])
+  proteinLength <- length(proteinSeq)
+  if (proteinSeq[[proteinLength]] == "*") {
+    proteinSeq <- proteinSeq[-proteinLength]  
+    proteinLength <- proteinLength-1
+  }
 
-	params$template$cdsSeq <- cdsSeq
-	params$template$cdsLength <- cdsLength
-	params$template$cdsCodons <- codons
-	params$template$proteinSeq <- paste(proteinSeq,collapse="")
-	params$template$proteinLength <- proteinLength
-
-
-	#convert region and tile positions to nucleotide positions
-	params$regions <- cbind(params$regions, 
-		`Start NC in CDS` = params$regions[,"Start AA"]*3-2,
-		`End NC in CDS` = params$regions[,"End AA"]*3
-	)
-	params$regions <- cbind(params$regions, 
-		`Start NC in Template` = params$regions[,"Start NC in CDS"]+ params$template$cds_start - 1,
-		`End NC in Template` = params$regions[,"End NC in CDS"]+ params$template$cds_start - 1
-	)
-
-	params$tiles <- cbind(params$tiles, 
-		`Start NC in CDS` = params$tiles[,"Start AA"]*3-2,
-		`End NC in CDS` = params$tiles[,"End AA"]*3
-	)
-	params$tiles <- cbind(params$tiles, 
-		`Start NC in Template` = params$tiles[,"Start NC in CDS"]+ params$template$cds_start - 1,
-		`End NC in Template` = params$tiles[,"End NC in CDS"]+ params$template$cds_start - 1
-	)
+  params$template$cdsSeq <- cdsSeq
+  params$template$cdsLength <- cdsLength
+  params$template$cdsCodons <- codons
+  params$template$proteinSeq <- paste(proteinSeq,collapse="")
+  params$template$proteinLength <- proteinLength
 
 
-	#Process the condition definitions to annotate the sample table
-	sampleTable <- params$samples
-	#Assign correct nonselect sample for each selection sample
-	sampleTable$nonselectRef <- sapply(1:nrow(sampleTable), function(i)with(sampleTable[i,], {
-		nsCond <- with(as.data.frame(params$conditions$definitions),{
-			`Condition 2`[which(Relationship == "is_selection_for" & `Condition 1` == Condition)]
-		})
-		if (length(nsCond) == 0) return(NA)
-		rows <- which(
-			sampleTable$`Tile ID` == `Tile ID` & 
-			sampleTable$Replicate == Replicate & 
-			sampleTable$`Time point` == `Time point` & 
-			sampleTable$Condition == nsCond
-		)
-		if (length(rows) == 0) {
-			return(NA)
-		} else if (length(rows) > 1) {
-			logWarn("More than one nonselect match found for sample",`Sample ID`)
-			paste(sampleTable$`Sample ID`[rows],collapse=",")
-		} else {
-			sampleTable$`Sample ID`[rows]
-		}
-	}))
-	#Assign correct WT control sample for each main sample
-	sampleTable$wtCtrlRef <- sapply(1:nrow(sampleTable), function(i)with(sampleTable[i,], {
-		wtCond <- with(as.data.frame(params$conditions$definitions),{
-			`Condition 1`[which(Relationship == "is_wt_control_for" & `Condition 2` == Condition)]
-		})
-		if (length(wtCond) == 0) return(NA)
-		rows <- which(
-			sampleTable$`Tile ID` == `Tile ID` & 
-			sampleTable$Replicate == Replicate & 
-			sampleTable$`Time point` == `Time point` & 
-			sampleTable$Condition == wtCond
-		)
-		if (length(rows) == 0) {
-			return(NA)
-		} else if (length(rows) > 1) {
-			logWarn("More than one WT control match found for sample",`Sample ID`)
-			paste(sampleTable$`Sample ID`[rows],collapse=",")
-		} else {
-			sampleTable$`Sample ID`[rows]
-		}
-	}))
-	params$samples <- sampleTable
+  #convert region and tile positions to nucleotide positions
+  params$regions <- cbind(params$regions, 
+    `Start NC in CDS` = params$regions[,"Start AA"]*3-2,
+    `End NC in CDS` = params$regions[,"End AA"]*3
+  )
+  params$regions <- cbind(params$regions, 
+    `Start NC in Template` = params$regions[,"Start NC in CDS"]+ params$template$cds_start - 1,
+    `End NC in Template` = params$regions[,"End NC in CDS"]+ params$template$cds_start - 1
+  )
 
-	#convenience functions to retrieve tile and region information by name
-	params$regi <- function(region) {
-		params$regions[which(params$regions[,"Region Number"] %in% region),]
-	}
-	params$tili <- function(tile) {
-		params$tiles[which(params$tiles[,"Tile Number"] %in% tile),,drop=FALSE]
-	}
-	params$pos2tile <- function(pos) {
-		rows <- sapply(pos,function(pos) {
-			i <- which(params$tiles[,"Start AA"] <= pos & params$tiles[,"End AA"] >= pos)
-			if (length(i)==0) NA else i
-		}) 
-		params$tiles[rows,"Tile Number"]
-	}
-	params$pos2reg <- function(pos) {
-		rows <- sapply(pos,function(pos) {
-			i <- which(params$regions[,"Start AA"] <= pos & params$regions[,"End AA"] >= pos)
-			if (length(i)==0) NA else i
-		})
-		params$regions[rows,"Region Number"]
-	}
+  params$tiles <- cbind(params$tiles, 
+    `Start NC in CDS` = params$tiles[,"Start AA"]*3-2,
+    `End NC in CDS` = params$tiles[,"End AA"]*3
+  )
+  params$tiles <- cbind(params$tiles, 
+    `Start NC in Template` = params$tiles[,"Start NC in CDS"]+ params$template$cds_start - 1,
+    `End NC in Template` = params$tiles[,"End NC in CDS"]+ params$template$cds_start - 1
+  )
 
-	options(op)
 
-	return(params)
+  #Process the condition definitions to annotate the sample table
+  sampleTable <- params$samples
+  #Assign correct nonselect sample for each selection sample
+  sampleTable$nonselectRef <- sapply(1:nrow(sampleTable), function(i)with(sampleTable[i,], {
+    nsCond <- with(as.data.frame(params$conditions$definitions),{
+      `Condition 2`[which(Relationship == "is_selection_for" & `Condition 1` == Condition)]
+    })
+    if (length(nsCond) == 0) return(NA)
+    rows <- which(
+      sampleTable$`Tile ID` == `Tile ID` & 
+      sampleTable$Replicate == Replicate & 
+      sampleTable$`Time point` == `Time point` & 
+      sampleTable$Condition == nsCond
+    )
+    if (length(rows) == 0) {
+      return(NA)
+    } else if (length(rows) > 1) {
+      logWarn("More than one nonselect match found for sample",`Sample ID`)
+      paste(sampleTable$`Sample ID`[rows],collapse=",")
+    } else {
+      sampleTable$`Sample ID`[rows]
+    }
+  }))
+  #Assign correct WT control sample for each main sample
+  sampleTable$wtCtrlRef <- sapply(1:nrow(sampleTable), function(i)with(sampleTable[i,], {
+    wtCond <- with(as.data.frame(params$conditions$definitions),{
+      `Condition 1`[which(Relationship == "is_wt_control_for" & `Condition 2` == Condition)]
+    })
+    if (length(wtCond) == 0) return(NA)
+    rows <- which(
+      sampleTable$`Tile ID` == `Tile ID` & 
+      sampleTable$Replicate == Replicate & 
+      sampleTable$`Time point` == `Time point` & 
+      sampleTable$Condition == wtCond
+    )
+    if (length(rows) == 0) {
+      return(NA)
+    } else if (length(rows) > 1) {
+      logWarn("More than one WT control match found for sample",`Sample ID`)
+      paste(sampleTable$`Sample ID`[rows],collapse=",")
+    } else {
+      sampleTable$`Sample ID`[rows]
+    }
+  }))
+  params$samples <- sampleTable
+
+  #convenience functions to retrieve tile and region information by name
+  params$regi <- function(region) {
+    params$regions[which(params$regions[,"Region Number"] %in% region),]
+  }
+  params$tili <- function(tile) {
+    params$tiles[which(params$tiles[,"Tile Number"] %in% tile),,drop=FALSE]
+  }
+  params$pos2tile <- function(pos) {
+    rows <- sapply(pos,function(pos) {
+      i <- which(params$tiles[,"Start AA"] <= pos & params$tiles[,"End AA"] >= pos)
+      if (length(i)==0) NA else i
+    }) 
+    params$tiles[rows,"Tile Number"]
+  }
+  params$pos2reg <- function(pos) {
+    rows <- sapply(pos,function(pos) {
+      i <- which(params$regions[,"Start AA"] <= pos & params$regions[,"End AA"] >= pos)
+      if (length(i)==0) NA else i
+    })
+    params$regions[rows,"Region Number"]
+  }
+
+  options(op)
+
+  return(params)
 }
 
 #' Convenience function to find the tiles that belong to each region.
@@ -918,16 +918,16 @@ parseParameters <- function(filename,srOverride=FALSE) {
 #' @return a  list of vectors containing the tile IDs for each region ID
 #' @export
 tilesInRegions <- function(params) {
-	setNames(lapply(params$regions$`Region Number`, function(ri) {
-		# rs <- params$regions[ri,"Start AA"]
-		rs <- params$regi(ri)[["Start AA"]]
-		# re <- params$regions[ri,"End AA"]
-		re <- params$regi(ri)[["End AA"]]
-		tileRows <- which(sapply(params$tiles[,"Start AA"], function(ts){
-			ts >=rs && ts < re
-		}))
-		params$tiles[tileRows,"Tile Number"]
-	}),params$regions$`Region Number`)
+  setNames(lapply(params$regions$`Region Number`, function(ri) {
+    # rs <- params$regions[ri,"Start AA"]
+    rs <- params$regi(ri)[["Start AA"]]
+    # re <- params$regions[ri,"End AA"]
+    re <- params$regi(ri)[["End AA"]]
+    tileRows <- which(sapply(params$tiles[,"Start AA"], function(ts){
+      ts >=rs && ts < re
+    }))
+    params$tiles[tileRows,"Tile Number"]
+  }),params$regions$`Region Number`)
 }
 
 #' Convenience function to calculate the list of SNV-reachable AA changes
@@ -939,39 +939,39 @@ tilesInRegions <- function(params) {
 #' @return a data.frame containing wt and mutant codons as well as wt and mutant AAs for all possible SNVs
 #' @export
 reachableChanges <- function(params) {
-	data(trtable)
-	library(hgvsParseR)
-	hgvsp <- new.hgvs.builder.p(aacode=3)
-	codons <- sapply(
-		seq(1,params$template$cdsLength,3),
-		function(s) substr(params$template$cdsSeq,s,s+2)
-	)
-	changes <- expand.grid(i=1:3,base=toChars("ACGT"),stringsAsFactors=FALSE)
-	reachable <- do.call(rbind,lapply(1:length(codons), function(pos) {
-		wtcodon <- codons[[pos]]
-		wtaa <- trtable[[wtcodon]]
-		muts <- as.df(lapply(1:nrow(changes),function(k) with(changes[k,],{
-			mutcodon <- wtcodon
-			substr(mutcodon,changes[k,"i"],changes[k,"i"]) <- changes[k,"base"]
-			mutaa <- trtable[[mutcodon]]
-			return(list(
-				wtcodon=wtcodon,pos=pos,mutcodon=mutcodon,
-				wtaa=wtaa,mutaa=mutaa
-			))
-		})))
-		muts <- muts[with(muts,wtaa!=mutaa),]
-		as.df(with(muts,tapply(1:nrow(muts),mutaa,function(is) {
-			list(
-				wtcodon=unique(wtcodon[is]),pos=unique(pos[is]),
-				mutcodons=paste0(mutcodon[is],collapse="|"),
-				wtaa=unique(wtaa[is]),mutaa=unique(mutaa[is])
-			)
-		})))
-	}))
-	reachable$aachange <- with(reachable,paste0(wtaa,pos,mutaa))
-	reachable$hgvsp <- sapply(1:nrow(reachable),function(i) with(reachable[i,],hgvsp$substitution(pos,wtaa,mutaa)))
+  data(trtable)
+  library(hgvsParseR)
+  hgvsp <- new.hgvs.builder.p(aacode=3)
+  codons <- sapply(
+    seq(1,params$template$cdsLength,3),
+    function(s) substr(params$template$cdsSeq,s,s+2)
+  )
+  changes <- expand.grid(i=1:3,base=toChars("ACGT"),stringsAsFactors=FALSE)
+  reachable <- do.call(rbind,lapply(1:length(codons), function(pos) {
+    wtcodon <- codons[[pos]]
+    wtaa <- trtable[[wtcodon]]
+    muts <- as.df(lapply(1:nrow(changes),function(k) with(changes[k,],{
+      mutcodon <- wtcodon
+      substr(mutcodon,changes[k,"i"],changes[k,"i"]) <- changes[k,"base"]
+      mutaa <- trtable[[mutcodon]]
+      return(list(
+        wtcodon=wtcodon,pos=pos,mutcodon=mutcodon,
+        wtaa=wtaa,mutaa=mutaa
+      ))
+    })))
+    muts <- muts[with(muts,wtaa!=mutaa),]
+    as.df(with(muts,tapply(1:nrow(muts),mutaa,function(is) {
+      list(
+        wtcodon=unique(wtcodon[is]),pos=unique(pos[is]),
+        mutcodons=paste0(mutcodon[is],collapse="|"),
+        wtaa=unique(wtaa[is]),mutaa=unique(mutaa[is])
+      )
+    })))
+  }))
+  reachable$aachange <- with(reachable,paste0(wtaa,pos,mutaa))
+  reachable$hgvsp <- sapply(1:nrow(reachable),function(i) with(reachable[i,],hgvsp$substitution(pos,wtaa,mutaa)))
 
-	return(reachable)
+  return(reachable)
 }
 
 #' Convenience function get all selective conditions
@@ -981,9 +981,9 @@ reachableChanges <- function(params) {
 #' @export
 getSelects <- function(params) {
   if (nrow(params$conditions$definitions) > 0) {
-  	unique(with(as.data.frame(params$conditions$definitions),{
-  		`Condition 1`[which(Relationship == "is_selection_for")]
-  	}))
+    unique(with(as.data.frame(params$conditions$definitions),{
+      `Condition 1`[which(Relationship == "is_selection_for")]
+    }))
   } else character(0)
 }
 
@@ -994,9 +994,9 @@ getSelects <- function(params) {
 #' @export
 getNonselects <- function(params) {
   if (nrow(params$conditions$definitions) > 0) {
-  	unique(with(as.data.frame(params$conditions$definitions),{
-  		`Condition 2`[which(Relationship == "is_selection_for")]
-  	}))
+    unique(with(as.data.frame(params$conditions$definitions),{
+      `Condition 2`[which(Relationship == "is_selection_for")]
+    }))
   } else character(0)
 }
 
@@ -1008,9 +1008,9 @@ getNonselects <- function(params) {
 #' @export
 getNonselectFor <- function(cond,params) {
   if (nrow(params$conditions$definitions) > 0) {
-  	unique(with(as.data.frame(params$conditions$definitions),{
-  		`Condition 2`[which(Relationship == "is_selection_for" & `Condition 1` == cond)]
-  	}))
+    unique(with(as.data.frame(params$conditions$definitions),{
+      `Condition 2`[which(Relationship == "is_selection_for" & `Condition 1` == cond)]
+    }))
   } else character(0)
 }
 
@@ -1022,9 +1022,9 @@ getNonselectFor <- function(cond,params) {
 #' @export
 getWTControlFor <- function(cond,params) {
   if (nrow(params$conditions$definitions) > 0) {
-  	unique(with(as.data.frame(params$conditions$definitions),{
-  		`Condition 1`[which(Relationship == "is_wt_control_for" & `Condition 2` == cond)]
-  	}))
+    unique(with(as.data.frame(params$conditions$definitions),{
+      `Condition 1`[which(Relationship == "is_wt_control_for" & `Condition 2` == cond)]
+    }))
   } else character(0)
 }
 
@@ -1047,18 +1047,18 @@ getTimepointsFor <- function(cond,params) {
 #' @return a vector containing the path to the subfolder, its timestamp and any possible label. 
 #' @export
 latestSubDir <- function(parentDir,pattern="_mut_call$|mut_count$") {
-	subDirs <- list.dirs(parentDir,recursive=FALSE)
-	subDirs <- subDirs[grepl(pattern,subDirs)]
-	if (length(subDirs) == 0) {
-		stop("No applicable input folder found!")
-	}
-	#extract time stamp
-	labelsAndTimes <- extract.groups(subDirs,"([^/]+_)?(\\d{4}-\\d{2}-\\d{2}-\\d{2}-\\d{2}-\\d{2})")
-	#select the newest dataset
-	latestIdx <- order(labelsAndTimes[,2])[[nrow(labelsAndTimes)]]
-	return(c(
-		dir=subDirs[[latestIdx]],
-		timeStamp=labelsAndTimes[latestIdx,2],
-		label=labelsAndTimes[latestIdx,1]
-	))
+  subDirs <- list.dirs(parentDir,recursive=FALSE)
+  subDirs <- subDirs[grepl(pattern,subDirs)]
+  if (length(subDirs) == 0) {
+    stop("No applicable input folder found!")
+  }
+  #extract time stamp
+  labelsAndTimes <- extract.groups(subDirs,"([^/]+_)?(\\d{4}-\\d{2}-\\d{2}-\\d{2}-\\d{2}-\\d{2})")
+  #select the newest dataset
+  latestIdx <- order(labelsAndTimes[,2])[[nrow(labelsAndTimes)]]
+  return(c(
+    dir=subDirs[[latestIdx]],
+    timeStamp=labelsAndTimes[latestIdx,2],
+    label=labelsAndTimes[latestIdx,1]
+  ))
 }
