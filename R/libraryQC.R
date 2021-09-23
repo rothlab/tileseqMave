@@ -1318,10 +1318,13 @@ plotSeqErrorRates <- function(inDir,outDir,pdftag) {
     # labels <- na.omit(allPhreds)[,1]
     # probs <- na.omit(allPhreds)[,-1]
     probs <- as.matrix(allPhreds[nafilter,-1][-1,])
-    labels <- allPhreds[nafilter,1][-1]
+    
+    pchars <- allPhreds[nafilter,1][-1]
+    qnums <- sapply(pchars,function(x) as.integer(charToRaw(x))-33)
+    labels <- sprintf("Q%d (='%s')",qnums,pchars)
 
     #any zero probabilities are the result of undersampling, so we remove them
-  probs[probs==0] <- NA
+    probs[probs==0] <- NA
 
     if (nrow(probs)==0) {
       logWarn("Invalid PHRED error rate data. Skipping analysis...")
