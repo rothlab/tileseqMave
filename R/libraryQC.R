@@ -793,6 +793,7 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
           coverageSubmap(startPos,endPos,aaMarginal,seps,thresholds=c(wmThreshold/10,wmThreshold*10))
           #and plot the corresponding censi
           lapply(tiles, function(tile) {
+            tileRegion <- names(tilesPerRegion)[sapply(tilesPerRegion,function(ts)tile %in% ts)]
             if (exists("tileDepths")) {
               reps <- params$numReplicates[[nsCond]]
               edepths <- as.matrix(tileDepths[
@@ -813,6 +814,7 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
               e=if(length(edepths)>0) min(edepths,na.rm=TRUE) else NULL,
               main=paste0("Tile #",tile)
             )
+            mtext(paste0("(Region #",tileRegion,")"),line=0.5,cex=.7)
           })
         })
         tagger$cycle()
@@ -1318,7 +1320,7 @@ plotSeqErrorRates <- function(inDir,outDir,pdftag) {
     # labels <- na.omit(allPhreds)[,1]
     # probs <- na.omit(allPhreds)[,-1]
     probs <- as.matrix(allPhreds[nafilter,-1][-1,])
-    
+
     pchars <- allPhreds[nafilter,1][-1]
     qnums <- sapply(pchars,function(x) as.integer(charToRaw(x))-33)
     labels <- sprintf("Q%d (='%s')",qnums,pchars)
