@@ -359,11 +359,14 @@ filterProgression <- function(scores,sCond,tp,params,outDir) {
     )
   
     #draw plot
-    widths <- census/max(census)
+    # widths <- census/max(census)
+    widths <- apply(census,2,function(col)col/col[[1]])
     percentages <- apply(census,2,function(xs)xs/xs[[1]])*100
     
     plotCols <- c("steelblue2","steelblue3","gold2","gold3")
-    ylabels <- c("All possible","Detected","Passed filter","High Quality")
+    ylabels <- c("All possible","Detected","Passed filters",
+      paste("\u03c3 <",params$scoring$sdThreshold)
+    )
     xlabels <- c("All","SNV-reachable","All","SNV-reachable")
     toplabels <- c("Codon changes","AA changes")
     title <- if (regSubsets$set[[ri]]=="all") "Entire Construct" else {
@@ -373,15 +376,25 @@ filterProgression <- function(scores,sCond,tp,params,outDir) {
     
     plot(NA,type="n",xlim=c(-.5,4.5),ylim=c(1,5),xlab="",ylab="",axes=FALSE,main=title)
     abline(h=1:4,col="gray",lty="dotted")
-    text(-0.5,4:1,ylabels,pos=4,cex=cex)
+    text(-0.5,4:1,ylabels,pos=4,cex=cex,col=c(1,1,1,"gray50"))
     text(1:4,4.4,xlabels,cex=cex)
     text(c(1.5,3.5),4.8,toplabels,cex=cex)
     invisible(lapply(1:4, function(cati) {
+      # polygon(
+      #   c(cati-widths[,cati]/2,rev(cati+widths[,cati]/2)),
+      #   c(4:1,1:4),col=plotCols[[cati]], border=NA
+      # )
       polygon(
-        c(cati-widths[,cati]/2,rev(cati+widths[,cati]/2)),
-        c(4:1,1:4),col=plotCols[[cati]], border=NA
+        c(cati-widths[-4,cati]/2,rev(cati+widths[-4,cati]/2)),
+        c(4:2,2:4),col=plotCols[[cati]], border=NA
       )
-      text(cati,4:1,sprintf("%d (%.02f%%)",census[,cati],percentages[,cati]),cex=cex)
+      polygon(
+        c(cati-widths[3:4,cati]/2,rev(cati+widths[3:4,cati]/2)),
+        c(2:1,1:2),col=NA, border=plotCols[[cati]], lty='dotted', lwd=1.5
+      )
+      text(cati,4:1,sprintf("%d (%.02f%%)",census[,cati],percentages[,cati]),
+        cex=cex,col=c(1,1,1,"gray50")
+      )
     }))
     tagger$cycle()
   
@@ -830,8 +843,8 @@ scoreDistributions <- function(scores,sCond,tp,outDir,params,srOverride) {
       joint <- join.datapoints(
         ms=bce[is],
         sds=bce.se[is],
-        #FIXME: Carry forward joint DF from enrichment step!!
-        dfs=rep(params$numReplicates[[sCond]],length(is)),
+        # dfs=rep(params$numReplicates[[sCond]],length(is)),
+        dfs=df[is],
         ws=(1/nerr[is])/sum(1/nerr[is])
       )
     } else {
@@ -848,10 +861,11 @@ scoreDistributions <- function(scores,sCond,tp,outDir,params,srOverride) {
     list(
       hgvsp=unique(hgvsp[is]),
       bce=joint[["mj"]],
-      sd=joint[["sj"]],
+      # sd=joint[["sj"]],
+      sd=joint[["sj"]]*sqrt(joint[["dfj"]]),
       df=joint[["dfj"]],
-      #FIXME: This is no longer correct
-      se=joint[["sj"]]/sqrt(joint[["dfj"]]),
+      # se=joint[["sj"]]/sqrt(joint[["dfj"]]),
+      se=joint[["sj"]],
       pos=p,
       region=mutregion
     )
@@ -874,14 +888,15 @@ scoreDistributions <- function(scores,sCond,tp,outDir,params,srOverride) {
     reg <- unique(aaScores$region[is])
     drawDistributions(aaScores[is,],Inf,reg)
     tagger$cycle()
-    if (!srOverride && !any(is.na(aaScores[is,"se"]))) {
+    if (!srOverride && !any(is.na(aaScores[is,"se"])) && sdCutoff < 1) {
       drawDistributions(aaScores[is,],sdCutoff,reg)
       tagger$cycle()
     } else {
       plot.new()
       rect(0,0,1,1,col="gray80",border="gray30",lty="dotted")
-      text(0.5,0.5,"unable to perform\nquality filtering")
+      text(0.5,0.5,"sigma filtering\ndisabled or unavailable")
       plot.new()
+      rect(0,0,1,1,col="gray80",border="gray30",lty="dotted")
       tagger$cycle()
     }
     return(NULL)
@@ -946,7 +961,8 @@ drawDistributions <- function(aaScores,seCutoff=Inf,reg=NA) {
     beside=TRUE,col=c("darkolivegreen3","firebrick3"),
     border=NA,ylab="density",space=c(0,0),
     main=if (is.infinite(seCutoff)) {
-      paste("Region",reg,"; Unfiltered")
+      # paste("Region",reg,"; Unfiltered")
+      bquote("Region"~.(reg)~"; Any"~sigma)
     } else {
       bquote("Region"~.(reg)~";"~sigma < .(seCutoff))
     }
