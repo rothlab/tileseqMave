@@ -137,15 +137,16 @@ for (infile in infiles) {
   }
   
   #derive WT sequence
-  cat("Deriving WT sequence...\n")
-  ancestrals <- with(data,tapply(ancestral,start,unique))
-  wt.aa <- ancestrals[as.character(1:max(data$start))]
-  wt.aa[[1]] <- "M"
+  wt.aa <- yogitools::toChars(params$template$proteinSeq)
+  # cat("Deriving WT sequence...\n")
+  # ancestrals <- with(data,tapply(ancestral,start,unique))
+  # wt.aa <- ancestrals[as.character(1:max(data$start))]
+  # wt.aa[[1]] <- "M"
   
-  if (any(is.na(wt.aa))) {
-    warning("Unable to fully derive WT sequence! Defaulting to Uniprot sequence.")
-    wt.aa <- yogitools::toChars(mavevis::getUniprotSeq(uniprot))
-  }
+  # if (any(is.na(wt.aa))) {
+  #   warning("Unable to fully derive WT sequence! Defaulting to Uniprot sequence.")
+  #   wt.aa <- yogitools::toChars(mavevis::getUniprotSeq(uniprot))
+  # }
   
   td <- new.trackdrawer(length(wt.aa),nox=TRUE)
   
