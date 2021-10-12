@@ -36,7 +36,7 @@ indata <- read.csv(infile,comment.char="#")
 cat("done\n")
 
 #Check that all required columns are present
-required <- c("hgvs_pro","score","sd","se")
+required <- c("hgvs_pro","score","se")
 if (!all(required %in% colnames(indata))) {
 	missing <- setdiff(required,colnames(indata))
 	stop("Input file ",infile," is missing the following column(s): ",paste(missing,collapse=", "))
@@ -75,7 +75,7 @@ outdata <- data.frame(
 	quality_score=1/indata$se,
 	num_replicates=df,
 	fitness_input=indata$score,
-	fitness_input_sd=indata$sd
+	fitness_input_sd=indata$se
 )
 cat("done\n")
 

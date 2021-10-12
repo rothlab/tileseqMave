@@ -68,16 +68,16 @@ if (!all(required %in% colnames(indata))) {
 }
 
 if (!is.null(orgfile)) {
-	org <- read.csv(orgfile)
+	org <- read.csv(orgfile,comment.char="#")
 	#Check that all required columns are present
 	required <- c(
-		"hgvsp","hgvsc","score","sd","se"
+		"hgvs_pro","hgvs_nt","score","se"
 	)
 	if (!all(required %in% colnames(org))) {
 		missing <- setdiff(required,colnames(org))
 		stop("Input file ",orgfile," is missing the following column(s): ",paste(missing,collapse=", "))
 	}
-	hgvsLookup <- with(org,hash(hgvsp,strsplit(hgvsc," ")))
+	hgvsLookup <- with(org,hash(hgvs_pro,strsplit(hgvs_nt," ")))
 }
 
 
