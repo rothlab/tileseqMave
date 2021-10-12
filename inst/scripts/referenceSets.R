@@ -306,7 +306,7 @@ clinvarStars <- function(qualities) {
 #' }
 #' @export
 #' 
-fetchGnomad <- function(ensemblID,overrideCache=FALSE,logger=NULL) {
+fetchExac <- function(ensemblID,overrideCache=FALSE,logger=NULL) {
 
   op <- options(stringsAsFactors=FALSE); on.exit(options(op))
 
@@ -334,8 +334,10 @@ fetchGnomad <- function(ensemblID,overrideCache=FALSE,logger=NULL) {
       #parse JSON
       returnData <- fromJSON(content(htr,as="text",encoding="UTF-8"))
 
-      #filter down to only missense variants
-      missense.idx <- which(sapply(returnData,`[[`,"category")=="missense_variant")
+      #filter down to only canonical missense variants
+      isMissense <- sapply(returnData,`[[`,"category")=="missense_variant"
+      isCanonical <- sapply(returnData,`[[`,"CANONICAL")=="YES"
+      missense.idx <- which(isCanonical & isMissense)
 
       missense.gnomad <- as.df(lapply(returnData[missense.idx],function(entry) {
         #extract hgvs and allele frequency data
@@ -349,6 +351,134 @@ fetchGnomad <- function(ensemblID,overrideCache=FALSE,logger=NULL) {
 
       #the annotation of missense is in gnomad is not correct, so we have to filter again!
       missense.gnomad <- missense.gnomad[grepl("^p\\.\\w{3}\\d+\\w{3}$",missense.gnomad$hgvsp),]
+      #eliminate potential duplicates
+      missense.gnomad <- missense.gnomad[!duplicated(missense.gnomad$hgvsc),]
+    } else {
+      stop("server message: ",http_status(htr)$message)
+    }
+
+    #Write results to cache
+    if (!is.null(logger)) {
+      logger$info("Caching GnomAD data for ",ensemblID)
+    }
+    write.table(missense.gnomad,cacheFile,sep=",")
+
+
+  } else {
+    if (!is.null(logger)) {
+      logger$info("Retrieving cached data for ",ensemblID)
+    }
+    #eliminate potential duplicates
+    missense.gnomad <- missense.gnomad[!duplicated(missense.gnomad$hgvsc),]
+    missense.gnomad <- read.csv(cacheFile)
+  }
+
+  return(missense.gnomad)
+
+}
+
+#' Fetch missense variants in GnomAD for given gene
+#' 
+#' Makes a query to the ExAC webservice to fetch the GnomAD entries for the given gene
+#' and filters them down to missense variants.
+#' 
+#' @param ensemblID The Ensembl gene identifier (e.g. \code{ENSG00000130164})
+#' @param overrideCache logical determining whether local cache should be overridden
+#' @param logger a yogilogger object to write log messages to. Defaults to NULL
+#' @return a \code{data.frame} with the following columns:
+#' \itemize{
+#'   \item \code{hgvsc} The HGVS variant descriptor at the coding sequence (DNA) level
+#'   \item \code{hgvsp} The HGVS variant descriptor at the amino acid sequence (Protein) level
+#'   \item \code{maf} The minor allele frequency.
+#' }
+#' @export
+#' 
+fetchGnomad <- function(ensemblID,overrideCache=FALSE,logger=NULL) {
+
+  op <- options(stringsAsFactors=FALSE); on.exit(options(op))
+
+  if (!is.null(logger)) {
+    stopifnot(inherits(logger,"yogilogger"))
+    library("yogilog")
+  }
+
+  cacheFile <- getCacheFile(paste0("gnomad_",ensemblID,".csv"))
+
+  if (!file.exists(cacheFile) || overrideCache) {
+
+    library(httr)
+    library(RJSONIO)
+    library(yogitools)
+
+    apiURL <- "https://gnomad.broadinstitute.org/api"
+
+    if (!is.null(logger)) {
+      logger$info("Querying GnomAD for ",ensemblID)
+    }
+    #build query (GraphQL)
+    query <- sprintf("
+{
+  gene(gene_id: \"%s\", reference_genome: GRCh37) {
+    variants(dataset: gnomad_r2_1_controls) {
+      hgvsc
+      hgvsp
+      exome {
+        homozygote_count
+        af
+      }
+      genome {
+        homozygote_count
+        af
+      }
+      consequence
+      consequence_in_canonical_transcript
+    }
+  }
+}
+",ensemblID)
+    #make HTTP GET request
+    htr <- POST(apiURL,encode="json",body=list(
+      query=query,
+      variables=list()
+    ))
+    if (http_status(htr)$category == "Success") {
+      #parse JSON
+      returnData <- fromJSON(content(htr,as="text",encoding="UTF-8"))
+
+      #check for errors
+      if (is.null(returnData$errors)) {
+        vardata <- returnData[["data"]][["gene"]][["variants"]]
+
+        #filter down to only canonical missense variants
+        isMissense <- sapply(vardata,`[[`,"consequence")=="missense_variant"
+        # isCanonical <- sapply(vardata,`[[`,"consequence_in_canonical_transcript")=="YES"
+        missense.idx <- which(isMissense)
+
+        missense.gnomad <- as.df(lapply(vardata[missense.idx],function(entry) {
+          #extract hgvs and allele frequency data
+          with(entry,list(
+            hgvsc = hgvsc,
+            hgvsp = if (!is.null(hgvsp)) hgvsp else "",
+            maf = if (!is.null(exome)) {
+              exome[["af"]]
+            } else if (!is.null(genome)) {
+              genome[["af"]]
+            } else NA,
+            hom = if (!is.null(exome)) {
+              as.integer(exome[["homozygote_count"]])
+            } else if (!is.null(genome)) {
+              as.integer(genome[["homozygote_count"]])
+            } else NA
+          ))
+        }))
+
+        #the annotation of missense is in gnomad is not correct, so we have to filter again!
+        missense.gnomad <- missense.gnomad[grepl("^p\\.\\w{3}\\d+\\w{3}$",missense.gnomad$hgvsp),]
+        #eliminate potential duplicates
+        missense.gnomad <- missense.gnomad[!duplicated(missense.gnomad$hgvsc),]
+      } else {
+        stop(returnData$errors[[1]])
+      }
     } else {
       stop("server message: ",http_status(htr)$message)
     }
@@ -430,7 +560,11 @@ buildReferenceSet <- function(geneName,ensemblID,
   clinvarBenign$hom=gnomad[clinvarBenign$hgvsc,"hom"]
 
   #filter gnomad down based on given criteria
-  gnomadBenign <- gnomad[with(gnomad,hom >= homMin | maf >= mafMin),]
+  if (homMin > 0) {
+    gnomadBenign <- gnomad[with(gnomad,hom >= homMin | maf >= mafMin),]
+  } else {
+    gnomadBenign <- gnomad[with(gnomad,maf >= mafMin),]
+  }
   #and exclude AA changes any that are explicitly pathogenic in clinvar
   gnomadBenign <- gnomadBenign[!(gnomadBenign$hgvsp %in% clinvarPatho$hgvsp),]
   #also, we don't need to include any cases from gnomad that are already benign in clinvar (i.e. redundant)
