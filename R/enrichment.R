@@ -961,10 +961,14 @@ biasCorrection <- function(msc,bcOverride=FALSE) {
   
   if (bcOverride) {
     
+    #nonsense median logPhi
     nsmed <- with(nonsenseF, median(logPhi,na.rm=TRUE))
+    #synonymous median logPhi
     synmed <- with(synonymousF, median(logPhi,na.rm=TRUE))
+    #difference between medians
     mediff <- synmed-nsmed
     bces <- with(msc,data.frame(
+      #"fake" bce is now just logPhi rescaled by medians
       bce=(logPhi-nsmed)/mediff,
       bce.se=logPhi.se/abs(mediff)
     ))
@@ -972,18 +976,21 @@ biasCorrection <- function(msc,bcOverride=FALSE) {
     
   } else {
     
-    #simple linear regression
+    #do simple linear regression of synonymous and nonsense
+    #logPhis against nonselect marginal freqencies
     zns <- with(nonsenseF, lm(logPhi~lognsCorr) )
     zsyn <- with(synonymousF, lm(logPhi~lognsCorr) )
     
-    #calculate pivot points for each variant based on their 
-    #normalized read frequency (= nonselect.mean - WT)
+    #calculate the (WT-corrected) marginal frequency for each variant
     nsmean <- log10(floorPC(msc[,"nonselect.mean"] - msc[,"nonWT.mean"]))
+    #workaround: represent as single-column dataframe to work with 'predict' function
     nsmean <- data.frame(lognsCorr=nsmean)
+    #use the linear regression models to predict the expected nonsense and synonymous levels
     msc$esyn <- predict.lm(zsyn,nsmean)
     msc$enon <- predict.lm(zns,nsmean)
+    #calculate the difference between the expected levels
     msc$ediff <- with(msc,floor0(esyn-enon))
-    
+    #bce is logPhi rescaled by expcted nonsense/synonymous levels at the current marginal freq
     bces <- as.df(lapply(1:nrow(msc), function(i) with(msc[i,],{
       c(
         bce=(logPhi-enon)/ediff,
