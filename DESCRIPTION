@@ -8,8 +8,12 @@ License: GPL-3 + file LICENSE.md
 Encoding: UTF-8
 LazyData: true
 Suggests: 
-    testthat, mavevis
-Imports: rapimave, hgvsParseR, yogitools (>= 0.1.1), yogilog, argparser, pbmcapply, hash, optimization, bitops, TmCalculator
-Remotes: github::VariantEffect/rapimave, github::VariantEffect/hgvsParseR, github::jweile/yogitools, github::jweile/yogilog, github::VariantEffect/mavevis
+    testthat, mavevis (>= 0.1.4)
+Imports: 
+    rapimave, hgvsParseR, yogitools (>= 0.1.1), yogilog, argparser, 
+    pbmcapply, hash, optimization, bitops, TmCalculator
+Remotes: 
+    github::VariantEffect/rapimave, github::VariantEffect/hgvsParseR, 
+    github::jweile/yogitools, github::jweile/yogilog, github::VariantEffect/mavevis
 RoxygenNote: 7.1.1
 SystemRequirements: gs

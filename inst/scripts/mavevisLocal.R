@@ -41,7 +41,7 @@ p <- add_argument(p, "--input", help="either input file or input directory conta
 p <- add_argument(p, "--output", help="either output pdf file or output directory. Default adjusts automatically depending on input type")
 p <- add_argument(p, "--parameters", help="parameter file. Defaults to parameters.json in the data directory.")
 p <- add_argument(p, "--pdb", help="PDB structures. Semicolon-separated list of #-separated pairings between PDB IDs and chain IDs.")
-p <- add_argument(p, "--squish", help="output pdf file. Defaults to the name of the input file with pdf extension.",flag=TRUE)
+p <- add_argument(p, "--squish", help="Compress x-axis to fit map onto single screen.",flag=TRUE)
 p <- add_argument(p, "--srOverride", help="Manual override to allow singleton replicates. USE WITH EXTREME CAUTION!",flag=TRUE)
 args <- parse_args(p)
 
@@ -153,6 +153,20 @@ for (infile in infiles) {
   if (!is.null(uniprot)) {
     cons <- calc.conservation(uniprot)
     td$add.constrack(cons)
+
+    cat("Querying PFam")
+    domains <- fetch.domains.pfam(uniprot)
+    if (!is.null(domains) && nrow(domains) > 0) {
+      colkey <- c(`Pfam-A`="goldenrod")
+      td$add.domtrack(domains,colkey)
+    }
+    
+    cat("Querying Uniprot")
+    domains <- fetch.domains.uniprot(uniprot)
+    if (!is.null(domains) && nrow(domains) > 0) {
+      colkey <- c(DOMAIN="goldenrod1",REPEAT="goldenrod2",SIGNAL="goldenrod3")
+      td$add.domtrack(domains,colkey)
+    }
   }
   
   if (!is.na(args$pdb)) {
