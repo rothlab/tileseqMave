@@ -132,7 +132,7 @@ for (infile in infiles) {
   #extract positions
   pos <- as.integer(gsub("\\D","",indata$hgvs_pro))
   #calculate summary statistics per residue
-  values <- tapply(indata$score,pos,fun)
+  values <- tapply(indata$score,pos,fun,na.rm=TRUE)
   #corresponding position labels
   valpos <- as.integer(names(values))
   
