@@ -8,7 +8,7 @@ License: GPL-3 + file LICENSE.md
 Encoding: UTF-8
 LazyData: true
 Suggests: 
-    testthat, mavevis (>= 0.1.4)
+    testthat, mavevis (>= 0.1.4), maveLLR
 Imports: 
     rapimave, hgvsParseR, yogitools (>= 0.1.1), yogilog, argparser, 
     pbmcapply, hash, optimization, bitops, TmCalculator

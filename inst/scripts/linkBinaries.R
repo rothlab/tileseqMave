@@ -15,7 +15,7 @@ scripts <- c(
   "calcEnrichment.R","runSelectionQC.R","scaleScores.R","mavevisLocal.R",
   "condenseQC.R","popcodeOligos.R","colorizeStructure.R","differenceMap.R",
   "proveanInput.R", "profileWTCtrl.R", "calibratePhred.R", "collapseSamples.R",
-  "exportCounts.R"
+  "exportCounts.R","referenceSets.R","calcLLR.R"
 )
 
 #find scripts folder in the local library installation
