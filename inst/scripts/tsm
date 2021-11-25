@@ -1,0 +1,61 @@
+#!/bin/bash
+
+REPO=$(Rscript -e 'cat(system.file(package="tileseqMave"))')/scripts
+SCRIPTS=$(ls $REPO/*.R)
+SNAMES=$(basename -a $SCRIPTS|sed -e s/\\.R//)
+
+#helper function to print usage information
+usage () {
+  cat << EOF
+$(Rscript -e 'library(tileseqMave)') 
+
+usage: tsm <COMMAND> {<ARGUMENTS>}
+
+<COMMAND>      : The tileseqMave command to invoke. 
+<ARGUMENTS>    : Any arguments to be passed to the command
+
+Valid commands:
+help
+$SNAMES
+
+EOF
+ exit $1
+}
+
+COMMAND=$1
+shift
+
+function isValidCommand() {
+  for SNAME in $SNAMES; do
+    if [[ $1 == $SNAME ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+if [[ $COMMAND == "help" ]]; then
+  if (( "$#" )); then
+    COMMAND=$1
+    if isValidCommand $COMMAND ; then
+      SCRIPT=${REPO}/${COMMAND}.R
+      Rscript $SCRIPT --help
+      exit 0
+    else
+      echo "Unknown command $COMMAND"
+      usage 0
+    fi
+  else 
+    usage 0
+  fi
+fi
+
+
+if ! isValidCommand $COMMAND ; then
+  echo "Unknown command: $COMMAND" >&2
+  usage 1
+fi
+
+
+SCRIPT=${REPO}/${COMMAND}.R
+Rscript $SCRIPT $@
