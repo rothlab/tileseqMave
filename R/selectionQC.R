@@ -528,6 +528,15 @@ logPhiBias <- function(scores,params,sCond,tp,outDir) {
     synonymousF <- scores[with(scores,type=="synonymous" & is.na(filter) & region==currRegion),]
     synonymousF$lognsCorr <- with(synonymousF,log10(floor0(nonselect.mean-nonWT.mean)))
     
+    if (nrow(synonymousF) == 0 || nrow(nonsenseF) == 0) {
+      plot.new()
+      rect(0,0,1,1,col="gray80",border="gray30",lty="dotted")
+      text(0.5,0.5,"insufficient data")
+      mtext(paste0("Region ",currRegion),side=3)
+      tagger$cycle()
+      next
+    }
+    
     zns <- with(nonsenseF, lm(logPhi~lognsCorr) )
     zsyn <- with(synonymousF, lm(logPhi~lognsCorr) )
     
@@ -544,7 +553,9 @@ logPhiBias <- function(scores,params,sCond,tp,outDir) {
       points(lognsCorr,logPhi,col="firebrick3",pch=20)
       yogitools::errorBars(lognsCorr,logPhi,logPhi.se,col="firebrick3")
     })
-    abline(zns,col="firebrick2",lty="dashed")
+    if (!any(is.na(zns$coefficients))) {
+      abline(zns,col="firebrick2",lty="dashed")
+    }
     abline(h=nsmed,col="firebrick2",lty="dotted")
     # abline(a=thetaNon[[1]],b=thetaNon[[2]],col="firebrick2")
     lines(trns,col="firebrick2",lwd=2)
@@ -553,7 +564,9 @@ logPhiBias <- function(scores,params,sCond,tp,outDir) {
       points(lognsCorr,logPhi,col="chartreuse3",pch=20)
       yogitools::errorBars(lognsCorr,logPhi,logPhi.se,col="chartreuse3")
     })
-    abline(zsyn,col="chartreuse2",lty="dashed")
+    if (!any(is.na(zsyn$coefficients))) {
+      abline(zsyn,col="chartreuse2",lty="dashed")
+    }
     abline(h=synmed,col="chartreuse2",lty="dotted")
     # abline(a=thetaSyn[[1]],b=thetaSyn[[2]],col="chartreuse2")
     lines(trsyn,col="chartreuse2",lwd=2)
