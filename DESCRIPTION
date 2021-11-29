@@ -1,6 +1,6 @@
 Package: tileseqMave
 Title: TileSeq MAVE Analysis pipeline
-Version: 0.7.17.9000
+Version: 0.8.0.9000
 Authors@R: 'Jochen Weile <jochenweile@gmail.com> [aut,cre]'
 Description: Analyze TileSEQ data for Multiplexed Assays of Variant Effect (MAVE)
 Depends: R (>= 3.6.3)
@@ -15,5 +15,5 @@ Imports:
 Remotes: 
     github::VariantEffect/rapimave, github::VariantEffect/hgvsParseR, 
     github::jweile/yogitools, github::jweile/yogilog, github::VariantEffect/mavevis
-RoxygenNote: 7.1.1
+RoxygenNote: 7.1.2
 SystemRequirements: gs

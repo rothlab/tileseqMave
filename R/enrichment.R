@@ -295,7 +295,9 @@ calcEnrichment <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"
 
         # Bias correction -----------------------------
         logInfo("Performing bias correction...")
-        msc <- cbind(msc,biasCorrection(msc,bcOverride))
+        if (!bcOverride) {
+          msc <- cbind(msc,biasCorrection(msc,bcOverride))
+        }
         
         
         # # Scaling to synonymous and nonsense medians -----------------------------

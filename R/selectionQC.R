@@ -169,7 +169,9 @@ selectionQC <- function(dataDir,countDir=NA, scoreDir=NA, outDir=NA,
       }
       scores <- read.csv(scoreFile,comment.char="#")
       
-      if (all(is.na(scores$bce))) {
+      params$bcOverride <- FALSE
+      if (!("bce" %in% colnames(scores)) || all(is.na(scores$bce))) {
+        params$bcOverride <- TRUE
         scores$bce <- scores$logPhi
         scores$bce.se <- scores$logPhi.se
       }
@@ -307,7 +309,7 @@ filterProgression <- function(scores,sCond,tp,params,outDir) {
   
   #prep plot
   outfile <- paste0(outDir,sCond,"_t",tp,"_filtering.pdf")
-  pdf(outfile,11,8.5)
+  cairo_pdf(outfile,11,8.5)
   tagger <- pdftagger(paste(params$pdftagbase,"; selection condition:",sCond),cpp=4)
   opar <- par(oma=c(2,2,2,2),mar=c(1,1,4,1)+.1,mfrow=c(2,2))
   
@@ -899,10 +901,10 @@ scoreDistributions <- function(scores,sCond,tp,outDir,params,srOverride) {
   layout(rbind(1,2,3,4),heights=c(1.2,1,1.2,1))
   invisible(tapply(1:nrow(aaScores),aaScores$region, function(is) {
     reg <- unique(aaScores$region[is])
-    drawDistributions(aaScores[is,],Inf,reg)
+    drawDistributions(aaScores[is,],Inf,reg,params$bcOverride)
     tagger$cycle()
     if (!srOverride && !any(is.na(aaScores[is,"se"])) && sdCutoff < 1) {
-      drawDistributions(aaScores[is,],sdCutoff,reg)
+      drawDistributions(aaScores[is,],sdCutoff,reg,params$bcOverride)
       tagger$cycle()
     } else {
       plot.new()
@@ -914,10 +916,10 @@ scoreDistributions <- function(scores,sCond,tp,outDir,params,srOverride) {
     }
     return(NULL)
   }))
-  drawDistributions(aaScores,Inf,"all")
+  drawDistributions(aaScores,Inf,"all",params$bcOverride)
   tagger$cycle()
   if (!any(is.na(aaScores[,"se"]))) {
-    drawDistributions(aaScores,sdCutoff,"all")
+    drawDistributions(aaScores,sdCutoff,"all",params$bcOverride)
     tagger$cycle()
   }
   par(opar)
@@ -929,7 +931,7 @@ scoreDistributions <- function(scores,sCond,tp,outDir,params,srOverride) {
 #' @param aaScores the score table
 #' @param seCutoff the stderr cutoff to apply
 #' @return NULL
-drawDistributions <- function(aaScores,seCutoff=Inf,reg=NA) {
+drawDistributions <- function(aaScores,seCutoff=Inf,reg=NA,bcOverride=TRUE) {
 
   if (seCutoff < Inf) {
     #check that the cutoff leaves at least 10 nonsense variants to work with
@@ -985,6 +987,11 @@ drawDistributions <- function(aaScores,seCutoff=Inf,reg=NA) {
   pips <- left:right
   pipx <- colMeans(xs[,which(breaks %in% pips)])
   axis(1,at=pipx,labels=pips)
+  if (bcOverride) {
+    mtext(expression(log(phi)),side=1,line=1,at=xs[1,1],adj=0,cex=0.8)
+  } else {
+    mtext("bce",side=1,line=1,at=xs[1,1],adj=0,cex=0.8)
+  }
   #draw legend
   legend("left",
     c("nonsense","synonymous","missense"),
@@ -1082,7 +1089,9 @@ errorProfile <- function(scores,sCond,tp,outDir,params) {
   tagger <- pdftagger(paste(params$pdftagbase,"; selection condition:",sCond),cpp=4)
   opar <- par(oma=c(24,6,2,6)) 
   plotEP(scores,"logPhi",expression(log[10](phi)))
-  plotEP(scores,"bce","bias-corrected enrichment")
+  if (!params$bcOverride) {
+    plotEP(scores,"bce","bias-corrected enrichment")
+  }
   par(opar)
 
   invisible(dev.off())

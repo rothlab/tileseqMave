@@ -387,7 +387,7 @@ checkPivots <- function(params) {
   }
 }
 
-#' Calculate scores by scaling bce values to syn/nonsense medians
+#' Calculate scores by scaling logPhi (or bce values, as applicable) to syn/nonsense medians
 #' @param msc data.frame containing the enrichment ratios (phi) and log(phi)
 #' @param aac the vector of corresponding amino acid changes
 #' @param sdThreshold stdev threshold for finding the syn/stop means
@@ -403,21 +403,32 @@ enactScale <- function(msc,aac,sdThreshold,
   #   if (from==to) "synonymous" else if (to=="*") "nonsense" else "missense"
   # },fromAA,toAA))
   # 
+
+  #with bce being optional, we can only use the column if it exists, otherwise
+  # we will have to use logPhi instead, to avoid a bazillion if statements, we'll
+  # just use temporary columns to hold the appropriate value, whichever it is.
+  if ("bce" %in% colnames(msc)){
+    msc$values <- msc$bce
+    msc$ses <- msc$bce.se
+  } else {
+    msc$values <- msc$logPhi
+    msc$ses <- msc$logPhi.se
+  }
   
   #apply filter
   mscFiltered <- msc[is.na(msc$filter) & msc$position <= lastFuncPos,]
-  if (!all(is.na(mscFiltered$bce.se))) {
+  #relax filters if they are too harsh
+  if (!all(is.na(mscFiltered$ses))) {
     # #here we use residual error to decide which variants to use to calculate the syn/non medians as pivots
-    # resErr <- residualError(mscFiltered$bce,mscFiltered$bce.sd,mirror=TRUE,wtX=1)
+    # resErr <- residualError(mscFiltered$values,mscFiltered$ses,mirror=TRUE,wtX=1)
     # mscFiltered$resErr <- resErr+min(resErr,na.rm=TRUE)
     # #but since that isn't reliable yet, we'll default to the total error
-    mscFiltered$resErr <- mscFiltered$bce.se
+    mscFiltered$resErr <- mscFiltered$ses
     numNsSurvive <- with(mscFiltered,sum(is.na(filter) & resErr < sdThreshold & type == "nonsense",na.rm=TRUE))
     if (numNsSurvive >= 10) {
       mscFiltered <- with(mscFiltered,mscFiltered[which(is.na(filter) & resErr < sdThreshold),])
     } else {
       nonsenseSDs <- with(mscFiltered,resErr[is.na(filter) & type=="nonsense"])
-      # q10Threshold <- quantile(with(msc,bce.sd[is.na(filter) & type=="nonsense"]),0.1)
       r10Threshold <- sort(nonsenseSDs)[[min(10,length(nonsenseSDs))]]
       logWarn(sprintf("sdThreshold %.03f is too restrictive! Using sd < %.03f instead.",sdThreshold,r10Threshold))
       mscFiltered <- with(mscFiltered,mscFiltered[which(is.na(filter) & resErr < r10Threshold),])
@@ -428,10 +439,10 @@ enactScale <- function(msc,aac,sdThreshold,
   
   #calculate medians
   synonymousMedian <- with(mscFiltered,median(
-    bce[which(type == "synonymous" & bce > 0)]
+    values[which(type == "synonymous" & values > 0)]
     ,na.rm=TRUE))
   nonsenseMedian <- with(mscFiltered,median(
-    bce[which(type == "nonsense" & bce < 1)]
+    values[which(type == "nonsense" & values < 1)]
     ,na.rm=TRUE))
   
   logInfo(sprintf("Auto-detected nonsense median: %.03f",nonsenseMedian))
@@ -465,8 +476,8 @@ enactScale <- function(msc,aac,sdThreshold,
   #safety check, that the medians are in the right orientation
   if (synonymousMedian > nonsenseMedian) {
     #use medians to normalize
-    score <- (msc$bce - nonsenseMedian) / (synonymousMedian - nonsenseMedian)
-    score.se <- msc$bce.se / (synonymousMedian - nonsenseMedian)
+    score <- (msc$values - nonsenseMedian) / (synonymousMedian - nonsenseMedian)
+    score.se <- msc$ses / (synonymousMedian - nonsenseMedian)
   } else {
     #otherwise, we CANNOT assign a correct score!
     logWarn(paste(

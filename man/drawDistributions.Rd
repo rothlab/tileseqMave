@@ -4,7 +4,7 @@
 \alias{drawDistributions}
 \title{Delegation function to draw score distribution plots with a given filter setting}
 \usage{
-drawDistributions(aaScores, seCutoff = Inf, reg = NA)
+drawDistributions(aaScores, seCutoff = Inf, reg = NA, bcOverride = TRUE)
 }
 \arguments{
 \item{aaScores}{the score table}

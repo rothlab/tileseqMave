@@ -2,7 +2,7 @@
 % Please edit documentation in R/scaling.R
 \name{enactScale}
 \alias{enactScale}
-\title{Calculate scores by scaling bce values to syn/nonsense medians}
+\title{Calculate scores by scaling logPhi (or bce values, as applicable) to syn/nonsense medians}
 \usage{
 enactScale(
   msc,
@@ -23,5 +23,5 @@ enactScale(
 data.frame with variant type, score and stdev
 }
 \description{
-Calculate scores by scaling bce values to syn/nonsense medians
+Calculate scores by scaling logPhi (or bce values, as applicable) to syn/nonsense medians
 }
