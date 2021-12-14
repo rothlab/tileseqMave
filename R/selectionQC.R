@@ -343,7 +343,7 @@ filterProgression <- function(scores,sCond,tp,params,outDir) {
       found = c(
         AllCCs = nrow(localScores),
         ReachCCs = length(intersect(localScores$codonChange, reachableCCs)),
-        AllAACs = length(unique(localScores$hgvsp[scores$type != "synonymous"])),
+        AllAACs = length(unique(localScores$hgvsp[localScores$type != "synonymous"])),
         ReachAACs = length(intersect(unique(localScores$hgvsp),reachable$hgvsp))
       ),
       filtered = c(
