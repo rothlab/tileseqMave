@@ -384,7 +384,7 @@ validateParameters <- function(params,srOverride=FALSE) {
   
   expected <- c(
     "countThreshold","pseudo.n","sdThreshold","wtQuantile",
-    "cvDeviation","lastFuncPos"
+    "cvDeviation","lastFuncPos","lpdCutoff"
   )
   if (!all(expected %in% names(params$scoring))) {
     stop("Parameter sheet JSON file is out of date with software version!\n",
@@ -432,6 +432,12 @@ validateParameters <- function(params,srOverride=FALSE) {
     logWarn("'Last functional AA position' is set very low! Are you sure?")
   } else if (is.finite(params$scoring$lastFuncPos) && params$scoring$lastFuncPos > plen) {
     logWarn("'Last functional AA position' is beyond protein length! Did you mean 'Inf'?")
+  }
+  if (is.na(params$scoring$lpdCutoff)) {
+    stop("Maxium logPhi SD parameter must be numeric!")
+  }
+  if (params$scoring$lpdCutoff <= 0) {
+    stop("Maxium logPhi SD parameter must be greater than 0!")
   }
 
   #validate pivots table
@@ -697,6 +703,11 @@ csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",infile),
     output$scoring$lastFuncPos <- as.numeric(csv[[getRow("Last functional AA position:")]][[2]])
   } else {
     output$scoring$lastFuncPos <- Inf
+  }
+  if (hasRow("Maximum logPhi SD:")) {
+    output$scoring$lpdCutoff <- as.numeric(csv[[getRow("Maximum logPhi SD:")]][[2]])
+  } else {
+    output$scoring$lpdCutoff <- 1
   }
   
   #Extract scale pivots

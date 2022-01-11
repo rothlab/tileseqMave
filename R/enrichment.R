@@ -31,7 +31,7 @@
 #' @export
 calcEnrichment <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"parameters.json"),
   mc.cores=6, srOverride=FALSE, bnOverride=FALSE, bcOverride=FALSE, useWTfilter=FALSE, nbs=1e4, pessimistic=TRUE,
-  useQuorum=FALSE) {
+  useQuorum=FALSE,useLPDfilter=FALSE) {
 
   op <- options(stringsAsFactors=FALSE)
 
@@ -268,6 +268,11 @@ calcEnrichment <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"
           )
         }
 
+        #calculate ad-hoc logphi sd for LPD filter
+        if (useLPDfilter) {
+          msc$adhoc.lphi.sd <- adhocLogPhiSD(regionalCounts,params,condQuad,tp)
+        }
+
         # filtering (count and frequency thresholds met) -----------------------
         logInfo("Filtering...")
         msc$filter <- rawFilter(msc,
@@ -275,7 +280,8 @@ calcEnrichment <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"
           wtq=params$scoring$wtQuantile,
           cvm=params$scoring$cvDeviation,
           srOverride=srOverride,
-          useWTfilter=useWTfilter
+          useWTfilter=useWTfilter,
+          lpdCutoff=if (useLPDfilter) params$scoring$lpdCutoff else NA
         )
 
         
@@ -622,6 +628,49 @@ mean.sd.count <- function(cond,regionalCounts,regionalDrops,tp,params) {
   return(out)
 }
 
+#' Helper function to calculate ad-hoc log(phi) replicate stdev
+#' to be used for the ad-hoc filter.
+#' 
+#' @param regionalCounts the regional counts table
+#' @param params the parameter sheet object
+#' @param condQuad the set of select,nonselect,selWT and nonWT conditions
+#' @param tp the current time point
+#'
+#' @return a vector of ad-hoc log(phi) sds.
+#'
+adhocLogPhiSD <- function(regionalCounts,params,condQuad,tp) {
+  #extract applicable columns for each condition
+  colLists <- lapply(condQuad,function(cc) {
+    #validate against applicable time points
+    tps <- getTimepointsFor(cc,params)
+    tpAppl <- if (tp %in% tps) tp else tps[[1]]
+    reps <- 1:params$numReplicates[[cc]]
+    sprintf("%s.t%s.rep%d.frequency",cc,tpAppl,reps)
+  })
+
+  allSelect <- unlist(regionalCounts[,colLists$select])
+  smallestSelect <- unique(sort(na.omit(allSelect)))[[2]]
+  pseudoCount <- 10^floor(log10(smallestSelect))
+  
+  #calculate ad-hoc replicate log-phis and their stdevs
+  sapply(1:nrow(regionalCounts), function(i) {
+    selFreqs <- regionalCounts[i,colLists$select]
+    swtFreqs <- regionalCounts[i,colLists$selWT]
+    nonFreqs <- regionalCounts[i,colLists$nonselect]
+    nwtFreqs <- regionalCounts[i,colLists$nonWT]
+
+    selNorm <- do.call(c,lapply(selFreqs, function(s) floor0(s-swtFreqs)))
+    # selNorm <- selNorm[selNorm > 0]
+    nonNorm <- do.call(c,lapply(nonFreqs, function(s) floor0(s-nwtFreqs)))
+    # nonNorm <- nonNorm[nonNorm > 0]
+    lphi <- unlist(lapply(selNorm, function(s) {
+      # log10(s)-log10(nonNorm)
+      log10((s+pseudoCount)/nonNorm)
+    }))
+    sd(lphi,na.rm=TRUE)#/abs(mean(lphi,na.rm=TRUE))
+  })
+}
+
 #' Function to apply filtering based on raw counts / frequency
 #'
 #' @param msc dataframe containing the output of the 'mean.sd.count()' function.
@@ -632,7 +681,9 @@ mean.sd.count <- function(cond,regionalCounts,regionalDrops,tp,params) {
 #' @param cvm coefficient of variation multiplier. Up to how much more than the 
 #'  expected CV do we accept as normal?
 #' @return a vector listing for each row in the table which (if any) filters apply, otherwise NA.
-rawFilter <- function(msc,countThreshold,wtq=0.95,cvm=10,srOverride=FALSE,useWTfilter=FALSE) {
+rawFilter <- function(msc,
+  countThreshold,wtq=0.95,cvm=10,srOverride=FALSE,
+  useWTfilter=FALSE,lpdCutoff=NA) {
   #if no error estimates are present, pretend it's 0
   if (all(c("nonWT.sd.bayes", "selWT.sd.bayes") %in% colnames(msc))) {
     sd.sWT <- msc$selWT.sd.bayes
@@ -677,6 +728,13 @@ rawFilter <- function(msc,countThreshold,wtq=0.95,cvm=10,srOverride=FALSE,useWTf
     wFilter <- rep(FALSE,nrow(msc))
   }
   
+  if (!is.na(lpdCutoff)) {
+    lpdFilter <- msc$adhoc.lphi.sd > lpdCutoff#doesn't exist yet
+    lpdFilter[is.na(lpdFilter)] <- FALSE
+  } else {
+    lpdFilter <- rep(FALSE,length(wFilter))
+  }
+
   #determine replicate bottlenecks
   if (!srOverride) {
     non.cv.poisson <- 1/sqrt(msc[,"nonselect.count"])
@@ -700,7 +758,7 @@ rawFilter <- function(msc,countThreshold,wtq=0.95,cvm=10,srOverride=FALSE,useWTf
     else if (s) "bottleneck:select" 
     else if (rf) "bottleneck:rep"
     else NA
-  },nsFilter,sFilter,rFilter,wFilter,dFilter)
+  },nsFilter,sFilter,rFilter|lpdFilter,wFilter,dFilter)
 }
 
 #' Run model fitting on all tiles in all given conditions

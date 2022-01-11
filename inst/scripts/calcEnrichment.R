@@ -51,6 +51,7 @@ p <- add_argument(p, "--wtFilter", help="Enable WT filter. Removes variants with
 p <- add_argument(p, "--bootstrap", default=1e4, help="Number of bootstrap samples to use. NA uses heuristics instead.")
 p <- add_argument(p, "--optimistic", help="Uses bayesian regularization instead of maximizing between prior and empiric SD",flag=TRUE)
 p <- add_argument(p, "--useQuorum", help="Use majority vote to exclude frequency outliers",flag=TRUE)
+p <- add_argument(p, "--useLPDfilter", help="Use ad-hoc logPhi disagreement filter",flag=TRUE)
 p <- add_argument(p, "--silent", help="Turn off message printing to stdout",flag=TRUE)
 args <- parse_args(p)
 
@@ -97,7 +98,8 @@ invisible(
     useWTfilter=args$wtFilter,
     nbs=args$bootstrap,
     pessimistic=!args$optimistic,
-    useQuorum=args$useQuorum
+    useQuorum=args$useQuorum,
+    useLPDfilter=args$useLPDfilter
   )
 )
 
