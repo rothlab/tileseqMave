@@ -309,7 +309,7 @@ filterProgression <- function(scores,sCond,tp,params,outDir) {
   
   #prep plot
   outfile <- paste0(outDir,sCond,"_t",tp,"_filtering.pdf")
-  cairo_pdf(outfile,11,8.5)
+  pdf(outfile,11,8.5)
   tagger <- pdftagger(paste(params$pdftagbase,"; selection condition:",sCond),cpp=4)
   opar <- par(oma=c(2,2,2,2),mar=c(1,1,4,1)+.1,mfrow=c(2,2))
   
@@ -367,7 +367,8 @@ filterProgression <- function(scores,sCond,tp,params,outDir) {
     
     plotCols <- c("steelblue2","steelblue3","gold2","gold3")
     ylabels <- c("All possible","Detected","Passed filters",
-      paste("\u03c3 <",params$scoring$sdThreshold)
+      # paste("\u03c3 <",params$scoring$sdThreshold)
+      paste("sd <",params$scoring$sdThreshold)
     )
     xlabels <- c("All","SNV-reachable","All","SNV-reachable")
     toplabels <- c("Codon changes","AA changes")
