@@ -641,6 +641,10 @@ mean.sd.count <- function(cond,regionalCounts,regionalDrops,tp,params) {
 adhocLogPhiSD <- function(regionalCounts,params,condQuad,tp) {
   #extract applicable columns for each condition
   colLists <- lapply(condQuad,function(cc) {
+    #check if condition is missing (no WT)
+    if (is.na(cc)) {
+      return(NA)
+    }
     #validate against applicable time points
     tps <- getTimepointsFor(cc,params)
     tpAppl <- if (tp %in% tps) tp else tps[[1]]
@@ -654,10 +658,11 @@ adhocLogPhiSD <- function(regionalCounts,params,condQuad,tp) {
   
   #calculate ad-hoc replicate log-phis and their stdevs
   sapply(1:nrow(regionalCounts), function(i) {
+    
     selFreqs <- regionalCounts[i,colLists$select]
-    swtFreqs <- regionalCounts[i,colLists$selWT]
+    swtFreqs <- if (any(is.na(colLists$selWT))) 0 else regionalCounts[i,colLists$selWT]
     nonFreqs <- regionalCounts[i,colLists$nonselect]
-    nwtFreqs <- regionalCounts[i,colLists$nonWT]
+    nwtFreqs <- if (any(is.na(colLists$nonWT))) 0 else regionalCounts[i,colLists$nonWT]
 
     selNorm <- do.call(c,lapply(selFreqs, function(s) floor0(s-swtFreqs)))
     # selNorm <- selNorm[selNorm > 0]
