@@ -637,7 +637,7 @@ replicateCorrelation <- function(scores, marginalCounts, params, sCond, tp, outD
     } else 0
     nonFreq <-  floor0(nonRaw - nonWTraw)
     
-    smallestSelect <- unique(sort(na.omit(selFreq)))[[2]]
+    smallestSelect <- unique(sort(na.omit(selRaw)))[[2]]
     pseudoCount <- 10^floor(log10(smallestSelect))
     
     logphi <- log10((selFreq+pseudoCount) / nonFreq)
