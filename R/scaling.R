@@ -27,7 +27,8 @@
 #' @export
 scaleScores <- function(dataDir, scoreDir=NA, outDir=NA, 
                         paramFile=paste0(dataDir,"parameters.json"),
-                        srOverride=FALSE, bnOverride=FALSE,autoPivot=FALSE) {
+                        srOverride=FALSE, bnOverride=FALSE,autoPivot=FALSE,
+                        codonQuorum=c("off","simple","harsh")) {
   
   
   op <- options(stringsAsFactors=FALSE)
@@ -36,6 +37,9 @@ scaleScores <- function(dataDir, scoreDir=NA, outDir=NA,
   # library(hgvsParseR)
   # library(pbmcapply)
   # library(optimization)
+
+  #make sure codonQuorum is valid
+  codonQuorum <- match.arg(codonQuorum,choices=c("off","simple","harsh"))
   
   #make sure data exists and ends with a "/"
   if (!grepl("/$",dataDir)) {
@@ -56,6 +60,7 @@ scaleScores <- function(dataDir, scoreDir=NA, outDir=NA,
     parseParameters(paramFile,srOverride=srOverride),
     warning=function(w)logWarn(conditionMessage(w))
   )
+  params$scoring$codonQuorum <- codonQuorum
   
   if (!autoPivot) {
     checkPivots(params)
@@ -178,6 +183,7 @@ scaleScores <- function(dataDir, scoreDir=NA, outDir=NA,
         "# pseudo-replicates: ",params$scoring$pseudo.n,"\n",
         "# syn/non sd threshold: ",params$scoring$sdThreshold,"\n",
         "# cv deviation threshold: ",params$scoring$cvDeviation,"\n",
+        "# codon quorum mode: ",codonQuorum,"\n",
         "# assay direction: ",params$assay[["selection"]],"\n"
       )
       
@@ -576,7 +582,28 @@ collapseByAA <- function(scoreTable,params,sCond,scoreCol="score",seCol="score.s
     # nerr <- resErr - min(resErr,na.rm=TRUE) + min(abs(resErr),na.rm=TRUE)
     ## but for now we use the total error (even though that biases against low scores)
     nerr <- filteredTable[,seCol]
+    maxRatio <- params$scoring$cvDeviation
     aaTable <- as.df(tapply(1:nrow(filteredTable),filteredTable$hgvsp, function(is) {
+
+      usable <- !is.na(filteredTable[is,scoreCol]) & !is.infinite(filteredTable[is,scoreCol]) 
+      is <- is[usable]
+      if (params$scoring$codonQuorum=="harsh") {
+        if (length(is) < 2) {
+          return(NULL)
+        } else if (length(is) == 2) {
+          ratio <- filteredTable[is[[1]],scoreCol]/filteredTable[is[[2]],scoreCol]
+          if (ratio > maxRatio || ratio < 1/maxRatio) {
+            return(NULL)
+          }
+        }
+      }
+      if (params$scoring$codonQuorum!="off" && length(is) > 2) {
+        med <- median(filteredTable[is,scoreCol])
+        ratio <- filteredTable[is,scoreCol]/med
+        valid <- (ratio <= maxRatio) & (ratio >= 1/maxRatio)
+        is <- is[valid]
+      }
+
       joint <- join.datapoints(
         ms=filteredTable[is,scoreCol],
         sds=filteredTable[is,seCol],
@@ -592,7 +619,10 @@ collapseByAA <- function(scoreTable,params,sCond,scoreCol="score",seCol="score.s
         # se=joint[["sj"]]/sqrt(joint[["dfj"]])
       )
     }))
+
   } else {
+    #in this case we have no stderr, because there's only one replicate
+    #so all we can do is form a simple average
     aaTable <- as.df(tapply(1:nrow(filteredTable),filteredTable$hgvsp, function(is) {
       scs <- fin(filteredTable[is,scoreCol])
       list(
