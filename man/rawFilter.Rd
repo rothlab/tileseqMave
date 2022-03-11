@@ -10,7 +10,8 @@ rawFilter(
   wtq = 0.95,
   cvm = 10,
   srOverride = FALSE,
-  useWTfilter = FALSE
+  useWTfilter = FALSE,
+  lpdCutoff = NA
 )
 }
 \arguments{

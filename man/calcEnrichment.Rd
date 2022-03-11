@@ -16,7 +16,8 @@ calcEnrichment(
   useWTfilter = FALSE,
   nbs = 10000,
   pessimistic = TRUE,
-  useQuorum = FALSE
+  useQuorum = FALSE,
+  useLPDfilter = FALSE
 )
 }
 \arguments{

@@ -583,7 +583,7 @@ collapseByAA <- function(scoreTable,params,sCond,scoreCol="score",seCol="score.s
     ## but for now we use the total error (even though that biases against low scores)
     nerr <- filteredTable[,seCol]
     maxRatio <- params$scoring$cvDeviation
-    aaTable <- as.df(tapply(1:nrow(filteredTable),filteredTable$hgvsp, function(is) {
+    aaList <- tapply(1:nrow(filteredTable),filteredTable$hgvsp, function(is) {
 
       usable <- !is.na(filteredTable[is,scoreCol]) & !is.infinite(filteredTable[is,scoreCol]) 
       is <- is[usable]
@@ -592,7 +592,7 @@ collapseByAA <- function(scoreTable,params,sCond,scoreCol="score",seCol="score.s
           return(NULL)
         } else if (length(is) == 2) {
           ratio <- filteredTable[is[[1]],scoreCol]/filteredTable[is[[2]],scoreCol]
-          if (ratio > maxRatio || ratio < 1/maxRatio) {
+          if (is.na(ratio) || ratio > maxRatio || ratio < 1/maxRatio) {
             return(NULL)
           }
         }
@@ -618,7 +618,10 @@ collapseByAA <- function(scoreTable,params,sCond,scoreCol="score",seCol="score.s
         df=joint[["dfj"]]
         # se=joint[["sj"]]/sqrt(joint[["dfj"]])
       )
-    }))
+    })
+    #delete filtered entries
+    aaList[sapply(aaList,is.null)] <- NULL
+    aaTable <- as.df(aaList)
 
   } else {
     #in this case we have no stderr, because there's only one replicate

@@ -11,7 +11,8 @@ scaleScores(
   paramFile = paste0(dataDir, "parameters.json"),
   srOverride = FALSE,
   bnOverride = FALSE,
-  autoPivot = FALSE
+  autoPivot = FALSE,
+  codonQuorum = c("off", "simple", "harsh")
 )
 }
 \arguments{
