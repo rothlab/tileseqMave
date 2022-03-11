@@ -47,6 +47,7 @@ p <- add_argument(p, "--srOverride", help="Manual override to allow singleton re
 p <- add_argument(p, "--bnOverride", help="Manual override to disable bottleneck filtering.",flag=TRUE)
 p <- add_argument(p, "--autoPivot", help="Automatically determine scale pivots with requiring definitions in parameter sheet",flag=TRUE)
 p <- add_argument(p, "--silent", help="Turn off message printing to stdout",flag=TRUE)
+p <- add_argument(p, "--codonQuorum", help="Turn on codon-quorum mode. Options: off, simple, and harsh",default="off")
 args <- parse_args(p)
 
 #Workaround for bug in future package, that re-uses command line arguments:
@@ -82,7 +83,8 @@ invisible(
   scaleScores(
     dataDir, scoreDir=args$scores, outDir=args$output, 
     paramFile=paramFile, srOverride=args$srOverride,
-    bnOverride=args$bnOverride,autoPivot=args$autoPivot
+    bnOverride=args$bnOverride,autoPivot=args$autoPivot,
+    codonQuorum=args$codonQuorum
   )
 )
 
