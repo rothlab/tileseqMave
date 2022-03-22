@@ -43,7 +43,7 @@ If this doesn't work for you, you'll need to create those symlinks manually. Pic
 
 ```bash
 #determine the repository location
-REPO=$(Rscript -e 'system.file(package="tileseqMave")')
+REPO=$(Rscript -e 'cat(system.file(package="tileseqMave"),"\n")')
 #create the symlinks
 ln -s -t ~/.local/bin/ $REPO/scripts/*.R 
 ```
