@@ -327,6 +327,22 @@ validateParameters <- function(params,srOverride=FALSE) {
     )
   }
 
+  #check if conditions completely cover all tiles
+  for (tp in params$timepoints[,1])
+  for (cond in params$conditions$names) {
+    for (repi in 1:(params$numReplicates[[cond]])) {
+      srows <- with(params$samples,which(`Time point`==tp & Condition==cond & Replicate==repi))
+      tilesFound <- params$samples[srows,"Tile ID"]
+      missing <- setdiff(params$tiles[,1], tilesFound)
+      if (length(missing) > 0) {
+        stop("Missing samples for tiles ",paste(missing,collapse=", "),
+          " in condition ",cond," timepoint ",tp," replicate ",repi,".\n",
+          "Please make sure that all defined tiles have samples for all conditions!"
+        )
+      }
+    }
+  }
+
   repCombos <- apply(params$samples[,c("Tile ID","Condition","Time point")],1,paste,collapse="\t")
   repPerCombo <- tapply(params$samples[,"Replicate"],repCombos,function(x)length(unique(x)))
   comboCondition <- do.call(rbind,strsplit(names(repPerCombo),"\\t"))[,2]
