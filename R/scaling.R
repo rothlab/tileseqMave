@@ -603,6 +603,9 @@ collapseByAA <- function(scoreTable,params,sCond,scoreCol="score",seCol="score.s
         valid <- (ratio <= maxRatio) & (ratio >= 1/maxRatio)
         is <- is[valid]
       }
+      if (length(is)==0) {
+        return(NULL)
+      }
 
       joint <- join.datapoints(
         ms=filteredTable[is,scoreCol],
