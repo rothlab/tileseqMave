@@ -75,6 +75,13 @@ negRef <- unique(refSets[refSets$referenceSet=="Negative","hgvsp"])
 posScores <- na.omit(setNames(map[posRef,"score"],posRef))
 negScores <- na.omit(setNames(map[negRef,"score"],negRef))
 
+if (length(posScores) < 2 || length(negScores) < 2) {
+  stop("Insufficient data!\nOnly ",length(posScores),
+    " positive and ",length(negScores),
+    " negative reference variant(s) observed in map!"
+  )
+}
+
 #build the LLR function
 if (args$gauss) {
   llrObj <- buildLLR.gauss(posScores,negScores,args$spline)

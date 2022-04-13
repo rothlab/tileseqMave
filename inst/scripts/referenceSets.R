@@ -231,6 +231,7 @@ fetchClinvar <- function(gene,stagger=TRUE,overrideCache=FALSE,logger=NULL,maxVa
       }
 
       #make HTTP get request for details of the matches
+      cat(".")
       htr <- GET(summaryBase,query=list(
         db="clinvar",
         id=paste(clinvarIds,collapse=","),
@@ -264,6 +265,7 @@ fetchClinvar <- function(gene,stagger=TRUE,overrideCache=FALSE,logger=NULL,maxVa
       }
 
     }))
+    cat("\n")
 
     #filter the results down to only missense variants:
     #no must have protein-level HGVS string indicating AA change
@@ -277,6 +279,8 @@ fetchClinvar <- function(gene,stagger=TRUE,overrideCache=FALSE,logger=NULL,maxVa
     #extract the HGVS descriptors at the coding and protein levels.
     missense$hgvsc <- extract.groups(missense$var,"(c\\.\\d+[ACGT]>[ACGT]|c\\.\\d+_\\d+delins[ACGT]+)")[,1]
     missense$hgvsp <- extract.groups(missense$var,"(p\\.\\w{3}\\d+\\w{3})")[,1]
+    #remove duplicates
+    missense <- missense[!duplicated(missense$hgvsc),]
 
     output <- missense[,c("hgvsc","hgvsp","clinsig","trait","quality")]
 
