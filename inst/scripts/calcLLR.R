@@ -24,6 +24,7 @@ p <- add_argument(p, "--kernel", help=paste("Kernel type. Only used when --gauss
                         "Valid options: 'gaussian', 'epanechnikov', 'rectangular', 'triangular', 'biweight', 'cosine'",
                         "'optcosine','tricube','triweight','laplace','gamma','gamma_biased'"),default="epanechnikov")
 p <- add_argument(p, "--posRange", help="Positional range within the map to be tested. Must be two integer numbers separated by dash, e.g. '1-189'")
+p <- add_argument(p, "--outlierSuppression", help="Strength of outlier suppression to use. Between 0 and 1",default=0.0001)
 p <- add_argument(p, "--logfile", help="The desired log file location.",default="llr.log")
 args <- parse_args(p)
 
@@ -86,7 +87,7 @@ if (length(posScores) < 2 || length(negScores) < 2) {
 if (args$gauss) {
   llrObj <- buildLLR.gauss(posScores,negScores,args$spline)
 } else {
-  llrObj <- buildLLR.kernel(posScores,negScores,bw=args$bandwidth,kernel=args$kernel)
+  llrObj <- buildLLR.kernel(posScores,negScores,bw=args$bandwidth,kernel=args$kernel,outlierSuppression=args$outlierSuppression)
 }
 
 #draw the LLR function
