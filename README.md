@@ -1,4 +1,4 @@
-# TileSeqMave v0.7.17
+# TileSeqMave v1.0
 
 TileSeqMave is a bioinformatics pipeline for processing sequencing data from MAVE experiments based on the TileSeq protocol. For more an introduction and more background on TileSeq and MAVEs see [Weile et al., 2017](http://msb.embopress.org/content/13/12/957) and [Weile & Roth., 2018](https://doi.org/10.1007/s00439-018-1916-x). The pipeline allows for the calculation of fitness scores from sequencing reads and provides a suite of quality control visualizations. 
 
@@ -33,19 +33,13 @@ remotes::install_github("jweile/tileseqMave")
 
 After the installation completes successfully, you can close the R session again. If the installation fails for some reason, look up the exact error message and consult the "Troubleshooting" section below.
 
-**Important**: To ensure that the scripts included in this software suite can be executed easily on the command line, they need to be available via your `$PATH` variable. The easiest way to achieve this is to symlink them to your preferred `bin/` directory after having installed the package as shown above. For `UNIX` systems, a bootstrap script is provided for this purpose. For example, to create symlinks in `~/.local/bin/` you can use:
-
-```bash
-Rscript `Rscript -e 'cat(system.file("scripts/linkBinaries.R",package="tileseqMave"))'` ~/.local/bin/
-```
-
-If this doesn't work for you, you'll need to create those symlinks manually. Pick a directory that's already on your `$PATH`, for example `~/bin/` or `~/.local/bin/`. For example, if you want to use the latter, you can create your symlinks as follows:
+**Important**: To ensure that the TileseqMave suite can be executed easily on the command line, its main executable needs to be available via your `$PATH` variable. The easiest way to achieve this is to symlink them to your preferred `bin/` directory after having installed the package as shown above. For `UNIX` systems, pick a directory that's already on your `$PATH`, for example `~/bin/` or `~/.local/bin/`. For example, if you want to use the latter, you can create your symlinks as follows:
 
 ```bash
 #determine the repository location
 REPO=$(Rscript -e 'cat(system.file(package="tileseqMave"),"\n")')
-#create the symlinks
-ln -s -t ~/.local/bin/ $REPO/scripts/*.R 
+#copy the tsm script to your bin directory
+cp $REPO/scripts/tsm ~/.local/bin/
 ```
 
 ### Troubleshooting
@@ -94,7 +88,7 @@ As part of the greater TileSeq workflow, the TileSEQ pipeline constitutes the la
 Figure 1: Overview of the TileSeq workflow. The orange section is covered by `tileseq_mutcount`, while the blue section is covered by tileseqMave.
 
 
-The functions performed by TileSeqMave are organized in a set of discrete modules:
+The functions performed by TileSeqMave are organized in a set of discrete modules, which are all accessed via a common umbrella command: `tsm`. The general syntax for running any modules is `tsm <moduleName> [parameters]`; for example `tsm csv2json parameterSheet.csv -o parameters.json`. The detailed parameters for each module are explained in detail in each module's respective section below.  Overall, the following modules are available:
 
 1. csv2json: This component reads and validates the parameter sheet which contains all relevant options and parameters of the experiment to be analyzed.
 2. joinCounts: This module processes the individual sample-specific count files produced by `tileseq_mutcount`. The data is combined into a single table, tabulating the read counts and relative frequencies for each unique variant in each condition and replicate. It also calculates the protein-level consequences of each variant and produces marginal counts and frequencies.
@@ -172,6 +166,7 @@ The parameter sheet has the following sections:
     * Pseudo-replicates: This parameter controls the strength of error regularization. It represents the number of pseudo-replicates assigned to the prior estimate of error during Baldi & Long error regularization. Must be at least 1.
     * SD threshold: An arbitrary standard deviation threshold below which variants should be considered "high-quality" as opposed to "low quality". This is not a hard filter, but it will determine the output of the "filter progression plot" in the selectionQC output. It is also used by the scaleScores module when "auto-pivot" is enabled, to determine the quality of variants that are included in calculating synonymous and nonsense log-ratio medians.
     * Last functional AA postion: The last amino acid position in the protein to be considered functional. That is, any residues after this can be cleaved off without affecting protein function. If this does not apply, use "Inf".
+    * Maxium logPhi SD: The maximum standard deviation allowed across ad-hoc replicates of logPhi calculated from all combinations of nonselect and select replicates. This parameter is only used if the corresponding filter is explictly enabled when calling `calcEnrichment`. 
 12. **Score scaling pivots**: While this table is necessary for the `scaleScores` module, its exact contents cannot reasonably be chosen until after inspection of the `selectionQC` results. It is therefore not necessary to include until this step is performed. Its purpose is to manually define the pivot points for the score scaling. The pivot points represent the best guess for the expected behaviour of null-like and WT-like variants. The table has the following columns:
     * Condition: The ID of the selective condition to which this pivot point applies.
     * Time point: The ID of the time point to which this pivot point applies.
@@ -182,13 +177,13 @@ The parameter sheet has the following sections:
 ## Running tileseqMave
 
 ### Constructing the parameter sheet
-A template for the parameter sheet can be found [here](https://docs.google.com/spreadsheets/d/1tIblmIFgOApPNzWN2KUwj8BKzBiJ1pOL7R4AOUGrqvE/edit?usp=sharing). You can use any spreadsheet software to fill it out according to the instructions above; then export it into CSV format. 
+A template for the parameter sheet can be found [here](https://docs.google.com/spreadsheets/d/1tIblmIFgOApPNzWN2KUwj8BKzBiJ1pOL7R4AOUGrqvE). You can use any spreadsheet software to fill it out according to the instructions above; then export it into CSV format. 
 
 ### Converting the parameter sheet
-Internally, both `tileseq_mutcount` and all modules of `tileseqMave` use a JSON-formatted version of the sheet. To convert the parameter sheet from CSV to JSON format you can use the `csv2json.R` script. This will also perform a validation of the parameter sheet, ensuring that requirements have been met. The module is used as follows:
+Internally, both `tileseq_mutcount` and all modules of `tileseqMave` use a JSON-formatted version of the sheet. To convert the parameter sheet from CSV to JSON format you can use the `csv2json` script. This will also perform a validation of the parameter sheet, ensuring that requirements have been met. The module is used as follows:
 
 ```
-csv2json.R [--] [--help] [--srOverride] [--silent] 
+tsm csv2json [--] [--help] [--srOverride] [--silent] 
        [--outfile OUTFILE] [--logfile LOGFILE] infile
 
 Checks TileSeq parameter CSV file for validity and converts it to JSON
@@ -220,10 +215,10 @@ As a first step, you will need want to create a project directory in which the o
 Among the output of tileseq_mutcount, you will find a subdirectory with a name following the pattern `<tag>_<timestamp>_mut_count/`, where `<timestamp>` indicates the date and time of execution, for example: `mthfr_2020-02-20-11-15-49_mut_count/`. This `*mut_count` subdirectory will serve as the input for the next step. It contains individual count files for each sequencing sample. So you may want to move it to the top level of your project directory.
 
 ### Joining variant counts and computing marginal frequencies
-In this step, we will collate the counts from the individual sequencing samples, organize them by variant and condition/replicate, and translate the called variants to protein level. This step is performed by `joinCounts.R` module. By default, it will look for the parameter sheet JSON file and the `*mut_count` directory in your current working directory and automatically proceed from there. However the command has a number of arguments that allow for more flexibility:
+In this step, we will collate the counts from the individual sequencing samples, organize them by variant and condition/replicate, and translate the called variants to protein level. This step is performed by `joinCounts` module. By default, it will look for the parameter sheet JSON file and the `*mut_count` directory in your current working directory and automatically proceed from there. However the command has a number of arguments that allow for more flexibility:
 
 ```
-usage: joinCounts.R [--] [--help] [--srOverride] [--covOverride]
+usage: tsm joinCounts [--] [--help] [--srOverride] [--covOverride]
        [--silent] [--workspace WORKSPACE] [--input INPUT]
        [--output OUTPUT] [--parameters PARAMETERS] [--logfile LOGFILE]
        [--cores CORES]
@@ -256,13 +251,13 @@ optional arguments:
 
 ```
 
-Notably, `joinCounts.R` also has the ``--srOverride`` flag, which allows for limited functionality on single replicate datasets. The `-w`, `-i`, `-o`, `-p`, and `-l` options allow you to specify the locations of the input, output, parameter sheet and log files, in case you are not using the default directory structure or naming schemes for your project. 
+Notably, `joinCounts` also has the ``--srOverride`` flag, which allows for limited functionality on single replicate datasets. The `-w`, `-i`, `-o`, `-p`, and `-l` options allow you to specify the locations of the input, output, parameter sheet and log files, in case you are not using the default directory structure or naming schemes for your project. 
 
 The `-c` parameter allows you to specify the number of available CPU cores on your hardware that you are willing to use. This can help speed up the variant translation process, however it also multiplies the consumption of RAM, as each parallel segment will be run using separate process forks. For example, a process that takes 3 hours and 500MB of RAM on a single CPU, would take ~30min and 3GB of RAM when using 6 CPUs. We therefore recommend that you choose this trade-off carefully.
 
 The `--covOverride` provides backwards compatibility with data generated prior to tileseqMut version 0.7. Those earlier versions did not record position-specific sequencing coverage information int the tileseq_mutcount output. Using this flag ignores these records and instead assumes even coverage across each tile.
 
-After completion, `joinCounts.R` will have added three new files to the `mut_count` directory: `sample_depths.csv`, `all_counts.csv` and `marginal_counts.csv`. 
+After completion, `joinCounts` will have added three new files to the `mut_count` directory: `sample_depths.csv`, `all_counts.csv` and `marginal_counts.csv`. 
 
  * The `sample_depths.csv` file contains a table listing the total read depth for each sequencing sample, as well as other summarizing information regarding the samples from the parameter sheet.
  * The `positionalDepths.csv` file contains a table listing the position-specific *effective* depth at each nucleotide position in each sample. The effective depth indicates how many of the basecalls in that position were confidently decidable and thus useful for estimating variant frequency.
@@ -271,15 +266,15 @@ After completion, `joinCounts.R` will have added three new files to the `mut_cou
  
  
 ### Running a library QC analysis
-After `joinCounts.R` has completed, a library QC analysis can be performed using `runLibraryQC.R`. This will generate a number of diagnostic plots for each **non-select condition** in the data set. Like the previous module, by default, `runLibraryQC.R` will look for the parameter sheet JSON file and the `*mut_count` directory in your current working directory and automatically proceed from there, but a number of arguments allow for more flexibility:
+After `joinCounts` has completed, a library QC analysis can be performed using `runLibraryQC`. This will generate a number of diagnostic plots for each **non-select condition** in the data set. Like the previous module, by default, `runLibraryQC` will look for the parameter sheet JSON file and the `*mut_count` directory in your current working directory and automatically proceed from there, but a number of arguments allow for more flexibility:
 
 ```
-usage: runLibraryQC.R [--] [--help] [--srOverride] [--allConditions]
+usage: tsm runLibraryQC [--] [--help] [--srOverride] [--allConditions]
        [--silent] [--workspace WORKSPACE] [--input INPUT]
        [--output OUTPUT] [--parameters PARAMETERS] [--logfile LOGFILE]
        [--cores CORES] [--wmThreshold WMTHRESHOLD]
 
-Performs a library QC analysis on the output of joinCounts.R, yielding
+Performs a library QC analysis on the output of joinCounts, yielding
 informative plots.
 
 flags:
@@ -310,7 +305,7 @@ optional arguments:
 
 The `--srOverride`, `-w`, `-i`, `-o`, `-p`, `-l`, and `-c` options operate as before (see [above](#joining-variant-counts-and-computing-marginal-frequencies)). But you may notice a few additional arguments. As mentioned above, this QC function is intended to be run on **nonselect** conditions only. To override this default behaviour: `-a` allows for the library QC to be performed on **all** conditions instead. However, it should be noted that this prevents normalization against the WT control, as most other conditions do not have a defined relationship with the control in the parameter sheet. Finally, the `--wmThreshold` allows for modifying the marginal frequency threshold at which variants are to be considered "well-measured". This only affects the appearance of a few output plots, which mark this threshold. There is also a `-a` flag which causes the program to generate libraryQC plots not only for the nonselect condition, but for all given conditions in the data, including any selection conditions or wildtype controls.
 
-This module produces a number of diagnostic plots in PDF format. All the plots will be saved as PDF files in a new folder called `<timestamp>_QC` (where `timestamp` is the time of the original variant caller execution). A helper tool---`condenseQC.R`---can be used to combine all the individual plots into a single printer-friendly PDF document.
+This module produces a number of diagnostic plots in PDF format. All the plots will be saved as PDF files in a new folder called `<timestamp>_QC` (where `timestamp` is the time of the original variant caller execution). A helper tool---`condenseQC`---can be used to combine all the individual plots into a single printer-friendly PDF document.
 
   * The basecall quality plot shows a barchart of the actual error rate present at given basecall PHRED quality scores in either the wildtype control samples or the `ΦX` reads. The leftmost (dark-gray) bar shows the intended error rate according to PHRED specifications for comparison.
   * The alignment quality plot shows a barchart of the percentages of unmapped or mismapped reads in each sample. Unmapped reads are reads that did not match any tile in the target sequence, while mismapped reads are those that mapped to a tile different from the one intended to be in the respective sample.
@@ -330,7 +325,7 @@ This module produces a number of diagnostic plots in PDF format. All the plots w
 For simple library QC runs that are only interesting in assessing the quality of a PopCode library, the analysis ends here. However if the experiment you are analyzing is a full MAVE assay, you will want to proceed with the enrichment function next.
 
 ### Running the enrichment function
-After `joinCounts.R` has completed (and optionally `runLibraryQC.R`), the enrichment function `calcEnrichment.R` can be called. This module will analyze the enrichment of variants as a result of selection in the underlying assay.
+After `joinCounts` has completed (and optionally `runLibraryQC`), the enrichment function `calcEnrichment` can be called. This module will analyze the enrichment of variants as a result of selection in the underlying assay.
 Thus, it requires that at least one selection condition was declared in the parameter sheet. The enrichment function will then:
 
  * Create error models for each tile and condition and use these models for error regularization
@@ -338,16 +333,16 @@ Thus, it requires that at least one selection condition was declared in the para
  * Calculate log ratios (called log(φ)) and perform bias correction with respect to the magnitude of underlying sequencing reads. 
  * Use bootstrapping to determine the confidence levels in terms of standard error around the reported bias-corrected enrichment (BCE) values.
  
-Like the previous modules, `calcEnrichment.R` will by default look for the parameter sheet JSON file and the `*mut_count` directory in your current working directory and automatically proceed from there, but a number of arguments allow for more flexibility:
+Like the previous modules, `calcEnrichment` will by default look for the parameter sheet JSON file and the `*mut_count` directory in your current working directory and automatically proceed from there, but a number of arguments allow for more flexibility:
 
 ```
-usage: calcEnrichment.R [--] [--help] [--srOverride] [--bnOverride]
+usage: tsm calcEnrichment [--] [--help] [--srOverride] [--bnOverride]
        [--bcOverride] [--wtFilter] [--optimistic] [--useQuorum]
        [--silent] [--workspace WORKSPACE] [--input INPUT]
        [--output OUTPUT] [--parameters PARAMETERS] [--logfile LOGFILE]
        [--cores CORES] [--bootstrap BOOTSTRAP]
 
-Calculates logPhi enrichments based on the output of joinCounts.R
+Calculates logPhi enrichments based on the output of joinCounts
 
 flags:
   -h, --help        show this help message and exit
@@ -395,15 +390,15 @@ At the end of the enrichment step, either a selection QC step can be performed t
 
 
 ### Running a Selection QC analysis
-After the enrichment module has been executed, a selection QC can be performed using `runSelectionQC.R`. Similarly to the library QC function, this will generate a number of diagnostic plots as PDF files. Like the previous modules, it will by default look for the parameter sheet JSON file, the `*_mut_count`, and the `*_scores` directory in your current working directory and automatically proceed from there, but a number of arguments allow for more flexibility:
+After the enrichment module has been executed, a selection QC can be performed using `runSelectionQC`. Similarly to the library QC function, this will generate a number of diagnostic plots as PDF files. Like the previous modules, it will by default look for the parameter sheet JSON file, the `*_mut_count`, and the `*_scores` directory in your current working directory and automatically proceed from there, but a number of arguments allow for more flexibility:
 
 ```
-usage: runSelectionQC.R [--] [--help] [--srOverride] [--silent] 
+usage: tsm runSelectionQC [--] [--help] [--srOverride] [--silent] 
        [--workspace WORKSPACE] [--counts COUNTS] [--scores
        SCORES] [--output OUTPUT] [--parameters PARAMETERS] [--logfile
        LOGFILE]
 
-Performs a selection QC analysis on the output of runScoring.R,
+Performs a selection QC analysis on the output of runScoring,
 yielding informative plots.
 
 flags:
@@ -432,7 +427,7 @@ optional arguments:
 
 The `--srOverride`, `-w`, `-o`, `-p`, and `-l`, options operate as before (see [above](#joining-variant-counts-and-computing-marginal-frequencies)). However, you will notice that instead of the generic input argument of previous modules, this module distinguishes between two different inputs: `-c` for the `mut_counts` folder and `-s` for the `_scores` folder. 
 
-The `runSelectionQC.R` module will write its output as PDF files into the same `_QC` that was previously used by the library QC module. Using the helper tool `condenseQC.R` the individual files can be condensed into a single printer-friendly PDF document. The output will contain the following diagnostic plots:
+The `runSelectionQC` module will write its output as PDF files into the same `_QC` that was previously used by the library QC module. Using the helper tool `condenseQC` the individual files can be condensed into a single printer-friendly PDF document. The output will contain the following diagnostic plots:
 
   * Replicate correlation: These plots are related to the replicate correlation plots found in the library QC output, but the differ from them in a number of important ways. Firstly, they are subject to the filters enacted by the enrichment step and can thus serve as a means to gauge the effect of filtering on the correlation when comparing them to their counterparts from the library QC step. Secondly, you will find not only the replicate correlation at the level of nonselect reads, but also another plot that compares replicates at a hypothetical log(φ) enrichment level. This simulates what the agreement between log(φ) scores would be if replicates had been treated separately from one another. It is important to remember that this is a **hypothetical** scenario, as the actual process underlying the enrichment procedure combines replicates early on to work with their means and standard deviations instead.
   * log(φ) bias plots: These plots show for each region of the gene the direction of any detected bias within synonymous and nonsense variants with respect to their underlying read frequencies. This helps inform the way in which bias correction was enacted by the enrichment method to produce the final BCE values.
@@ -447,15 +442,15 @@ The `runSelectionQC.R` module will write its output as PDF files into the same `
 
 
 ### Scaling the final scores
-After the enrichment process has been completed, it is recommended that you run the selectionQC as shown above and inspect the BCE distributions. These will yield insights into where to place place the pivot points for the scaling process. The aim is to find BCE values for each tile (and each selection condition if there is more than one) that represent the expected behavior of a null-like and WT-like variant. Often, this is well-approximated by the median of the synonymous and null distributions, respectively, but other considerations can influence this decision. Once a decision has been made, you can enter the pivot points into the parameter sheet (in the scaling pivots section) and re-validate it using the `csv2json.R` module. Then, the `scaleScores.R` module can be used to enact the scaling based on these pivots.
-Like the previous modules, `scaleScores.R` will by default look for the parameter sheet JSON file, the `*_mut_count`, and the `*_scores` directory in your current working directory and automatically proceed from there, but a number of arguments allow for more flexibility:
+After the enrichment process has been completed, it is recommended that you run the selectionQC as shown above and inspect the BCE distributions. These will yield insights into where to place place the pivot points for the scaling process. The aim is to find BCE values for each tile (and each selection condition if there is more than one) that represent the expected behavior of a null-like and WT-like variant. Often, this is well-approximated by the median of the synonymous and null distributions, respectively, but other considerations can influence this decision. Once a decision has been made, you can enter the pivot points into the parameter sheet (in the scaling pivots section) and re-validate it using the `csv2json` module. Then, the `scaleScores` module can be used to enact the scaling based on these pivots.
+Like the previous modules, `scaleScores` will by default look for the parameter sheet JSON file, the `*_mut_count`, and the `*_scores` directory in your current working directory and automatically proceed from there, but a number of arguments allow for more flexibility:
 ```
-usage: scaleScores.R [--] [--help] [--srOverride] [--bnOverride]
+usage: tsm scaleScores [--] [--help] [--srOverride] [--bnOverride]
        [--autoPivot] [--silent] [--workspace WORKSPACE]
        [--scores SCORES] [--output OUTPUT] [--parameters PARAMETERS]
        [--logfile LOGFILE]
 
-Performs scaling and scoring on the output of calcEnrichment.R.
+Performs scaling and scoring on the output of calcEnrichment.
 
 flags:
   -h, --help        show this help message and exit
@@ -480,9 +475,9 @@ optional arguments:
                     directory
 
 ```
-The `--srOverride`, `--bnOverride`, `-w`, `-s`, `-o`, `-p`, and `-l`, options all operate the same as in the `calcEnrichment.R` module (see [above](#running-the-enrichment-function)). In addition, the `--autoPivot` flag is available. It allows to bypass the requirement for setting pivot points in the parameter sheet and automatically uses the medians of the synonymous and nonsense distributions. Use with caution!
+The `--srOverride`, `--bnOverride`, `-w`, `-s`, `-o`, `-p`, and `-l`, options all operate the same as in the `calcEnrichment` module (see [above](#running-the-enrichment-function)). In addition, the `--autoPivot` flag is available. It allows to bypass the requirement for setting pivot points in the parameter sheet and automatically uses the medians of the synonymous and nonsense distributions. Use with caution!
 
-The output of `scaleScores.R` will be written to the `_scores` subfolder (like the output of `calcEnrichment.R` before). For each selection condition, it will generate:
+The output of `scaleScores` will be written to the `_scores` subfolder (like the output of `calcEnrichment` before). For each selection condition, it will generate:
 
  * `simple.csv`: A simplified result file with the scaled scores in MaveDB-compatible format, containing only the variants that passed all filters with their final scores and their associated error.
  * `simple_aa.csv`: The scaled scores at amino acid change level scores via confidence-weighted averaging of  equivalent codon changes. This file is also in MaveDB format.
