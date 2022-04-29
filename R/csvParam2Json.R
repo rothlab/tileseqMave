@@ -637,6 +637,10 @@ csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",infile),
   #extract tile table
   tileTable <- extractTable(firstField="Tile Number",nextSection="Condition definitions")
   tileTable <- apply(tileTable,2,as.integer)
+  if (!inherits(tileTable,"matrix")) {
+    tileTable <- rbind(tileTable)
+    rownames(tileTable) <- NULL
+  }
   output$tiles <- tileTable
 
   #extract condition definitions
