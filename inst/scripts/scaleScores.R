@@ -48,6 +48,7 @@ p <- add_argument(p, "--bnOverride", help="Manual override to disable bottleneck
 p <- add_argument(p, "--autoPivot", help="Automatically determine scale pivots with requiring definitions in parameter sheet",flag=TRUE)
 p <- add_argument(p, "--silent", help="Turn off message printing to stdout",flag=TRUE)
 p <- add_argument(p, "--codonQuorum", help="Turn on codon-quorum mode. Options: off, simple, and harsh",default="off")
+p <- add_argument(p, "--useSimpleAverages", help="Turn off inverse-error weighted averaging for equivalent codons and use simple averages instead.",flag=TRUE)
 args <- parse_args(p)
 
 #Workaround for bug in future package, that re-uses command line arguments:
@@ -84,6 +85,7 @@ invisible(
     dataDir, scoreDir=args$scores, outDir=args$output, 
     paramFile=paramFile, srOverride=args$srOverride,
     bnOverride=args$bnOverride,autoPivot=args$autoPivot,
+    useSimpleAverages=args$useSimpleAverages,
     codonQuorum=args$codonQuorum
   )
 )

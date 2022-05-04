@@ -28,6 +28,7 @@
 scaleScores <- function(dataDir, scoreDir=NA, outDir=NA, 
                         paramFile=paste0(dataDir,"parameters.json"),
                         srOverride=FALSE, bnOverride=FALSE,autoPivot=FALSE,
+                        useSimpleAverages=FALSE,
                         codonQuorum=c("off","simple","harsh")) {
   
   
@@ -61,6 +62,13 @@ scaleScores <- function(dataDir, scoreDir=NA, outDir=NA,
     warning=function(w)logWarn(conditionMessage(w))
   )
   params$scoring$codonQuorum <- codonQuorum
+  params$scoring$useSimpleAverages <- useSimpleAverages
+  if (useSimpleAverages) {
+    logWarn("Using simple averaging by request!")
+  }
+  if (codonQuorum != "off") {
+    logWarn("Codon-Quorum mode enabled: ",codonQuorum)
+  }
   
   if (!autoPivot) {
     checkPivots(params)
@@ -581,7 +589,11 @@ collapseByAA <- function(scoreTable,params,sCond,scoreCol="score",seCol="score.s
     # resErr <- residualError(filteredTable[,scoreCol],filteredTable[,seCol],mirror=TRUE,wtX=1)
     # nerr <- resErr - min(resErr,na.rm=TRUE) + min(abs(resErr),na.rm=TRUE)
     ## but for now we use the total error (even though that biases against low scores)
-    nerr <- filteredTable[,seCol]
+    if (params$scoring$useSimpleAverages) {
+      nerr <- rep(1,nrow(filteredTable))
+    } else {
+      nerr <- filteredTable[,seCol]
+    }
     maxRatio <- params$scoring$cvDeviation
     aaList <- tapply(1:nrow(filteredTable),filteredTable$hgvsp, function(is) {
 
