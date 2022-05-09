@@ -37,7 +37,7 @@ After the installation completes successfully, you can close the R session again
 
 ```bash
 #determine the repository location
-REPO=$(Rscript -e 'cat(system.file(package="tileseqMave"),"\n")')
+REPO=$(Rscript -e 'cat(system.file(package="tileseqMave"),"\n",sep="")')
 #copy the tsm script to your bin directory
 cp $REPO/scripts/tsm ~/.local/bin/
 ```
