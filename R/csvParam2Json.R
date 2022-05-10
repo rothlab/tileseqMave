@@ -327,13 +327,13 @@ validateParameters <- function(params,srOverride=FALSE) {
     )
   }
 
-  #check if conditions completely cover all tiles
+  #check if conditions completely cover all tiles that are used in experiment
   for (tp in params$timepoints[,1])
   for (cond in params$conditions$names) {
     for (repi in 1:(params$numReplicates[[cond]])) {
       srows <- with(params$samples,which(`Time point`==tp & Condition==cond & Replicate==repi))
       tilesFound <- params$samples[srows,"Tile ID"]
-      missing <- setdiff(params$tiles[,1], tilesFound)
+      missing <- setdiff(params$samples[,"Tile ID"], tilesFound)
       if (length(missing) > 0) {
         stop("Missing samples for tiles ",paste(missing,collapse=", "),
           " in condition ",cond," timepoint ",tp," replicate ",repi,".\n",
