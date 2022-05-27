@@ -276,13 +276,20 @@ fetchClinvar <- function(gene,stagger=TRUE,overrideCache=FALSE,logger=NULL,maxVa
     missense <- missense[!grepl("\\(p\\.\\w{3}\\d+del\\)",missense$var),]
     #must not be frameshift
     missense <- missense[!grepl("\\(p\\.\\w{3}\\d+(\\w{3})?fs\\)",missense$var),]
-    #extract the HGVS descriptors at the coding and protein levels.
-    missense$hgvsc <- extract.groups(missense$var,"(c\\.\\d+[ACGT]>[ACGT]|c\\.\\d+_\\d+delins[ACGT]+)")[,1]
-    missense$hgvsp <- extract.groups(missense$var,"(p\\.\\w{3}\\d+\\w{3})")[,1]
-    #remove duplicates
-    missense <- missense[!duplicated(missense$hgvsc),]
 
-    output <- missense[,c("hgvsc","hgvsp","clinsig","trait","quality")]
+    if (nrow(missense) > 0) {
+      #extract the HGVS descriptors at the coding and protein levels.
+      missense$hgvsc <- extract.groups(missense$var,"(c\\.\\d+[ACGT]>[ACGT]|c\\.\\d+_\\d+delins[ACGT]+)")[,1]
+      missense$hgvsp <- extract.groups(missense$var,"(p\\.\\w{3}\\d+\\w{3})")[,1]
+      #remove duplicates
+      missense <- missense[!duplicated(missense$hgvsc),]
+      output <- missense[,c("hgvsc","hgvsp","clinsig","trait","quality")]
+
+    } else {
+      output <- as.data.frame(matrix(nrow=0,ncol=5,dimnames=list(NULL,c(
+        "hgvsc","hgvsp","clinsig","trait","quality"
+      ))))
+    }
 
     if (!is.null(logger)) {
       logger$info("Caching Clinvar data for ",gene)
@@ -604,6 +611,8 @@ buildReferenceSet <- function(geneName,ensemblID,
       rep("GnomAD",nrow(gnomadBenign))
     )
   )
+  #reject any un-indexable variants
+  referenceSets <- referenceSets[!is.na(referenceSets$hgvsc),]
   rownames(referenceSets) <- referenceSets$hgvsc
 
   return(referenceSets)
