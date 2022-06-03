@@ -14,6 +14,13 @@ library(hash)
 
 data(trtable)
 
+#Debug inputs:
+# args <- list(
+#   fasta="~/projects/popcodeSuite/example.fasta",
+#   length=33L, wiggle=5L, out="popcodeOligos",
+#   method="NN", mMNa=0, mMK=0, mMMg=2, mMTris=0, mMdNTP=.2
+# )
+
 #process command line arguments
 p <- arg_parser(
   "Popcode oligo designer",
@@ -24,6 +31,11 @@ p <- add_argument(p, "--length", help="Oligo length to aim for",default=33L)
 p <- add_argument(p, "--wiggle", help="Maximum wiggle-room for length",default=5L)
 p <- add_argument(p, "--out", help="output filename base.",default="popcodeOligos")
 p <- add_argument(p, "--method", help="melting temperature calculation method. NN, GC or Wallace",default="NN")
+p <- add_argument(p, "--mMNa", help="Sodium concentration in milliMolar",default=0)
+p <- add_argument(p, "--mMK", help="Potassium concentration in milliMolar",default=0)
+p <- add_argument(p, "--mMMg", help="Magnesium concentration in milliMolar",default=2)
+p <- add_argument(p, "--mMTris", help="Tris concentration in milliMolar",default=0)
+p <- add_argument(p, "--mMdNTP", help="dNTP concentration in milliMolar",default=0.2)
 args <- parse_args(p)
 
 stopifnot(!is.null(args$fasta), !is.na(args$fasta))
@@ -31,7 +43,11 @@ oligo.length <- args$length
 stopifnot(oligo.length > 10)
 wiggle <- args$wiggle
 stopifnot(wiggle >= 0, wiggle < oligo.length/2)
-calcTm <- switch(match.arg(args$method,c("NN","GC","Wallace")), NN=Tm_NN, GC=Tm_GC, Wallace=Tm_Wallace)
+calcTm <- switch(match.arg(args$method,c("NN","GC","Wallace")), 
+  NN=function(nts) Tm_NN(nts,Na=args$mMNa,K=args$mMK,Tris=args$mMTris,Mg=args$mMMg,dNTPs=args$mMdNTP,outlist=FALSE), 
+  GC=function(nts) Tm_GC(nts,Na=args$mMNa,K=args$mMK,Tris=args$mMTris,Mg=args$mMMg,dNTPs=args$mMdNTP,outlist=FALSE), 
+  Wallace=function(nts) Tm_Wallace(nts,Na=args$mMNa,K=args$mMK,Tris=args$mMTris,Mg=args$mMMg,dNTPs=args$mMdNTP,outlist=FALSE)
+)
 outfile <- args$out
 stopifnot(!is.null(outfile), !is.na(outfile))
 
@@ -62,9 +78,10 @@ seqs$construct <- do.call(paste0,seqs[c("prefix","ORF","suffix")])
 cat("Exploring possible oligos...\n")
 codon.starts <- nchar(seqs$prefix) + seq(1+3,nchar(seqs$ORF),3)
 n.choices <- length(codon.starts) * (2*wiggle+1)^2
-oligo.choices <- as.df(do.call(c,pbmclapply(codon.starts, function(codon.start) {
-  do.call(c,lapply(-wiggle:wiggle, function(left.offset) {
-    lapply(-wiggle:wiggle, function(right.offset) {
+
+oligo.choices <- do.call(rbind,pbmclapply(codon.starts, function(codon.start) {
+  do.call(rbind,lapply(-wiggle:wiggle, function(left.offset) {
+    as.df(lapply(-wiggle:wiggle, function(right.offset) {
       start <- codon.start + 1 - floor(oligo.length/2) + left.offset
       end <- codon.start + 1 + floor(oligo.length/2) + right.offset
       sequence <- substr(seqs$construct,start,end)
@@ -78,9 +95,10 @@ oligo.choices <- as.df(do.call(c,pbmclapply(codon.starts, function(codon.start) 
         tm.left=calcTm(substr(sequence,1,codon.start-start)),
         tm.right=calcTm(substr(sequence,codon.start-start+4,nchar(sequence)))
       )
-    })
+    }))
   }))
-},mc.cores=8)))
+},mc.cores=8))
+
 
 cat("Optimizing melting temperatures...\n")
 median.tms <- apply(oligo.choices[,c("tm.left","tm.right")],2, median)
