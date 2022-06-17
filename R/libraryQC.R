@@ -1056,7 +1056,7 @@ drawPositionalDepth <- function(covTable,outDir,pdftag) {
 #helper function to draw a subsection of the coverage map.
 coverageSubmap <- function(startPos,endPos,aaMarginal,seps=NULL,thresholds=c(1e-6,5e-5)) {
   mapwidth <- endPos-startPos+2
-  aas <- toChars("AVILMFYWRHKDESTNQCGP*")
+  aas <- toChars("AVLIMFYWRHKDESTNQCGP*")
   #TODO: Adjust color thresholds based on sequencing depth
   cmap <- yogitools::colmap(c(log10(thresholds[[1]]),log10(thresholds[[2]]),0),c("white","orange","firebrick3"))
 
