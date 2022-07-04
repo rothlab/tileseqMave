@@ -26,6 +26,7 @@ p <- add_argument(p, "--kernel", help=paste("Kernel type. Only used when --gauss
 p <- add_argument(p, "--posRange", help="Positional range within the map to be tested. Must be two integer numbers separated by dash, e.g. '1-189'")
 p <- add_argument(p, "--outlierSuppression", help="Strength of outlier suppression to use. Between 0 and 1",default=0.0001)
 p <- add_argument(p, "--logfile", help="The desired log file location.",default="llr.log")
+p <- add_argument(p, "--iterations", help="The number of bootstrap iterations for determining LLR confidence interval",default=10000)
 args <- parse_args(p)
 
 #set up logger and shunt it into the error handler
@@ -96,9 +97,11 @@ drawDensityLLR(map$score,llrObj$llr,llrObj$posDens,llrObj$negDens,posScores,negS
 dev.off()
 
 #calculate all LLRs and their confidence intervals
-mapLLR <- llrObj$llr(map$score)
-left <- with(map,llrObj$llr(qnorm(.025,map$score,map$se)))
-right <- with(map,llrObj$llr(qnorm(.975,map$score,map$se)))
+mapLLR <- llrObj$llr(map$score) 
+bootstrapScores <- Map(rnorm, args$iterations, map$score, map$se)
+scoreLLR <- sapply(bootstrapScores, llrObj$llr) 
+left <- apply(scoreLLR, MARGIN=2, FUN=quantile, probs=0.025)
+right <- apply(scoreLLR, MARGIN=2, FUN=quantile, probs=0.975)
 out <- data.frame(map,llr=mapLLR,llrCI=sprintf("[%.03f;%.03f]",left,right))
 
 #write result to file
