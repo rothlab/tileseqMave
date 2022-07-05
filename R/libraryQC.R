@@ -593,9 +593,9 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
         par(mar=c(0,5.1,0,1.1))
         plot(NA,type="n",xlim=xRange, ylim=c(0,1),xlab="",ylab="",axes=FALSE)
         rect(params$regions[,"Start AA"],0,params$regions[,"End AA"],0.49,col="gray80",border=NA)
-        text(rowMeans(params$regions[,c("Start AA","End AA")]),0.25,params$regions[,"Region Number"])
+        text(rowMeans(params$regions[,c("Start AA","End AA"),drop=FALSE]),0.25,params$regions[,"Region Number"])
         rect(params$tiles[,"Start AA"],0.51,params$tiles[,"End AA"],1,col="gray90",border=NA)
-        text(rowMeans(params$tiles[,c("Start AA","End AA")]),0.75,params$tiles[,"Tile Number"])
+        text(rowMeans(params$tiles[,c("Start AA","End AA"),drop=FALSE]),0.75,params$tiles[,"Tile Number"])
         
         par(mar=c(5,5,0,1)+.1)
         plot(NA,type="n",log="y",
