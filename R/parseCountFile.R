@@ -76,7 +76,7 @@ parseCoverageFile <- function(filename,params,tile) {
   
   coverageTable <- read.csv(filename)
   # coverageTable$m_either <- apply(coverageTable[,c("m_r1","m_r2")],1,max)
-  coverageTable$rejected <- with(coverageTable,m_r1 + m_r2 - m_both - passed)
+  coverageTable$rejected <- with(coverageTable,m_r1 + m_r2 - m_both - passed - wt_passed)
   
   tileStart <- params$tiles[params$tiles[,"Tile Number"]==tile,"Start NC in CDS"]
   tileEnd <- params$tiles[params$tiles[,"Tile Number"]==tile,"End NC in CDS"]
