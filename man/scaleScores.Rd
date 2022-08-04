@@ -12,6 +12,7 @@ scaleScores(
   srOverride = FALSE,
   bnOverride = FALSE,
   autoPivot = FALSE,
+  useSimpleAverages = FALSE,
   codonQuorum = c("off", "simple", "harsh")
 )
 }

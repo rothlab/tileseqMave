@@ -15,9 +15,6 @@ simulateFitness(params, pool, fitBias = 0, fitSpread = 4)
 
 \item{hypoFreq}{the frequency of hypomorphic effects to simulate}
 }
-\value{
-
-}
 \description{
 This function generates assay fitness values for clones and their variants.
 It outputs a list with two elements: (i) a table listing the fitness effects of

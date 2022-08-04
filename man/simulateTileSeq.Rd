@@ -16,9 +16,6 @@ or even all WT}
 
 \item{varcallErr}{the variant calling error to simulate}
 }
-\value{
-
-}
 \description{
 simulate TileSeq
 }

@@ -44,9 +44,6 @@ simulateExperiment(
 
 \item{varcallErr}{the per-base variant calling error}
 }
-\value{
-
-}
 \description{
 Title
 }

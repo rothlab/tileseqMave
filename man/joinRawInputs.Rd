@@ -22,6 +22,3 @@ the merged data as a \code{data.frame}.
 \description{
 Joins multiple input datasets into a single one, treating each as additional replicates
 }
-\examples{
-
-}

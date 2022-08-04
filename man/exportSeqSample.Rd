@@ -17,9 +17,6 @@ exportSeqSample(reads, name, outdir, params, hgvsb = new.hgvs.builder.c())
 
 \item{hgvsb}{a (coding sequence) HGVS builder object}
 }
-\value{
-
-}
 \description{
 Export count data to file
 }

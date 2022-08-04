@@ -14,9 +14,6 @@ simulatePool(params, poolCV = 0.2, poolLambda = 1)
 \item{poolLambda}{the mean of the poisson distibution used to sample the number of 
 codon-changes per clone}
 }
-\value{
-
-}
 \description{
 This simulates a pool of variant-bearing clones. The output is a list containing
 two elements: (i) a table of all underlying codon changes and their true marginal
