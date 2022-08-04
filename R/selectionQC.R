@@ -1174,6 +1174,23 @@ codonAgreement <- function(scores,sCond,tp,params,outDir,srOverride) {
   
 }
 
+#' Finds runs of TRUE values in a boolean vector
+#' 
+#' @param bools a logical vector
+#' @return an integer matrix with columns 'start' and 'end' indicating runs
+findRuns <- function(bools) {
+  stopifnot(inherits(bools,"logical"))
+  if (length(bools) == 0) {
+    return(cbind(start=integer(0),end=integer(0)))
+  }
+  runs <- list()
+  changes <- c(
+    bools[[1]]+0,#pretend the outside of the array is "FALSE"
+    bools[-1]-bools[-length(bools)],
+    (bools[[length(bools)]]*-1)
+  )
+  cbind(start=which(changes>0),end=which(changes<0)-1)
+}
 
 #' Draws a plot showing running means of synonymous and nonsense variant scores
 #' across the length of the protein, as well as difference track between the two.
@@ -1214,13 +1231,24 @@ synNonDelta <- function(scores,sCond,tp,params,outDir,srOverride){
   runningWeights <- as.df(lapply(joint$pos,function(p) {
     idxs <- which(abs(joint$pos-p) < 5)
     synsubset <- na.omit(joint[idxs,c("syn.mj","syn.sj","syn.dfj")])
-    synAv <- join.datapoints(synsubset[,1],synsubset[,2],synsubset[,3])
+    synAv <- if (nrow(synsubset) > 0) {
+      join.datapoints(synsubset[,1],synsubset[,2],synsubset[,3])
+    } else {
+      c(mj=NA,sj=NA,dfj=0)
+    }
     nonsubset <- na.omit(joint[idxs,c("non.mj","non.sj","non.dfj")])
-    nonAv <- join.datapoints(nonsubset[,1],nonsubset[,2],nonsubset[,3])
+    nonAv <- if (nrow(nonsubset) > 0) {
+      join.datapoints(nonsubset[,1],nonsubset[,2],nonsubset[,3])
+    } else {
+      c(mj=NA,sj=NA,dfj=0)
+    }
     c(pos=p,synAv=synAv[["mj"]],synSD=synAv[["sj"]],nonAv=nonAv[["mj"]],nonSD=nonAv[["sj"]])
   }))
   runningWeights$delta <- with(runningWeights,synAv - nonAv)
   runningWeights$deltaSD <- with(runningWeights,sqrt(synSD^2 + nonSD^2))
+
+  synRuns <- as.data.frame(findRuns(!is.na(runningWeights$synAv)))
+  nonRuns <- as.data.frame(findRuns(!is.na(runningWeights$nonAv)))
   
   outfile <- paste0(outDir,sCond,"_t",tp,"_synNonDiff.pdf")
   tagger <- pdftagger(paste(params$pdftagbase,"; selection condition:",sCond),cpp=1)
@@ -1234,16 +1262,21 @@ synNonDelta <- function(scores,sCond,tp,params,outDir,srOverride){
     rect(params$tiles[,"Start AA"],0.51,params$tiles[,"End AA"],1,col="gray90",border=NA)
     text(rowMeans(params$tiles[,c("Start AA","End AA"), drop=FALSE]),0.75,params$tiles[,"Tile Number"])
     par(mar=c(5,4,0,1))
-    plot(NA,type="n",xlim=range(pos),ylim=range(c(synAv,nonAv)),
+    plot(NA,type="n",xlim=range(pos),ylim=range(c(synAv,nonAv),na.rm=TRUE),
          xlab="AA position",ylab=expression("running average"~log(phi))
     )
+  })
+  rowApply(synRuns,function(start,end,...) with(runningWeights[start:end,],{
     polygon(c(pos,rev(pos)),c(synAv+synSD/2,rev(synAv-synSD/2)),col=colAlpha("chartreuse3",0.2),border=NA)
     lines(pos,synAv,col="chartreuse3")
+  }))
+  rowApply(nonRuns, function(start,end) with(runningWeights[start:end,],{
     polygon(c(pos,rev(pos)),c(nonAv+nonSD/2,rev(nonAv-nonSD/2)),col=colAlpha("firebrick3",0.2),border=NA)
     lines(pos,nonAv,col="firebrick3")
-    abline(v=params$tiles[-1,"Start AA"],col="gray90",lty="dashed")
-    abline(v=params$regions[-1,"Start AA"],col="gray80",lty="dashed")
-  })
+  }))
+  abline(v=params$tiles[-1,"Start AA"],col="gray90",lty="dashed")
+  abline(v=params$regions[-1,"Start AA"],col="gray80",lty="dashed")
+
   tagger$cycle()
   par(op)
   invisible(dev.off())
