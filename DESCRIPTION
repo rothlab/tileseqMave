@@ -1,6 +1,6 @@
 Package: tileseqMave
 Title: TileSeq MAVE Analysis pipeline
-Version: 1.2.1
+Version: 1.2.2
 Authors@R: 'Jochen Weile <jochenweile@gmail.com> [aut,cre]'
 Description: Analyze TileSEQ data for Multiplexed Assays of Variant Effect (MAVE)
 Depends: R (>= 3.6.3)
