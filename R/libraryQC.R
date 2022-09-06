@@ -31,7 +31,7 @@
 #' @return NULL. Results are written to file.
 #' @export
 libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"parameters.json"),
-  mc.cores=6,srOverride=FALSE, wmThreshold=5e-5,allCondOverride=FALSE) {
+  mc.cores=6,srOverride=FALSE, wmThreshold=5e-5,allCondOverride=FALSE,depthFilterOverride=FALSE) {
 
   op <- options(stringsAsFactors=FALSE)
 
@@ -257,7 +257,7 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
       
       # FILTER OUT VARIANTS AT INSUFFICIENT DEPTH ------------------------------
       
-      if (file.exists(covTableFile)) {
+      if (file.exists(covTableFile) && !depthFilterOverride) {
         logInfo("Checking for underpowered variants")
         regex <- paste0(c(nsCond,getWTControlFor(nsCond,params)),".*effectiveDepth",collapse="|")
         relCols <- grep(regex,colnames(allDepthDrops))
