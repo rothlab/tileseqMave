@@ -5,6 +5,7 @@ library(maveLLR)
 library(argparser)
 library(yogiroc)
 library(yogilog)
+library(pbmcapply)
 
 #process command line arguments
 p <- arg_parser(
@@ -105,7 +106,7 @@ invisible(dev.off())
 logger$info("Bootstrapping confidence intervals at ",args$iterations," iterations")
 mapLLR <- llrObj$llr(map$score) 
 bootstrapScores <- Map(rnorm, args$iterations, map$score, map$se)
-scoreLLR <- sapply(bootstrapScores, llrObj$llr) 
+scoreLLR <- do.call("cbind", pbmclapply(bootstrapScores, llrObj$llr, mc.cores=6))
 left <- apply(scoreLLR, MARGIN=2, FUN=quantile, probs=0.025)
 right <- apply(scoreLLR, MARGIN=2, FUN=quantile, probs=0.975)
 out <- data.frame(map,llr=mapLLR,llrCI=sprintf("[%.03f;%.03f]",left,right))
@@ -122,6 +123,7 @@ yrobj <- yr2(
   scores=data.frame(map=c(posScores,negScores)),high=FALSE
 )
 pdf(paste0(outprefix,"_prc.pdf"),7,7)
+
 draw.prc.CI(yrobj,balanced=TRUE)
 invisible(dev.off())
 
