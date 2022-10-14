@@ -5,6 +5,7 @@ library(maveLLR)
 library(argparser)
 library(yogiroc)
 library(yogilog)
+library(pbmcapply)
 
 #process command line arguments
 p <- arg_parser(
@@ -27,6 +28,7 @@ p <- add_argument(p, "--posRange", help="Positional range within the map to be t
 p <- add_argument(p, "--outlierSuppression", help="Strength of outlier suppression to use. Between 0 and 1",default=0.0001)
 p <- add_argument(p, "--logfile", help="The desired log file location.",default="llr.log")
 p <- add_argument(p, "--iterations", help="The number of bootstrap iterations for determining LLR confidence interval",default=10000)
+p <- add_argument(p, "--cores", help="The number of processes to run in parallel for multi-core processing. Warning: This also multiplies the amount of RAM used!",default=4)
 p <- add_argument(p, "--printTransitions", help="Print evidence code transitions.",flag=TRUE)
 args <- parse_args(p)
 # args <- list(map="CHEK2_experimental.csv",reference="CHEK2_refVars_ClinvarPlusPlus.csv", outfile="b05/CHEK2_experimental_LLR_b05", bandwidth=0.5,kernel="epanechnikov",gauss=FALSE,spline=FALSE,posRange=NA,outlierSuppression=1,logfile="llr.log",iterations=10000)
@@ -105,7 +107,7 @@ invisible(dev.off())
 logger$info("Bootstrapping confidence intervals at ",args$iterations," iterations")
 mapLLR <- llrObj$llr(map$score) 
 bootstrapScores <- Map(rnorm, args$iterations, map$score, map$se)
-scoreLLR <- sapply(bootstrapScores, llrObj$llr) 
+scoreLLR <- do.call("cbind", pbmclapply(bootstrapScores, llrObj$llr, mc.cores=args$cores))
 left <- apply(scoreLLR, MARGIN=2, FUN=quantile, probs=0.025)
 right <- apply(scoreLLR, MARGIN=2, FUN=quantile, probs=0.975)
 out <- data.frame(map,llr=mapLLR,llrCI=sprintf("[%.03f;%.03f]",left,right))
@@ -122,6 +124,7 @@ yrobj <- yr2(
   scores=data.frame(map=c(posScores,negScores)),high=FALSE
 )
 pdf(paste0(outprefix,"_prc.pdf"),7,7)
+
 draw.prc.CI(yrobj,balanced=TRUE)
 invisible(dev.off())
 
