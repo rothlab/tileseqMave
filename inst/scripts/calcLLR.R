@@ -30,6 +30,7 @@ p <- add_argument(p, "--logfile", help="The desired log file location.",default=
 p <- add_argument(p, "--iterations", help="The number of bootstrap iterations for determining LLR confidence interval",default=10000)
 p <- add_argument(p, "--cores", help="The number of processes to run in parallel for multi-core processing. Warning: This also multiplies the amount of RAM used!",default=4)
 p <- add_argument(p, "--printTransitions", help="Print evidence code transitions.",flag=TRUE)
+p <- add_argument(p, "--noCI",flag=TRUE, help="Turns off confidence itervals for LLR table.")
 args <- parse_args(p)
 # args <- list(map="CHEK2_experimental.csv",reference="CHEK2_refVars_ClinvarPlusPlus.csv", outfile="b05/CHEK2_experimental_LLR_b05", bandwidth=0.5,kernel="epanechnikov",gauss=FALSE,spline=FALSE,posRange=NA,outlierSuppression=1,logfile="llr.log",iterations=10000)
 
@@ -103,20 +104,6 @@ pdf(paste0(outprefix,".pdf"),5,5)
 drawDensityLLR(map$score,llrObj$llr,llrObj$posDens,llrObj$negDens,posScores,negScores)
 invisible(dev.off())
 
-#calculate all LLRs and their confidence intervals
-logger$info("Bootstrapping confidence intervals at ",args$iterations," iterations")
-mapLLR <- llrObj$llr(map$score) 
-bootstrapScores <- Map(rnorm, args$iterations, map$score, map$se)
-scoreLLR <- do.call("cbind", pbmclapply(bootstrapScores, llrObj$llr, mc.cores=args$cores))
-left <- apply(scoreLLR, MARGIN=2, FUN=quantile, probs=0.025)
-right <- apply(scoreLLR, MARGIN=2, FUN=quantile, probs=0.975)
-out <- data.frame(map,llr=mapLLR,llrCI=sprintf("[%.03f;%.03f]",left,right))
-
-#write result to file
-outfile <- paste0(outprefix,".csv")
-logger$info("Writing output to file ",outfile)
-write.csv(out,outfile,row.names=FALSE)
-
 #generate a PRC curve
 logger$info("Drawing PRC curve")
 yrobj <- yr2(
@@ -168,5 +155,30 @@ if (args$printTransitions) {
 
 }
 
+
+#calculate all LLRs and their confidence intervals
+logger$info("Bootstrapping confidence intervals at ",args$iterations," iterations")
+mapLLR <- llrObj$llr(map$score) 
+if ( args$noCI || !("se" %in% colnames(map)) || all(is.na(map$se)) ) {
+  out <- cbind(map,llr=mapLLR)
+} else {
+# bootstrapScores <- Map(rnorm, args$iterations, map$score, map$se)
+# scoreLLR <- do.call("cbind", pbmclapply(bootstrapScores, llrObj$llr, mc.cores=args$cores))
+# left <- apply(scoreLLR, MARGIN=2, FUN=quantile, probs=0.025)
+# right <- apply(scoreLLR, MARGIN=2, FUN=quantile, probs=0.975)
+# out <- data.frame(map,llr=mapLLR,llrCI=sprintf("[%.03f;%.03f]",left,right))
+  confInterv <- do.call(c,pbmclapply(1:nrow(map), function(i) {
+    bootstrapScores <- rnorm(args$iterations,map[i,"score"],map[i,"se"])
+    scoreLLR <- sapply(bootstrapScores,llrObj$llr)
+    leftright <- quantile(scoreLLR,c(.025,.975),na.rm=TRUE)
+    return(sprintf("[%.03f;%.03f]",leftright[[1]],leftright[[2]]))
+  },mc.cores=args$cores))
+  out <- cbind(map,llr=mapLLR,llrCI=confInterv)
+}
+
+#write result to file
+outfile <- paste0(outprefix,".csv")
+logger$info("Writing output to file ",outfile)
+write.csv(out,outfile,row.names=FALSE)
 
 logger$info("Done!")

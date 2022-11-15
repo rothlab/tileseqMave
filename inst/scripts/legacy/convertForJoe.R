@@ -42,6 +42,12 @@ if (!all(required %in% colnames(indata))) {
 	stop("Input file ",infile," is missing the following column(s): ",paste(missing,collapse=", "))
 }
 
+#filter out deletions and insertions
+indels <- grep("del|ins",indata$hgvs_pro)
+if (length(indels) > 0) {
+	indata <- indata[-indels,]
+}
+
 #parse HGVS variant descriptor strings
 cat("Parsing HGVS variant descriptors...")
 vardata <- parseHGVS(indata$hgvs_pro,aacode=1)
