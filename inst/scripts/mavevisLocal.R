@@ -154,12 +154,12 @@ for (infile in infiles) {
     cons <- calc.conservation(uniprot)
     td$add.constrack(cons)
 
-    cat("Querying PFam")
-    domains <- fetch.domains.pfam(uniprot)
-    if (!is.null(domains) && nrow(domains) > 0) {
-      colkey <- c(`Pfam-A`="goldenrod")
-      td$add.domtrack(domains,colkey)
-    }
+    # cat("Querying PFam")
+    # domains <- fetch.domains.pfam(uniprot)
+    # if (!is.null(domains) && nrow(domains) > 0) {
+    #   colkey <- c(`Pfam-A`="goldenrod")
+    #   td$add.domtrack(domains,colkey)
+    # }
     
     cat("Querying Uniprot")
     domains <- fetch.domains.uniprot(uniprot)
