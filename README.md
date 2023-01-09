@@ -6,18 +6,19 @@ TileSeqMave constitutes the second half of the TileSeq Pipeline. The first half 
 
 ## Table of contents
 
-1. [Requirements and Installation](#requirements-and-installation)
-2. [Overview of the pipeline](#overview-of-the-pipeline)
-3. [The parameter sheet](#the-parameter-sheet)
-4. [Running tileseqMave](#running-tileseqmave)  
-    4.1. [Constructing the parameter sheet](#constructing-the-parameter-sheet) 
+1. [Requirements and Installation](#requirements-and-installation)  
+2. [Overview of the pipeline](#overview-of-the-pipeline)  
+3. [The parameter sheet](#the-parameter-sheet)  
+4. [Running tileseqMave](#running-tileseqmave)    
+    4.1. [Constructing the parameter sheet](#constructing-the-parameter-sheet)   
     4.2. [Converting the parameter sheet](#converting-the-parameter-sheet)  
     4.3. [Variant calling](#variant-calling)  
-    4.4. [Joining variant counts and computing marginal frequencies](  #joining-variant-counts-and-computing-marginal-frequencies)  
+    4.4. [Joining variant counts and computing marginal frequencies](#joining-variant-counts-and-computing-marginal-frequencies)   
     4.4. [Running a library QC analysis](#running-a-library-qc-analysis)  
     4.5. [Running the enrichment function](#running-the-enrichment-function)  
-    4.6. [Running a Selection QC analysis](#running-a-selection-qc-analysis)
-    4.7. [Scaling the final scores](#scaling-the-final-scores)
+    4.6. [Running a Selection QC analysis](#running-a-selection-qc-analysis)   
+    4.7. [Scaling the final scores](#scaling-the-final-scores)   
+    4.8. [Visualizing maps with mavevis](#visualizing-maps-with-mavevis)   
 
 ## Requirements and Installation
 
@@ -486,3 +487,39 @@ The output of `scaleScores` will be written to the `_scores` subfolder (like the
 All the above files are preceded by headers that list crucial parameters, a link to the parameter sheet, as well as the project name and the software version.
 
 
+### Visualizing maps with mavevis
+Mavevis is an optional tool for visualizing heatmaps of variant effect maps. If you have it installed, tileseqMave provides a useful wrapper script to incorporate it into your workflows. However, installing mavevis requires first installing a few additional software tools; namely: [DSSP](https://github.com/cmbi/xssp/releases), [FreeSASA](https://freesasa.github.io/), and [ClustalOmega](http://www.clustal.org/omega/). For example on how to do this on an Ubuntu system with root access, see the [mavevis github page](https://github.com/VariantEffect/mavevis/blob/master/README.md). If you don't have Ubuntu with root access, you'll have to install these tools **manually**.
+
+Only after having installed these tools, you can install mavevis in R via `remotes::install_github("VariantEffect/mavevis")`.
+
+Having completed the installation, you can now use the wrapper script as follows:
+
+```
+usage: tsm mavevisLocal [--] [--help] [--squish] [--srOverride] [--opts
+       OPTS] [--workspace WORKSPACE] [--input INPUT] [--output OUTPUT]
+       [--parameters PARAMETERS] [--pdb PDB]
+
+Runs mavevis locally on a MaveDB-formatted file to produce a
+genophenogram.
+
+flags:
+  -h, --help        show this help message and exit
+  -s, --squish      Compress x-axis to fit map onto single screen.
+  --srOverride      Manual override to allow singleton replicates. USE
+                    WITH EXTREME CAUTION!
+
+optional arguments:
+  -w, --workspace   workspace data directory. Defaults to current
+                    working directory
+  -i, --input       either input file or input directory containing the
+                    count data. Defaults to subdirectory with latest
+                    timestamp ending in _scores
+  -o, --output      either output pdf file or output directory. Default
+                    adjusts automatically depending on input type
+  -p, --parameters  parameter file. Defaults to parameters.json in the
+                    data directory.
+  --pdb             PDB structures. Semicolon-separated list of
+                    #-separated pairings between PDB IDs and chain IDs.
+```
+
+The output of `mavevisLocal` will be written to the `_scores` subfolder (like the output of `calcEnrichment` and `scaleScores` before). It will generate a PDF file with a heatmap for each MaveDB-formatted file in the folder by default. 
