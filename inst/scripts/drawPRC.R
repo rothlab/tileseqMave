@@ -58,7 +58,7 @@ if (is.na(args$outfile)) {
 refset <- read.csv(args$reference)
 refset$pos <- gsub("\\D+","",refset$hgvsp)|>as.integer()
 
-map <- read.csv(args$map)
+map <- read.csv(args$map,comment.char="#")
 map$pos <- gsub("\\D+","",map$hgvs_pro)|>as.integer()
 rownames(map) <- map$hgvs_pro
 
