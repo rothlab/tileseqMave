@@ -95,5 +95,6 @@ lapply(posRanges, function(range) {
 })
 dev.off()|>invisible()
 
-logger$log("Done!")
+logger$info(paste0("Output file: ",outprefix,".pdf"))
+logger$info("Done!")
 
