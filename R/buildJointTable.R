@@ -191,6 +191,25 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,
     outfile <- paste0(outDir,"/positionalDepths.csv")
     write.csv(as.data.frame(positionalDepth),outfile)
   }
+
+  #Double-check that we have coverage for all samples
+  if (any(is.na(sampleTable$depth)) || any(sampleTable$depth <= 0)) {
+    uncovered <- with(sampleTable,c(which(is.na(depth)),which(depth <= 0)))
+    noreads <- with(sampleTable,c(which(is.na(alignedreads)),which(alignedreads <= 0)))
+    uncovered <- setdiff(uncovered,noreads)
+    if (length(noreads > 0)) {
+      stop("No aligned reads found for sample(s): ",
+        paste(sampleTable[noreads,"Sample ID"],collapse=", "),
+        "\nPlease check your tileseqMut output for failed alignments."
+      )
+    }
+    if (length(uncovered) > 0) {
+      stop("No variants were called for sample(s): ",
+        sampleTable[uncovered,"Sample ID"],
+        "\nPlease check your parameter sheet and your tileseqMut output."
+      )
+    }
+  }
   
   #helper function to calculate the combined effective depth
   #for co-occurring variants
