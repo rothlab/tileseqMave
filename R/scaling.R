@@ -39,6 +39,12 @@ scaleScores <- function(dataDir, scoreDir=NA, outDir=NA,
   # library(pbmcapply)
   # library(optimization)
 
+  if (bnOverride) {
+    logWarn(
+      "WARNING: Bottleneck override has been enabled!\n",
+      " --> The final scores will not be filtered for bottlenecked variants!"
+    )
+  }
   #make sure codonQuorum is valid
   codonQuorum <- match.arg(codonQuorum,choices=c("off","simple","harsh"))
   

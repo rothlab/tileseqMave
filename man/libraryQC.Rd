@@ -12,7 +12,8 @@ libraryQC(
   mc.cores = 6,
   srOverride = FALSE,
   wmThreshold = 5e-05,
-  allCondOverride = FALSE
+  allCondOverride = FALSE,
+  depthFilterOverride = FALSE
 )
 }
 \arguments{

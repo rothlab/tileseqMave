@@ -92,8 +92,8 @@ calcEnrichment <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"
 
   if (bnOverride) {
     logWarn(
-      "WARNING: Bottleneck override has been enabled!\n",
-      " --> The final scores will not be filtered for bottlenecked variants!"
+      "WARNING: Bottleneck override flag has been deprecated and will be ignored!\n",
+      "You can use this flag for the scaleScores step instead."
     )
   }
   

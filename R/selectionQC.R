@@ -215,10 +215,14 @@ selectionQC <- function(dataDir,countDir=NA, scoreDir=NA, outDir=NA,
         if (!file.exists(modelFile)) {
           logWarn("No error model file found. Skipping regularization QC.")
         } else {
-          #Regularization analysis
-          logInfo("Visualizing regularization model fits")
           modelParams <- read.csv(modelFile,row.names=1)
-          regularizationQC(scores,modelParams,params,sCond,tp,outDir)
+          if (all(is.na(modelParams))) {
+            logWarn("Error model failed! Skipping regularization QC.")
+          } else {
+            #Regularization analysis
+            logInfo("Visualizing regularization model fits")
+            regularizationQC(scores,modelParams,params,sCond,tp,outDir)
+          }
         }
       
         #If scores could not be assigned due to synonymous-nonsense median failure

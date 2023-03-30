@@ -11,11 +11,13 @@ calcDepthDrops(xCounts, xTiles, depthTable, mc.cores = 6)
 
 \item{xTiles}{tile assignments for each variant in the table}
 
-\item{depthTable}{the raw depth table}
+\item{depthTable}{raw depth table}
+
+\item{mc.cores}{number of processes to run in parallel for multi-core processing}
 }
 \value{
-a table listing the relative drop in for each variant in each
-condition-time-replicate combination.
+a table listing the relative drop for each variant in each
+condition-time-replicate combination
 }
 \description{
 Calculate relative drops in effective sequencing depth for each variant
