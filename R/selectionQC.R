@@ -215,10 +215,14 @@ selectionQC <- function(dataDir,countDir=NA, scoreDir=NA, outDir=NA,
         if (!file.exists(modelFile)) {
           logWarn("No error model file found. Skipping regularization QC.")
         } else {
-          #Regularization analysis
-          logInfo("Visualizing regularization model fits")
           modelParams <- read.csv(modelFile,row.names=1)
-          regularizationQC(scores,modelParams,params,sCond,tp,outDir)
+          if (all(is.na(modelParams))) {
+            logWarn("Error model failed! Skipping regularization QC.")
+          } else {
+            #Regularization analysis
+            logInfo("Visualizing regularization model fits")
+            regularizationQC(scores,modelParams,params,sCond,tp,outDir)
+          }
         }
       
         #If scores could not be assigned due to synonymous-nonsense median failure
@@ -645,8 +649,19 @@ replicateCorrelation <- function(scores, marginalCounts, params, sCond, tp, outD
   })
   names(repValues) <- as.character(1:sRep)
   repValues <- do.call(cbind,repValues)
+  rownames(repValues) <- rownames(scores)
   #apply filter from scoring function
   repValues <- repValues[is.na(scores$filter),]
+
+  # plotcolors <- sapply(scores[rownames(repValues),"hgvsp"],function(hgvsp) {
+  #   if (grepl("Ter$",hgvsp)) {
+  #     "firebrick3"
+  #   } else if (grepl("=$",hgvsp)) {
+  #     "darkolivegreen3"
+  #   } else {
+  #     "black"
+  #   }
+  # })
 
 
   if (sRep == 2) {
@@ -663,8 +678,10 @@ replicateCorrelation <- function(scores, marginalCounts, params, sCond, tp, outD
         cor(fin(log10(repValues[,sprintf("%d.nonselect",1:2)])))[1,2]
       ),
       pch=".",
+      # col=plotcolors,
       log="xy"
     )
+    abline(0,1,col="gray",lty="dashed")
     tagger$cycle()
     plot(
       repValues[,"1.logphi"],repValues[,"2.logphi"],
@@ -674,6 +691,7 @@ replicateCorrelation <- function(scores, marginalCounts, params, sCond, tp, outD
         cor(fin(repValues[,sprintf("%d.logphi",1:2)]))[1,2]
       ),pch="."
     )
+    abline(0,1,col="gray",lty="dashed")
     par(opar)
     invisible(dev.off())
   } else {

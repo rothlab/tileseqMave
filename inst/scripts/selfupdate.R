@@ -21,4 +21,4 @@
 # This is a self-update helper script
 ##############################################
 
-remotes::install_github("jweile/tileseqMave")
+remotes::install_github("rothlab/tileseqMave")
