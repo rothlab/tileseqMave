@@ -38,12 +38,15 @@ p <- add_argument(p, "map", help="VE map file in MaveDB format")
 p <- add_argument(p, "reference", help="reference variant set (from referenceSets.R")
 p <- add_argument(p, "--predictors", help="comma-separated list of files with other predictors (in MaveDB format)")
 p <- add_argument(p, "--predictorNames", help="comma-separated list of names for the above predictors")
-p <- add_argument(p, "--predictorOrders", help="comma-separated list letters 'a' for ascending or 'd' for whether predictor scores are ascending or descending.")
+p <- add_argument(p, "--predictorOrders", help=paste("comma-separated list letters 'a' for ascending or 'd' for whether",
+  "predictor scores are (a)scending towards pathogenicity or (d)escending towards pathogenicity."))
 p <- add_argument(p, "--outfile", help="The desired prefix for the output file name.")
 p <- add_argument(p, "--posRanges", help="Positional ranges within the map to be plotted separately. E.g '1-24,25-66,67-")
+p <- add_argument(p, "--labelScores", help="Draw score labels along plot",flag=TRUE)
 p <- add_argument(p, "--logfile", help="The desired log file location.",default="prc.log")
 args <- parse_args(p)
-# args <- list(map="CHEK2_experimental.csv",reference="CHEK2_refVars_ClinvarPlusPlus.csv", outfile="b05/CHEK2_experimental_LLR_b05", bandwidth=0.5,kernel="epanechnikov",gauss=FALSE,spline=FALSE,posRange=NA,outlierSuppression=1,logfile="llr.log",iterations=10000)
+# args <- list(map="jointMap.csv",reference="LDLR_refVars.csv",predictors="jointMap_UWonly.csv",
+# predictorNames="UW",predictorOrders="d",outfile="test",posRanges=NA,logfile="prc.log")
 
 #set up logger and shunt it into the error handler
 logger <- new.logger(args$logfile)
@@ -110,6 +113,7 @@ if (!is.na(args$predictors)) {
     }
     prd$pos <- gsub("\\D+","",prd$hgvs_pro)|>as.integer()
     rownames(prd) <- prd$hgvs_pro
+    prd
   })
 
   if (is.na(args$predictorNames)) {
@@ -135,6 +139,39 @@ if (!is.na(args$predictors)) {
   predictors <- list()
 }
 
+#monotonization helper function
+monotonize <- function(xs) {
+  for (i in 2:length(xs)) {
+    if (xs[[i]] < xs[[i-1]]) {
+      xs[[i]] <- xs[[i-1]]
+    }
+  }
+  xs
+}
+
+#Balancing helper function
+balance.prec <- function(ppv.prec,prior) {
+  ppv.prec*(1-prior)/(ppv.prec*(1-prior)+(1-ppv.prec)*prior)
+}
+
+#helper function to configure precision with monotonization and balancing parameters
+configure.prec <- function(sheet,monotonized=TRUE,balanced=FALSE) {
+  ppv <- sheet[,"ppv.prec"]
+  if (balanced) {
+    prior <- sheet[1,"tp"]/(sheet[1,"tp"]+sheet[1,"fp"])
+    ppv <- balance.prec(ppv,prior)
+  } 
+  if (monotonized) {
+    ppv <- monotonize(ppv)
+  }
+  return(ppv)
+}
+
+#calculate positions in which a number sequence changes
+changePoints <- function(xs) {
+  which((xs[-1]-xs[-length(xs)])!= 0)+1
+}
+
 
 #iterate over ranges
 pdf(paste0(outprefix,".pdf"),5,5)
@@ -155,7 +192,23 @@ lapply(posRanges, function(range) {
 
   yr <- yogiroc::yr2(refsubset$referenceSet=="Positive", data, high=dataOrder)
   yogiroc::draw.prc.CI(yr,balanced=TRUE,main=rangeLabel)
+  grid()
+  abline(h=90,col="gray",lty="dashed")
+
+  if (args$labelScores) {
+    labelTable <- data.frame(
+      prec = configure.prec(yr[[1]],monotonized=TRUE,balanced=TRUE),
+      sens = yr[[1]][,"tpr.sens"],
+      label = sprintf("%.02f",yr[[1]][,"thresh"])
+    )
+    labelTable <- labelTable[changePoints(labelTable$prec),]
+    with(labelTable,{
+      text(100*sens,100*prec,label,cex=.6)
+    })
+  }
+
   text(0,(ncol(data)+1)*7,sprintf("%d P/LP; %d B/LB",sum(refsubset$referenceSet=="Positive"),sum(refsubset$referenceSet=="Negative")),pos=4)
+
 })
 dev.off()|>invisible()
 
