@@ -184,7 +184,7 @@ lapply(posRanges, function(range) {
   dataOrder <- FALSE
 
   if (length(predictors) > 0) {
-    prScores <- do.call(data.frame,lapply(predictors, function(prd) map[refsubset$hgvsp,"score"]))
+    prScores <- do.call(data.frame,lapply(predictors, function(prd) prd[refsubset$hgvsp,"score"]))
     colnames(prScores) <- prNames
     data <- cbind(data,prScores)
     dataOrder <- c(dataOrder,prOrders)
