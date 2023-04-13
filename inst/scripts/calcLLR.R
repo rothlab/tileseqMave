@@ -1,11 +1,18 @@
 #!/usr/bin/env Rscript
 options(stringsAsFactors=FALSE)
 
-library(maveLLR)
 library(argparser)
 library(yogiroc)
 library(yogilog)
 library(pbmcapply)
+
+#maveLLR is not a mandatory dependency of tileseqMave (it's only suggested)
+if (!require(maveLLR)) {
+  stop(
+    "ERROR: This script requires the R package 'maveLLR' to be installed.
+To install it, open an interactive R session and type `remotes::install_github('jweile/maveLLR')`"
+  )
+}
 
 #process command line arguments
 p <- arg_parser(

@@ -23,12 +23,19 @@
 
 options(stringsAsFactors=FALSE)
 
-library(mavevis)
 library(tileseqMave)
 library(hgvsParseR)
 library(argparser)
 library(yogilog)
 library(yogitools)
+
+#mavevis is not a mandatory dependency of tileseqMave (it's only suggested)
+if (!require(mavevis)) {
+  stop(
+    "ERROR: This script requires the R package 'mavevis' to be installed.
+To install it, open an interactive R session and type `remotes::install_github('VariantEffect/mavevis')`"
+  )
+}
 
 
 #process command line arguments

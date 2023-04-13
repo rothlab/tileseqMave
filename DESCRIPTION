@@ -14,6 +14,7 @@ Imports:
     pbmcapply, hash, optimization, bitops, TmCalculator
 Remotes: 
     github::VariantEffect/rapimave, github::VariantEffect/hgvsParseR, 
-    github::jweile/yogitools, github::jweile/yogilog, github::VariantEffect/mavevis
+    github::jweile/yogitools, github::jweile/yogilog, github::VariantEffect/mavevis,
+    github::jweile/maveLLR
 RoxygenNote: 7.2.0
 SystemRequirements: gs
