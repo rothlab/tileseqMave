@@ -554,7 +554,7 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,
       valid <- which(nuc2tile(poss)==tili)
       poss <- poss[valid]
       #process across all condition-timepoint-replicate groups
-      if (!is.na(tili) && length(poss) > 0 && !is.na(poss)) {
+      if (!is.na(tili) && length(poss) > 0 && !any(is.na(poss))) {
         for (crid in unique(sampleTable$condRID)) {
           #pull up the relevant raw-depth
           rawDepth <- with(sampleTable,alignedreads[condRID==crid & `Tile ID`==tili])

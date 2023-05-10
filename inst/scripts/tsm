@@ -4,6 +4,8 @@ REPO=$(Rscript -e 'cat(system.file(package="tileseqMave"))')/scripts
 SCRIPTS=$(ls $REPO/*.R)
 SNAMES=$(basename -a $SCRIPTS|sed -e s/\\.R//)
 
+#complete -W "$SNAMES" tsm
+
 #helper function to print usage information
 usage () {
   cat << EOF
@@ -34,7 +36,7 @@ function isValidCommand() {
   return 1
 }
 
-if [[ $COMMAND == "help" ]]; then
+if [[ $COMMAND == "help" || $COMMMAND == "--help" || $COMMAND == "-h" ]]; then
   if (( "$#" )); then
     COMMAND=$1
     if isValidCommand $COMMAND ; then
@@ -48,6 +50,9 @@ if [[ $COMMAND == "help" ]]; then
   else 
     usage 0
   fi
+elif [[ $COMMAND == "--version" || $COMMAND == "-v" ]]; then
+  Rscript -e 'library(tileseqMave)'
+  exit 0
 fi
 
 
