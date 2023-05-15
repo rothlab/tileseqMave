@@ -624,9 +624,18 @@ if (is.na(args$ensemblID)) {
   logger$info("Fetching ensembl ID...")
   values <- fetchEnsemblID(args$geneName)
   if (length(values) ==0) {
-    stop("Unable to find ensembl ID for gene name. Please provide one.")
+    stop(
+      "Unable to find an Ensembl ID for gene name '",args$geneName,"'. Is it misspelled?.\n",
+      "If not, maybe it's listed under a different name, in which case you may want to provide the ID via `-e`.\n",
+      "For your convenience, here's an Ensembl search link:\n",
+      sprintf("https://grch37.ensembl.org/Multi/Search/Results?q=%s",args$geneName)
+    )
   } else if (length(values) > 1) {
-    stop("Gene name matches multiple ensembl IDs, please pick one one:",paste(values,", "))
+    stop(
+      "The gene name matches multiple ensembl IDs: ", paste(values,collapse=", "),"Please pick the correct one.\n",
+      "For your convenience, here are lookup links for these entries:\n",
+      paste(sprintf(" -> https://grch37.ensembl.org/Homo_sapiens/Gene/Summary?g=%s",values),collapse="\n")
+    )
   } else {
     args$ensemblID <- values[[1]]
   }
