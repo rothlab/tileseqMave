@@ -459,8 +459,13 @@ fetchGnomad <- function(ensemblID,overrideCache=FALSE,logger=NULL) {
         homozygote_count
         af
       }
-      consequence
-      consequence_in_canonical_transcript
+      transcript_consequence {
+        major_consequence
+        transcript_id
+        hgvsc
+        hgvsp
+        is_canonical
+      }
     }
   }
 }
@@ -479,9 +484,22 @@ fetchGnomad <- function(ensemblID,overrideCache=FALSE,logger=NULL) {
         vardata <- returnData[["data"]][["gene"]][["variants"]]
 
         #filter down to only canonical missense variants
-        isMissense <- sapply(vardata,`[[`,"consequence")=="missense_variant"
-        # isCanonical <- sapply(vardata,`[[`,"consequence_in_canonical_transcript")=="YES"
-        missense.idx <- which(isMissense)
+        missense.idx <- which(sapply(vardata,function(x) {
+          with(x$transcript_consequence, (major_consequence == "missense_variant") && !is.null(is_canonical) && is_canonical)
+        }))
+
+        #double-check transcript ids
+        tids <- sapply(vardata[missense.idx],function(x)x$transcript_consequence$transcript_id)
+        if (length(unique(tids)) > 1) {
+          if (!is.null(logger)) {
+            logger$warn("Multiple transcripts flagged as canonical in gnomAD:",paste(unique(tids),collapse=", "))
+          }
+          canonicalTid <- names(which.max(table(tids)))[[1]]
+          if (!is.null(logger)) {
+            logger$warn("Assuming frequent-flyer transcript as true canonical:",canonicalTid)
+          }
+          missense.idx <- missense.idx[which(tids == canonicalTid)]
+        }
 
         missense.gnomad <- as.df(lapply(vardata[missense.idx],function(entry) {
           #extract hgvs and allele frequency data
