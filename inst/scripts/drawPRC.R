@@ -43,6 +43,8 @@ p <- add_argument(p, "--predictorOrders", help=paste("comma-separated list lette
 p <- add_argument(p, "--outfile", help="The desired prefix for the output file name.")
 p <- add_argument(p, "--posRanges", help="Positional ranges within the map to be plotted separately. E.g '1-24,25-66,67-")
 p <- add_argument(p, "--labelScores", help="Draw score labels along plot",flag=TRUE)
+p <- add_argument(p, "--noBalancing", help="Disable prior-balancing (i.e. don't adjust for unequal reference group sizes)",flag=TRUE)
+p <- add_argument(p, "--noMono", help="Disable monotonization (i.e. draw raw curves allowing for precision drops)",flag=TRUE)
 p <- add_argument(p, "--logfile", help="The desired log file location.",default="prc.log")
 args <- parse_args(p)
 # args <- list(map="jointMap.csv",reference="LDLR_refVars.csv",predictors="jointMap_UWonly.csv",
@@ -191,13 +193,13 @@ lapply(posRanges, function(range) {
   } 
 
   yr <- yogiroc::yr2(refsubset$referenceSet=="Positive", data, high=dataOrder)
-  yogiroc::draw.prc.CI(yr,balanced=TRUE,main=rangeLabel)
+  yogiroc::draw.prc.CI(yr,monotonized=!args$noMono,balanced=!args$noBalancing,main=rangeLabel)
   grid()
   abline(h=90,col="gray",lty="dashed")
 
   if (args$labelScores) {
     labelTable <- data.frame(
-      prec = configure.prec(yr[[1]],monotonized=TRUE,balanced=TRUE),
+      prec = configure.prec(yr[[1]],monotonized=!args$noMono,balanced=!args$noBalancing),
       sens = yr[[1]][,"tpr.sens"],
       label = sprintf("%.02f",yr[[1]][,"thresh"])
     )

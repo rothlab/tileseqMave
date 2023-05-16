@@ -459,8 +459,13 @@ fetchGnomad <- function(ensemblID,overrideCache=FALSE,logger=NULL) {
         homozygote_count
         af
       }
-      consequence
-      consequence_in_canonical_transcript
+      transcript_consequence {
+        major_consequence
+        transcript_id
+        hgvsc
+        hgvsp
+        is_canonical
+      }
     }
   }
 }
@@ -479,9 +484,22 @@ fetchGnomad <- function(ensemblID,overrideCache=FALSE,logger=NULL) {
         vardata <- returnData[["data"]][["gene"]][["variants"]]
 
         #filter down to only canonical missense variants
-        isMissense <- sapply(vardata,`[[`,"consequence")=="missense_variant"
-        # isCanonical <- sapply(vardata,`[[`,"consequence_in_canonical_transcript")=="YES"
-        missense.idx <- which(isMissense)
+        missense.idx <- which(sapply(vardata,function(x) {
+          with(x$transcript_consequence, (major_consequence == "missense_variant") && !is.null(is_canonical) && is_canonical)
+        }))
+
+        #double-check transcript ids
+        tids <- sapply(vardata[missense.idx],function(x)x$transcript_consequence$transcript_id)
+        if (length(unique(tids)) > 1) {
+          if (!is.null(logger)) {
+            logger$warn("Multiple transcripts flagged as canonical in gnomAD:",paste(unique(tids),collapse=", "))
+          }
+          canonicalTid <- names(which.max(table(tids)))[[1]]
+          if (!is.null(logger)) {
+            logger$warn("Assuming frequent-flyer transcript as true canonical:",canonicalTid)
+          }
+          missense.idx <- missense.idx[which(tids == canonicalTid)]
+        }
 
         missense.gnomad <- as.df(lapply(vardata[missense.idx],function(entry) {
           #extract hgvs and allele frequency data
@@ -624,9 +642,18 @@ if (is.na(args$ensemblID)) {
   logger$info("Fetching ensembl ID...")
   values <- fetchEnsemblID(args$geneName)
   if (length(values) ==0) {
-    stop("Unable to find ensembl ID for gene name. Please provide one.")
+    stop(
+      "Unable to find an Ensembl ID for gene name '",args$geneName,"'. Is it misspelled?.\n",
+      "If not, maybe it's listed under a different name, in which case you may want to provide the ID via `-e`.\n",
+      "For your convenience, here's an Ensembl search link:\n",
+      sprintf("https://grch37.ensembl.org/Multi/Search/Results?q=%s",args$geneName)
+    )
   } else if (length(values) > 1) {
-    stop("Gene name matches multiple ensembl IDs, please pick one one:",paste(values,", "))
+    stop(
+      "The gene name matches multiple ensembl IDs: ", paste(values,collapse=", "),"Please pick the correct one.\n",
+      "For your convenience, here are lookup links for these entries:\n",
+      paste(sprintf(" -> https://grch37.ensembl.org/Homo_sapiens/Gene/Summary?g=%s",values),collapse="\n")
+    )
   } else {
     args$ensemblID <- values[[1]]
   }
