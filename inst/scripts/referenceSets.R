@@ -38,6 +38,8 @@ p <- add_argument(p, "--starsMin", help="minimum quality stars to filter clinvar
 p <- add_argument(p, "--homMin", help="minimum homozygous count to filter gnomad.",default=1L)
 p <- add_argument(p, "--mafMin", help="minimum allele frequency to filter gnomad.",default=1e-3)
 p <- add_argument(p, "--excludeLBLP", flag=TRUE, help="Excludes likely benign and likely pathogenic cases")
+p <- add_argument(p, "--clinvarEarliest", help="Exclude clinvar entries older than the given date.",default="2015-06-01")
+p <- add_argument(p, "--clinvarVerbose", help="Include additional Clinvar columns in output table",flag=TRUE)
 p <- add_argument(p, "--overrideCache", flag=TRUE, help="Override previously cached results.")
 p <- add_argument(p, "--maxVars", help="Maximum number of clinvar variants to query",default=2000L)
 p <- add_argument(p, "--logfile", help="The desired log file location.",default="referenceSets.log")
@@ -53,6 +55,14 @@ if (is.na(args$outfile)) {
 #set up logger and shunt it into the error handler
 logger <- new.logger(args$logfile)
 registerLogErrorHandler(logger)
+
+tryCatch({
+  clinvarEarliest <- as.Date(args$clinvarEarliest)
+}, error=function(e) {
+  stop("The value of --clinvarEarliest must be a valid date following YYYY-MM-DD format; e.g. 2015-06-01")
+})
+
+
 
 #' Find cache file location by name
 #' 
@@ -79,6 +89,18 @@ getCacheFile <- function(name) {
     dir.create(cache.loc,showWarnings=FALSE,recursive=TRUE)
   }
   paste0(cache.loc,name)
+}
+
+#' Check if a file exists and is up-to-date
+#' 
+#' Check if a file exist and its last modification date is younger than `maxAge` days.
+#' 
+#' @param filename the file to test
+#' @param maxAge the maximum age in days to be considered up-to-date
+#' @return logical
+#' @export
+existsAndUpToDate <- function(filename,maxAge=7) {
+  file.exists(filename) && (difftime(Sys.time(), file.mtime(filename), units="days") < maxAge)
 }
 
 #' Decode HTML strings
@@ -162,7 +184,7 @@ fetchClinvar <- function(gene,stagger=TRUE,overrideCache=FALSE,logger=NULL,maxVa
 
   cacheFile <- getCacheFile(paste0("clinvar_",gene,".csv"))
 
-  if (!file.exists(cacheFile) || overrideCache) {
+  if (!existsAndUpToDate(cacheFile) || overrideCache) {
 
     library(httr)
     library(RJSONIO)
@@ -189,7 +211,9 @@ fetchClinvar <- function(gene,stagger=TRUE,overrideCache=FALSE,logger=NULL,maxVa
     #make HTTP GET request to find matching entries
     htr <- GET(searchBase,query=list(
       db="clinvar",
-      term=paste0(gene,"[gene] AND single_gene[prop] AND ( clinsig_benign[prop] OR clinsig_pathogenic[prop] )"),
+      term=paste0(gene,"[gene] AND single_gene[prop] AND ",
+        "( clinsig_benign[prop] OR clinsig_pathogenic[prop] OR ",
+        "clinsig_likely_benign[prop] OR clinsig_likely_pathogenic[prop] )"),
       retmax=maxVars,
       retmode="json"
     ))
@@ -255,7 +279,8 @@ fetchClinvar <- function(gene,stagger=TRUE,overrideCache=FALSE,logger=NULL,maxVa
           #and the clinical significance statement
           clinsig <- vset$clinical_significance[["description"]]
           quality <- vset$clinical_significance[["review_status"]]
-          return(list(var=varStr,clinsig=clinsig,trait=trait,quality=quality))
+          evalDate <- as.Date(vset$clinical_significance[["last_evaluated"]])
+          return(list(var=varStr,clinsig=clinsig,trait=trait,quality=quality,date=evalDate))
         }))
 
         return(results)
@@ -268,7 +293,7 @@ fetchClinvar <- function(gene,stagger=TRUE,overrideCache=FALSE,logger=NULL,maxVa
     cat("\n")
 
     #filter the results down to only missense variants:
-    #no must have protein-level HGVS string indicating AA change
+    #must have protein-level HGVS string indicating AA change
     missense <- results[grepl("\\(p\\.\\w{3}\\d+\\w{3}\\)",results$var),]
     #must not be nonsense
     missense <- missense[!grepl("\\(p\\.\\w{3}\\d+Ter\\)",missense$var),]
@@ -283,11 +308,11 @@ fetchClinvar <- function(gene,stagger=TRUE,overrideCache=FALSE,logger=NULL,maxVa
       missense$hgvsp <- extract.groups(missense$var,"(p\\.\\w{3}\\d+\\w{3})")[,1]
       #remove duplicates
       missense <- missense[!duplicated(missense$hgvsc),]
-      output <- missense[,c("hgvsc","hgvsp","clinsig","trait","quality")]
+      output <- missense[,c("hgvsc","hgvsp","clinsig","trait","quality","date")]
 
     } else {
       output <- as.data.frame(matrix(nrow=0,ncol=5,dimnames=list(NULL,c(
-        "hgvsc","hgvsp","clinsig","trait","quality"
+        "hgvsc","hgvsp","clinsig","trait","quality","date"
       ))))
     }
 
@@ -346,7 +371,7 @@ fetchExac <- function(ensemblID,overrideCache=FALSE,logger=NULL) {
 
   cacheFile <- getCacheFile(paste0("gnomad_",ensemblID,".csv"))
 
-  if (!file.exists(cacheFile) || overrideCache) {
+  if (!existsAndUpToDate(cacheFile) || overrideCache) {
 
     library(httr)
     library(RJSONIO)
@@ -433,7 +458,7 @@ fetchGnomad <- function(ensemblID,overrideCache=FALSE,logger=NULL) {
 
   cacheFile <- getCacheFile(paste0("gnomad_",ensemblID,".csv"))
 
-  if (!file.exists(cacheFile) || overrideCache) {
+  if (!existsAndUpToDate(cacheFile) || overrideCache) {
 
     library(httr)
     library(RJSONIO)
@@ -573,6 +598,7 @@ fetchGnomad <- function(ensemblID,overrideCache=FALSE,logger=NULL) {
 #' 
 buildReferenceSet <- function(geneName,ensemblID,
   trait=NA,homMin=1,mafMin=1e-3,starsMin=2,includeLikely=TRUE,
+  clinvarEarliest=as.Date("0001-01-01"),clinvarVerbose=FALSE,
   stagger=TRUE,overrideCache=FALSE,logger=NULL,maxVars=2000) {
 
   op <- options(stringsAsFactors=FALSE); on.exit(options(op))
@@ -580,6 +606,15 @@ buildReferenceSet <- function(geneName,ensemblID,
   clinvar <- fetchClinvar(geneName,stagger,overrideCache,logger,maxVars)
   gnomad <- fetchGnomad(ensemblID,overrideCache,logger)
   rownames(gnomad) <- gnomad$hgvsc
+
+  #filter by clinvar review date
+  if ("date" %in% colnames(clinvar)) {
+    clinvar <- clinvar[which(as.Date(clinvar$date) >= clinvarEarliest),]
+    #convert dates to strings
+    unknown <- which(clinvar$date < 0)
+    clinvar$date <- format(as.Date(clinvar$date))
+    clinvar$date[unknown] <- "unknown"
+  }
 
   #filter by clinvar trait
   if (!is.na(trait)) {
@@ -597,8 +632,13 @@ buildReferenceSet <- function(geneName,ensemblID,
   clinvar <- clinvar[clinvarStars(clinvar$quality) >= starsMin,]
 
   #split into positive and negative
-  clinvarPatho <- clinvar[grep("pathogenic",clinvar$clinsig,ignore.case=includeLikely),1:2]
-  clinvarBenign <- clinvar[grep("benign",clinvar$clinsig,ignore.case=includeLikely),1:2]
+  clinvarPatho <- clinvar[grep("Pathogenic",clinvar$clinsig,ignore.case=includeLikely),1:2]
+  clinvarBenign <- clinvar[grep("Benign",clinvar$clinsig,ignore.case=includeLikely),1:2]
+
+  #save other columns
+  # c("hgvsc","hgvsp","clinsig","trait","quality","date")
+  cpRest <- clinvar[grep("Pathogenic",clinvar$clinsig,ignore.case=includeLikely),-c(1:2)]
+  cbRest <- clinvar[grep("Benign",clinvar$clinsig,ignore.case=includeLikely),-c(1:2)]
 
   #integrate MAF information where available
   clinvarPatho$maf=gnomad[clinvarPatho$hgvsc,"maf"]
@@ -617,6 +657,10 @@ buildReferenceSet <- function(geneName,ensemblID,
   #also, we don't need to include any cases from gnomad that are already benign in clinvar (i.e. redundant)
   gnomadBenign <- gnomadBenign[!(gnomadBenign$hgvsc %in% clinvarBenign$hgvsc),]
 
+  #make an empty rest matrix for gnomad
+  gbRest <- as.data.frame(matrix(NA_character_,nrow=nrow(gnomadBenign),ncol=ncol(cpRest)))
+  colnames(gbRest) <- colnames(cpRest)
+
   #compile final output
   referenceSets <- data.frame(
     rbind(clinvarPatho,clinvarBenign,gnomadBenign),
@@ -629,6 +673,9 @@ buildReferenceSet <- function(geneName,ensemblID,
       rep("GnomAD",nrow(gnomadBenign))
     )
   )
+  if (clinvarVerbose) {
+    referenceSets <- cbind(referenceSets,rbind(cpRest,cbRest,gbRest))
+  }
   #reject any un-indexable variants
   referenceSets <- referenceSets[!is.na(referenceSets$hgvsc),]
   rownames(referenceSets) <- referenceSets$hgvsc
@@ -663,6 +710,7 @@ if (is.na(args$ensemblID)) {
 referenceSets <- with(args,
   buildReferenceSet(geneName=geneName,ensemblID=ensemblID,
     trait=trait,homMin=homMin,mafMin=mafMin,starsMin=starsMin,includeLikely=!excludeLBLP,
+    clinvarEarliest=clinvarEarliest,clinvarVerbose=clinvarVerbose,
     stagger=TRUE,overrideCache=overrideCache,logger=logger,maxVars=maxVars)
 )
 
