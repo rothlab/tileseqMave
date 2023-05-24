@@ -39,6 +39,7 @@ p <- add_argument(p, "--homMin", help="minimum homozygous count to filter gnomad
 p <- add_argument(p, "--mafMin", help="minimum allele frequency to filter gnomad.",default=1e-3)
 p <- add_argument(p, "--excludeLBLP", flag=TRUE, help="Excludes likely benign and likely pathogenic cases")
 p <- add_argument(p, "--clinvarEarliest", help="Exclude clinvar entries older than the given date.",default="2015-06-01")
+p <- add_argument(p, "--clinvarVerbose", help="Include additional Clinvar columns in output table",flag=TRUE)
 p <- add_argument(p, "--overrideCache", flag=TRUE, help="Override previously cached results.")
 p <- add_argument(p, "--maxVars", help="Maximum number of clinvar variants to query",default=2000L)
 p <- add_argument(p, "--logfile", help="The desired log file location.",default="referenceSets.log")
@@ -597,7 +598,7 @@ fetchGnomad <- function(ensemblID,overrideCache=FALSE,logger=NULL) {
 #' 
 buildReferenceSet <- function(geneName,ensemblID,
   trait=NA,homMin=1,mafMin=1e-3,starsMin=2,includeLikely=TRUE,
-  clinvarEarliest=as.Date("0001-01-01"),
+  clinvarEarliest=as.Date("0001-01-01"),clinvarVerbose=FALSE,
   stagger=TRUE,overrideCache=FALSE,logger=NULL,maxVars=2000) {
 
   op <- options(stringsAsFactors=FALSE); on.exit(options(op))
@@ -609,6 +610,10 @@ buildReferenceSet <- function(geneName,ensemblID,
   #filter by clinvar review date
   if ("date" %in% colnames(clinvar)) {
     clinvar <- clinvar[which(as.Date(clinvar$date) >= clinvarEarliest),]
+    #convert dates to strings
+    unknown <- which(clinvar$date < 0)
+    clinvar$date <- format(as.Date(clinvar$date))
+    clinvar$date[unknown] <- "unknown"
   }
 
   #filter by clinvar trait
@@ -630,6 +635,11 @@ buildReferenceSet <- function(geneName,ensemblID,
   clinvarPatho <- clinvar[grep("Pathogenic",clinvar$clinsig,ignore.case=includeLikely),1:2]
   clinvarBenign <- clinvar[grep("Benign",clinvar$clinsig,ignore.case=includeLikely),1:2]
 
+  #save other columns
+  # c("hgvsc","hgvsp","clinsig","trait","quality","date")
+  cpRest <- clinvar[grep("Pathogenic",clinvar$clinsig,ignore.case=includeLikely),-c(1:2)]
+  cbRest <- clinvar[grep("Benign",clinvar$clinsig,ignore.case=includeLikely),-c(1:2)]
+
   #integrate MAF information where available
   clinvarPatho$maf=gnomad[clinvarPatho$hgvsc,"maf"]
   clinvarPatho$hom=gnomad[clinvarPatho$hgvsc,"hom"]
@@ -647,6 +657,10 @@ buildReferenceSet <- function(geneName,ensemblID,
   #also, we don't need to include any cases from gnomad that are already benign in clinvar (i.e. redundant)
   gnomadBenign <- gnomadBenign[!(gnomadBenign$hgvsc %in% clinvarBenign$hgvsc),]
 
+  #make an empty rest matrix for gnomad
+  gbRest <- as.data.frame(matrix(NA_character_,nrow=nrow(gnomadBenign),ncol=ncol(cpRest)))
+  colnames(gbRest) <- colnames(cpRest)
+
   #compile final output
   referenceSets <- data.frame(
     rbind(clinvarPatho,clinvarBenign,gnomadBenign),
@@ -659,6 +673,9 @@ buildReferenceSet <- function(geneName,ensemblID,
       rep("GnomAD",nrow(gnomadBenign))
     )
   )
+  if (clinvarVerbose) {
+    referenceSets <- cbind(referenceSets,rbind(cpRest,cbRest,gbRest))
+  }
   #reject any un-indexable variants
   referenceSets <- referenceSets[!is.na(referenceSets$hgvsc),]
   rownames(referenceSets) <- referenceSets$hgvsc
@@ -693,7 +710,7 @@ if (is.na(args$ensemblID)) {
 referenceSets <- with(args,
   buildReferenceSet(geneName=geneName,ensemblID=ensemblID,
     trait=trait,homMin=homMin,mafMin=mafMin,starsMin=starsMin,includeLikely=!excludeLBLP,
-    clinvarEarliest=clinvarEarliest,
+    clinvarEarliest=clinvarEarliest,clinvarVerbose=clinvarVerbose,
     stagger=TRUE,overrideCache=overrideCache,logger=logger,maxVars=maxVars)
 )
 
