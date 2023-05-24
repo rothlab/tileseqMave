@@ -396,8 +396,9 @@ checkPivots <- function(params) {
         any(is.na(getPivotOverrides(params,sCond,tp,regi)))
       })
       if (any(missing)) {
+        regis <- params$regions$`Region Number`[which(missing)]
         sprintf("No scale pivots defined for region %i in %s time-point %s",
-                regi,sCond,tp
+                regis,sCond,tp
         )
       } else NULL
     }))
