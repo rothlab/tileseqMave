@@ -53,7 +53,7 @@ maps <- lapply(args$maps,function(mfile) {
   if (!all(c("hgvs_pro","score","se","df") %in% colnames(m))) {
     stop("File ",mfile," is not a valid MaveDB file!")
   }
-  rownames(m) <- m
+  rownames(m) <- m$hgvs_pro
   return(m)
 })
 
@@ -67,19 +67,21 @@ out <- as.df(lapply(allVars, function(v) {
   dfs <- na.omit(sapply(maps,`[`,v,"df"))
   sds <- ses*sqrt(dfs)
   ws <- if (args$weightedAverage) {
-    vs <- sds^2
-    (1/vs)/sum(1/vs)
+    (1/ses)/sum(1/ses)
   } else {
-    rep(1,length(scores))
+    rep(1/length(scores),length(scores))
   }
   if (length(scores) == 1) { #then there's only one table with that variant
-    return(list(hgvs_pro=v,score=scores,se=ses,dfs=df)
+    return(list(hgvs_pro=v, score=scores, se=ses, dfs=dfs))
   } else {
-    out <- weightedAverage(scores,ses,dfs,ws)
-    return(list(hgvs_pro=hgvs_pro,score=out[["mj"]],se=out[["sj"]]/sqrt(out[["dfj"]]),df=out[["dfj"]]))
+    out <- weightedAverage(scores,sds,dfs,ws)
+    return(list(
+      hgvs_pro=v, score=out[["mj"]],
+      se=out[["sj"]]/sqrt(out[["dfj"]]), df=out[["dfj"]]
+    ))
   }
 }))
 
-write.csv(out,args$out,colnames=FALSE)
+write.csv(out,args$out,row.names=FALSE)
 
 logger$info("Done!")
