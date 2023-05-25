@@ -714,6 +714,12 @@ referenceSets <- with(args,
     stagger=TRUE,overrideCache=overrideCache,logger=logger,maxVars=maxVars)
 )
 
+logger$info(sprintf(
+  "Output set contains %d positive and %d negative reference variants.",
+  sum(referenceSets$referenceSet == "Positive"),
+  sum(referenceSets$referenceSet == "Negative")
+))
+
 #write output to file
 logger$info("Writing results to file ",outfile)
 write.csv(referenceSets,outfile,row.names=FALSE)
