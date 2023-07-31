@@ -50,6 +50,7 @@ p <- add_argument(p, "--parameters", help="parameter file. Defaults to parameter
 p <- add_argument(p, "--pdb", help="PDB structures. Semicolon-separated list of #-separated pairings between PDB IDs and chain IDs.")
 p <- add_argument(p, "--squish", help="Compress x-axis to fit map onto single screen.",flag=TRUE)
 p <- add_argument(p, "--srOverride", help="Manual override to allow singleton replicates. USE WITH EXTREME CAUTION!",flag=TRUE)
+p <- add_argument(p, "--overrideCache", help="Re-query all webservices instead of using cached results.",flag=TRUE)
 args <- parse_args(p)
 
 
@@ -169,9 +170,12 @@ for (infile in infiles) {
     # }
     
     cat("Querying Uniprot")
-    domains <- fetch.domains.uniprot(uniprot)
+    domains <- fetch.domains.uniprot(uniprot,overrideCache=args$overrideCache)
     if (!is.null(domains) && nrow(domains) > 0) {
-      colkey <- c(DOMAIN="goldenrod1",REPEAT="goldenrod2",SIGNAL="goldenrod3")
+      colkey <- c(
+        DOMAIN="goldenrod1",REPEAT="goldenrod2",SIGNAL="goldenrod3",
+        ZN_FING="chartreuse2",MOTIF="chartreuse3",REGION="chartreuse4"
+      )
       td$add.domtrack(domains,colkey)
     }
   }
