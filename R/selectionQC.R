@@ -988,6 +988,25 @@ drawDistributions <- function(aaScores,seCutoff=Inf,reg=NA,bcOverride=TRUE) {
   stopHist <- hist(stopScores,breaks=breaks,plot=FALSE)
   misHist <- hist(misScores,breaks=breaks,plot=FALSE)
 
+  # function for calculating Cohen's d for Welch test
+  calc_dScore <- function(syn, stop){
+    syn_mean <- mean(syn)
+    stop_mean <- mean(stop)
+    syn_var <- var(syn)
+    stop_var <- var(stop)
+    return(
+      (syn_mean - stop_mean)/
+        sqrt((syn_var + stop_var)/2)
+    )
+  }
+  
+  # Cohen's d for Welch test
+  dScore <- calc_dScore(synScores, stopScores)
+  
+  # Round d score to 2 digits
+  Rounded_d <- round(dScore, digits = 2)
+  
+  
   #draw top plot for syn/stop
   op <- par(mar=c(2,4,2,1)+.1)
   xs <- barplot(
@@ -996,9 +1015,9 @@ drawDistributions <- function(aaScores,seCutoff=Inf,reg=NA,bcOverride=TRUE) {
     border=NA,ylab="density",space=c(0,0),
     main=if (is.infinite(seCutoff)) {
       # paste("Region",reg,"; Unfiltered")
-      bquote("Region"~.(reg)~"; Any"~sigma)
+      bquote("Region"~.(reg)~"; Any"~sigma~"; Cohen's d: "~.(Rounded_d))
     } else {
-      bquote("Region"~.(reg)~";"~sigma < .(seCutoff))
+      bquote("Region"~.(reg)~";"~sigma < .(seCutoff)~"; Cohen's d: "~.(Rounded_d))
     }
   )
   grid(NA,NULL)
