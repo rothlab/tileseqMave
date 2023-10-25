@@ -50,6 +50,7 @@ p <- add_argument(p, "--parameters", help="parameter file. Defaults to parameter
 p <- add_argument(p, "--pdb", help="PDB structures. Semicolon-separated list of #-separated pairings between PDB IDs and chain IDs.")
 p <- add_argument(p, "--squish", help="Compress x-axis to fit map onto single screen.",flag=TRUE)
 p <- add_argument(p, "--srOverride", help="Manual override to allow singleton replicates. USE WITH EXTREME CAUTION!",flag=TRUE)
+p <- add_argument(p, "--overrideCache", help="Re-query all webservices instead of using cached results.",flag=TRUE)
 args <- parse_args(p)
 
 
@@ -99,8 +100,13 @@ if (!is.na(args$pdb)) {
     stop("PDB argument must indicate PDB ID and chain ID separated by a hash character.")
   }
   pdb <- strsplit(args$pdb,";")[[1]]
-  pdbIds <- sapply(strsplit(pdb,"#"),`[[`,1)
-  pdbChains <- sapply(strsplit(pdb,"#"),`[[`,2)
+  # pdbIds <- sapply(strsplit(pdb,"#"),`[[`,1)
+  # pdbChains <- sapply(strsplit(pdb,"#"),`[[`,2)
+  pdbFields <- yogitools::extract.groups(pdb,"(\\w+)#([A-Za-z]{1})([\\-+0-9]*)")
+  pdbIds <- pdbFields[,1]
+  pdbChains <- pdbFields[,2]
+  pdbOffsets <- as.integer(pdbFields[,3])
+  pdbOffsets[is.na(pdbOffsets)] <- 0L
 
   if (!all(grepl("^[0-9][A-Za-z0-9]{3}$",pdbIds))) {
     stop("One or more of the given PDB IDs is invalid!")
@@ -168,17 +174,42 @@ for (infile in infiles) {
     #   td$add.domtrack(domains,colkey)
     # }
     
-    cat("Querying Uniprot")
-    domains <- fetch.domains.uniprot(uniprot)
+    cat("Querying Uniprot domains...")
+    domains <- fetch.domains.uniprot(uniprot,overrideCache=args$overrideCache)
+    cat("done\n")
     if (!is.null(domains) && nrow(domains) > 0) {
-      colkey <- c(DOMAIN="goldenrod1",REPEAT="goldenrod2",SIGNAL="goldenrod3")
+      colkey <- c(
+        DOMAIN="goldenrod1",REPEAT="goldenrod2",SIGNAL="goldenrod3",
+        ZN_FING="chartreuse2",MOTIF="chartreuse3",REGION="chartreuse4"
+      )
       td$add.domtrack(domains,colkey)
     }
   }
   
+  strucfeats <- NULL
+  tryCatch({
+    cat("Querying Alphafold...")
+    strucfeats <- list(calc.strucfeats(uniprot,main.chain="A",db="alphafold",overrideCache=args$overrideCache))
+    cat("done\n")
+  },error=function(e) {
+    cat("Unable to fetch AlphaFold structure:\n",message(e),"\n")
+  })
+
   if (!is.na(args$pdb)) {
+    cat("Obtaining PDB features...")
+    strucfeats.pdb <- mapply(calc.strucfeats,
+      acc=pdbIds,main.chain=pdbChains,db="pdb",offset=pdbOffsets,
+      overrideCache=args$overrideCache,SIMPLIFY=FALSE
+    )
+    strucfeats <- c(strucfeats,strucfeats.pdb)
+    cat("done\n")
+  } else {
+    cat("No PDB references supplied. \n")
+  }
+
+  if (length(strucfeats) > 0) {
   
-    strucfeats <- mapply(calc.strucfeats,pdbIds,pdbChains,SIMPLIFY=FALSE)
+    # strucfeats <- mapply(calc.strucfeats,pdbIds,pdbChains,SIMPLIFY=FALSE)
   
     #consolidate secondary structure information from all structures
     sscols <- lapply(strucfeats,`[`,,"secstruc")
