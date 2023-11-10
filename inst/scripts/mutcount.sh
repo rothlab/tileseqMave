@@ -124,7 +124,7 @@ fi
 TMPDIR=$(mktemp -d -p ./)
 
 
-#extract an element from a json file
+#Helper function to extract an element from a json file
 # first argument: json file name
 # second argument /-separated path to element
 # for example: if json content is {'foo': 1, 'bar': {'baz': 'hello', 'buz': 4}}
@@ -176,8 +176,9 @@ cons() {
   fi
 }
 
-#helper function to find matching array entries
-#parameters: arrray, string to match
+#helper function to find matching entries in an array.
+#Note that the array is passed *by reference*, not by value!
+#Arguments: (1) name of array, (2) string to match
 matches() {
   #load the array with the given name via eval
   eval ARR=\( \${${1}[@]} \)
@@ -202,6 +203,8 @@ intersect() {
 
 #Read sample table
 SAMPLETABLE="$(extractJSON "$PARAMETERS" samples)"
+#Extract columns into arrays: SIDS=SampleIDs, STILES=SampleTiles,
+# SCONDS=SampleConditions, STPS, SampleTimePoints, SREPS=SampleReplicates
 mapfile -t SIDS < <(extractCol "$SAMPLETABLE" 1)
 mapfile -t STILES < <(extractCol "$SAMPLETABLE" 2)
 mapfile -t SCONDS < <(extractCol "$SAMPLETABLE" 3)
@@ -214,15 +217,25 @@ mapfile -t SREPS < <(extractCol "$SAMPLETABLE" 5)
 MISSING=""; declare -a R1S; declare -a R2S
 for ((i=0; i<${#SIDS[@]}; i++)); do
   SID="${SIDS[$i]}"
-  R1S[$i]=$(ls "${INDIR}/${SID}_"*R1*fastq.gz)
+  R1S[$i]=$(echo "${INDIR}/${SID}_"*R1*fastq.gz)
   if [[ ! -r  "${R1S[$i]}" ]]; then
-    MISSING=$(cons "${SID}_R1" $MISSING)
+    MISSING=$(cons "${SID}_R1" "$MISSING" "; ")
   fi
-  R2S[$i]=$(ls "${INDIR}/${SID}_"*R2*fastq.gz)
+  R2S[$i]=$(echo "${INDIR}/${SID}_"*R2*fastq.gz)
   if [[ ! -r "${R2S[$i]}" ]]; then
-    MISSING=$(cons "${SID}_R2" $MISSING)
+    MISSING=$(cons "${SID}_R2" "$MISSING" "; ")
   fi
 done
+if [[ "$USEPHIX" == "1" ]]; then
+  PHIXR1=$(echo "${INDIR}/Undetermined_"*R1*fastq.gz)
+  if [[ ! -r  "$PHIXR1" ]]; then
+    MISSING=$(cons "Undetermined_R1" "$MISSING" "; ")
+  fi
+  PHIXR2=$(echo "${INDIR}/Undetermined_"*R2*fastq.gz)
+  if [[ ! -r  "$PHIXR2" ]]; then
+    MISSING=$(cons "Undetermined_R2" "$MISSING" "; ")
+  fi
+fi
 
 if [[ -n "$MISSING" ]]; then
   echo "ERROR: No FASTQ files found for the following samples: $MISSING">&2
@@ -233,9 +246,10 @@ fi
 CONDEFS="$(extractJSON $PARAMETERS conditions/definitions)"
 declare -a SWTCOND
 for ((i=0; i<${#SIDS[@]}; i++)); do
-  WTCONDNAME=$(grep "is_wt_control_for ${SCONDS[$i]}" < <(echo "$CONDEFS")|awk '{print $1}')
+  WTCONDNAME=$(echo "$CONDEFS" | grep "is_wt_control_for ${SCONDS[$i]}" | awk '{print $1}')
   if [[ -n $WTCONDNAME ]]; then
-    j=$(intersect "$(matches SCONDS $WTCONDNAME)" "$(matches STILES ${STILES[$i]})" "$(matches STPS "${STPS[$i]}")" "$(matches SREPS ${SREPS[$i]})")
+    #find the row indices that match all the following fields:
+    j=$(intersect "$(matches "SCONDS" $WTCONDNAME)" "$(matches "STILES" ${STILES[$i]})" "$(matches "STPS" "${STPS[$i]}")" "$(matches "SREPS" ${SREPS[$i]})")
     SWTCOND[$i]=${SIDS[$j]}
   fi
 done
@@ -245,24 +259,27 @@ REFDIR="${OUTDIR}/ref"
 mkdir -p "$REFDIR"
 
 PROJECT=$(extractJSON "$PARAMETERS" project)
+#Replace space with underscores in project name
+PROJECT=${PROJECT/ /_}
 REFSEQ=$(extractJSON "$PARAMETERS" template/seq)
 REFFASTA="${REFDIR}/${PROJECT}.fasta"
 echo ">$PROJECT">"$REFFASTA"
 echo "$REFSEQ">>"$REFFASTA"
 
 echo "Building reference library"
-bowtie2-build -f "$REFFASTA" "${REFFASTA%.fasta}"
+bowtie2-build -f --quiet "$REFFASTA" "${REFFASTA%.fasta}"
 
 if [[ "$USEPHIX" == "1" ]]; then
   #download phix genome reference
   echo "Downloading PhiX reference genome..."
   PHIX_REFSEQID="NC_001422.1"
-  PHIX_URL="https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nuccore&id=${PHIX_REFSEQ}&rettype=fasta&retmode=text"
+  EFETCH_BASE="https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
+  PHIX_URL="${EFETCH_BASE}?db=nuccore&id=${PHIX_REFSEQID}&rettype=fasta&retmode=text"
   PHIXFASTA="${REFDIR}/phix.fasta"
   curl "$PHIX_URL">"$PHIXFASTA"
 
   echo "Building PhiX reference library"
-  bowtie2-build -f "$PHIXFASTA" "${PHIXFASTA%.fasta}"
+  bowtie2-build -f --quiet "$PHIXFASTA" "${PHIXFASTA%.fasta}"
 fi
 
 #PHASE 1: Run alignment jobs and monitor
@@ -287,6 +304,7 @@ for ((i=0; i<${#SIDS[@]}; i++)); do
 
   LOGFILE="${SAMDIR}/bowtie_${SIDS[$i]}_R2.log"
   SAMFILE="${SAMDIR}/${SIDS[$i]}_R2.sam"
+  #profiling showed that bowtie uses < 1GB RAM even with 8 threads
   RETVAL=$(submitjob.sh -n "bowtie${SIDS[$i]}" \
     -c ${CPUS} -m 1G -l $LOGFILE -e $LOGFILE $CONDAARG $QUEUEARG -- \
     bowtie2 --no-head --nofw --no-sq --rdg 12,1 --rfg 12,1 --local --threads ${CPUS}\
@@ -294,13 +312,28 @@ for ((i=0; i<${#SIDS[@]}; i++)); do
   cons $(extractJobID "$RETVAL") "$JOBS" ","
   cons "${SIDS[$i]}_R2" "$JOBTAGS" " "
 done
-if [[ "$USEPHIX" == "1" ]]; then
 
+if [[ "$USEPHIX" == "1" ]]; then
+  LOGFILE="${SAMDIR}/bowtie_phix_R1.log"
+  SAMFILE="${SAMDIR}/phix_R1.sam"
+  RETVAL=$(submitjob.sh -n "bowtiePhixR1" \
+    -c ${CPUS} -m 1G -l $LOGFILE -e $LOGFILE $CONDAARG $QUEUEARG -- \
+    bowtie2 --no-unal --no-head --no-sq --rdg 12,1 --rfg 12,1 --local --threads ${CPUS}\
+    -x "${PHIXFASTA%.fasta}" -U "$PHIXR1" -S "$SAMFILE" )
+  cons $(extractJobID "$RETVAL") "$JOBS" ","
+  cons "phix_R1" "$JOBTAGS" " "
+
+  LOGFILE="${SAMDIR}/bowtie_phix_R2.log"
+  SAMFILE="${SAMDIR}/phix_R2.sam"
+  RETVAL=$(submitjob.sh -n "bowtiePhixR2" \
+    -c ${CPUS} -m 1G -l $LOGFILE -e $LOGFILE $CONDAARG $QUEUEARG -- \
+    bowtie2 --no-unal --no-head --no-sq --rdg 12,1 --rfg 12,1 --local --threads ${CPUS}\
+    -x "${PHIXFASTA%.fasta}" -U "$PHIXR2" -S "$SAMFILE" )
+  cons $(extractJobID "$RETVAL") "$JOBS" ","
+  cons "phix_R2" "$JOBTAGS" " "
 fi
 
-
-# bowtie2 --no-head --norc --no-sq --rdg 12,1 --rfg 12,1 --local -x {ref} -U {os.path.abspath(r1)} -S {r1_sam_file}
-
+waitForJobs.sh -v "$JOBS"
 
 #PHASE 2: Run calibrateQC jobs
 echo "Running QC calibrations."
