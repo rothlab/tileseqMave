@@ -3,29 +3,40 @@
 #fail on error, even within pipes; require variable declarations, disable history tracking
 set -euo pipefail +H
 
+BLACKLIST=""
+CONDAARG=""
+QUEUEARG=""
+USEPHIX=0
+CPUS=6
+VARCALLMEM=15G
+INDIR=""
+WORKDIR=$(pwd)
+PARAMETERS=""
+
 #helper function to print usage information
 usage () {
   cat << EOF
 
 mutcount.sh v0.0.1 
 
-by Jochen Weile <jochenweile@gmail.com> 2021
+by Jochen Weile <jochenweile@gmail.com> 2023
 
 A new job manager for tileseq_mutcount
 
-Usage: mutcount.sh [-t|--threads <INTEGER>] [-m|--memory <INTEGER>G] 
-       [--usePhiX] [-b|--blacklist <BLACKLIST>] [-c|--conda <ENV>] 
-       [-q|--queue <QUEUENAME>] <INDIR> <WORKDIR> <PARAMS>
+Usage: mutcount.sh [-f|--fastq <DIRECTORY>] [-o|--output <DIRECTORY>] 
+       [-p|--parameters <JSONFILE>] [--usePhiX] 
+       [-t|--threads <INTEGER>] [-m|--memory <INTEGER>G]  
+       [-b|--blacklist <BLACKLIST>] [-c|--conda <ENV>] [-q|--queue <QUEUENAME>]
 
-<INDIR>        : The input directory containing the fastq.gz files
-<WORKDIR>      : The working directory to which results will be written
-<PARAMS>       : A parameter sheet JSON file
--t|--threads   : Number of threads to use per job for alignment and variant calling. Default: $CPUS
--m|--memory    : Amount of memory to request for each variant calling job. Default: $VARCALLMEM
---usePhiX      : calibrate Q-scores based on phiX reads instead of WT controls
--c|--conda     : Conda environment to activate for jobs
--b|--blacklist : An optional comma-separated blacklist of nodes to avoid
--q|--queue     : Submit jobs to given HPC queue
+-f|--fastq      : The input directory containing the fastq.gz files. Required.
+-p|--parameters : A parameter sheet JSON file. Required
+-o|--output     : The working directory to which results will be written. Defaults to current directory.
+-t|--threads    : Number of threads to use per job for alignment and variant calling. Default: $CPUS
+-m|--memory     : Amount of memory to request for each variant calling job. Default: $VARCALLMEM
+--usePhiX       : calibrate Q-scores based on phiX reads instead of WT controls
+-c|--conda      : Conda environment to activate for jobs. (Optional)
+-b|--blacklist  : A comma-separated blacklist of nodes to avoid. (Optional)
+-q|--queue      : Submit jobs to given HPC queue. (Optional)
 
 EOF
  exit $1
@@ -33,17 +44,38 @@ EOF
 
 #Parse Arguments
 PARAMS=""
-BLACKLIST=""
-CONDAARG=""
-QUEUEARG=""
-USEPHIX=0
-CPUS=6
-VARCALLMEM=15G
 while (( "$#" )); do
   case "$1" in
     -h|--help)
       usage 0
       shift
+      ;;
+    -f|--fastq)
+      if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
+        INDIR=$2
+        shift 2
+      else
+        echo "ERROR: Argument for $1 is missing" >&2
+        usage 1
+      fi
+      ;;
+    -o|--output)
+      if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
+        WORKDIR=$2
+        shift 2
+      else
+        echo "ERROR: Argument for $1 is missing" >&2
+        usage 1
+      fi
+      ;;
+    -p|--parameters)
+      if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
+        PARAMETERS=$2
+        shift 2
+      else
+        echo "ERROR: Argument for $1 is missing" >&2
+        usage 1
+      fi
       ;;
     -b|--blacklist)
       if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
@@ -112,17 +144,19 @@ done
 #reset command arguments as only positional parameters
 eval set -- "$PARAMS"
 
-INDIR="$1"
+# INDIR="$1"
 if [[ -z "$INDIR" ]]; then
-  echo "No input directory provided!"
+  echo "No fastq directory provided! Use -f or --fastq to specify.">&2
+  usage 1
 elif ! [[ -d "$INDIR" ]]; then
   echo "$INDIR is not a valid directory!">&2
   exit 1
 fi
 
-WORKDIR="$2"
+# WORKDIR="$2"
 if [[ -z "$WORKDIR" ]]; then
-  echo "No output directory provided!"
+  echo "No output directory provided!">&2
+  usage 1
 elif ! [[ -d "$WORKDIR" ]]; then
   echo "$WORKDIR is not a valid directory!">&2
   exit 1
@@ -132,14 +166,17 @@ fi
 # <tag>_YYYY-MM-DD-hh-mm-ss/
 
 #parameter file
-PARAMETERS=${3:-parameters.json}
-if ! [[ -r "$PARAMETERS" ]]; then
+# PARAMETERS=${3:-parameters.json}
+if [[ -z "$PARAMETERS" ]]; then
+  echo "No parameter sheet provided! Use -p or --parameters to specify.">&2
+  usage 1
+elif ! [[ -r "$PARAMETERS" ]]; then
   #TODO: Auto-convert csv to json if provided?
   if [[ "$PARAMETERS" != *.json ]]; then
     echo "Parameter file $PARAMETERS must be a .json file!">&2
     exit 1
   fi
-  echo "$PARAMETERS not found or unreadable!">&2
+  echo "Parameter sheet $PARAMETERS doesn't exist or is unreadable!">&2
   exit 1
 fi
 
@@ -308,6 +345,7 @@ if [[ "$USEPHIX" == "1" ]]; then
 fi
 
 #PHASE 1: Run alignment jobs and monitor
+echo ""
 echo "###########################################"
 echo "# PHASE 1: Performing sequence alignments #"
 echo "###########################################"
@@ -419,6 +457,8 @@ if [[ -n "$FAILEDJOBTAGS" ]]; then
   exit 1
 fi
 
+echo "All $(echo $JOBTAGS|wc -w) alignment jobs reported success!"
+
 # VALIDATE SAM FILES
 ISBROKEN=0
 for ((i=0; i<${#SIDS[@]}; i++)); do
@@ -435,7 +475,10 @@ if [[ "$ISBROKEN" == 1 ]]; then
   exit 1
 fi
 
+echo "All alignments appear healthy."
+
 #PHASE 2: Run calibrateQC jobs
+echo ""
 echo "#################################"
 echo "# PHASE 2: Calibrating Q-scores #"
 echo "#################################"
@@ -446,6 +489,7 @@ echo "#################################"
 submitCalibrations() {
   TAGS="$1"
   OUTDIR="$2"
+  JOBS=""
   for JOBTAG in $TAGS; do
     PREFIX="${JOBTAG#*_}"
     i="${JOBTAG%%_*}"
@@ -462,6 +506,7 @@ submitCalibrations() {
     #extract job ID from return value and add to jobs list
     JOBS="$(cons $(extractJobID "$RETVAL") $JOBS ',')"
   done
+  echo "$JOBS"
 }
 
 #helper function to check if any jobs have failed
@@ -527,7 +572,10 @@ if [[ -n "$FAILEDJOBTAGS" ]]; then
   exit 1
 fi
 
+echo "All $(echo $JOBTAGS|wc -w) calibration jobs reported success!"
+
 #PHASE 3: Run variant calling jobs and monitor
+echo ""
 echo "#############################"
 echo "# PHASE 3: Calling variants #"
 echo "#############################"
@@ -540,6 +588,7 @@ submitVarcalls() {
   else
     CALIBARG="--calibratePhredWT"
   fi
+  JOBS=""
   for JOBTAG in $TAGS; do
     SID="${JOBTAG#*_}"
     VCLOG="${VCDIR}/${SID}_varcall.log"
@@ -551,7 +600,10 @@ submitVarcalls() {
       -p "$PARAMETERS" --skip_alignment -log info -c "$CPUS" \
       $CALIBARG \
     )
+    #extract job ID from return value and add to jobs list
+    JOBS="$(cons $(extractJobID "$RETVAL") $JOBS ',')"
   done
+  echo "$JOBS"
 }
 
 findFailedVarcalls() {
