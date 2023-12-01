@@ -1,8 +1,8 @@
 #!/bin/bash
 
 REPO=$(Rscript -e 'cat(system.file(package="tileseqMave"))')/scripts
-SCRIPTS=$(ls $REPO/*.R)
-SNAMES=$(basename -a $SCRIPTS|sed -e s/\\.R//)
+SCRIPTS=$(ls "$REPO"/*.R "$REPO"/*.sh)
+SNAMES=$(basename -a $SCRIPTS|sed -e s/\\..*//)
 
 #complete -W "$SNAMES" tsm
 
@@ -40,8 +40,8 @@ if [[ $COMMAND == "help" || $COMMMAND == "--help" || $COMMAND == "-h" ]]; then
   if (( "$#" )); then
     COMMAND=$1
     if isValidCommand $COMMAND ; then
-      SCRIPT=${REPO}/${COMMAND}.R
-      Rscript $SCRIPT --help
+      SCRIPT=${REPO}/${COMMAND}.*
+      $SCRIPT --help
       exit 0
     else
       echo "Unknown command $COMMAND"
@@ -62,5 +62,5 @@ if ! isValidCommand $COMMAND ; then
 fi
 
 
-SCRIPT=${REPO}/${COMMAND}.R
-Rscript $SCRIPT $@
+SCRIPT=${REPO}/${COMMAND}.*
+$SCRIPT $@
