@@ -186,8 +186,15 @@ else
   BLARG="--blacklist $BLACKLIST"
 fi
 
-# TMPDIR=$(mktemp -d -p ./)
-
+log() {
+  echo "$(date +%Y/%m/%d-%H:%M:%S) : $*"
+}
+logWarn() {
+  echo "$(date +%Y/%m/%d-%H:%M:%S) WARNING: $*"
+}
+logErr() {
+  echo "$(date +%Y/%m/%d-%H:%M:%S) ERROR: $*">&2
+}
 
 #Helper function to extract an element from a json file
 # first argument: json file name
@@ -313,7 +320,7 @@ if [[ "$USEPHIX" == "1" ]]; then
 fi
 
 if [[ -n "$MISSING" ]]; then
-  echo "ERROR: No FASTQ files found for the following samples: $MISSING">&2
+  logErr "ERROR: No FASTQ files found for the following samples: $MISSING"
   exit 1
 fi
 
@@ -328,27 +335,28 @@ REFFASTA="${REFDIR}/${GENE}.fasta"
 echo ">$GENE">"$REFFASTA"
 echo "$REFSEQ">>"$REFFASTA"
 
-echo "Building reference library"
+log "Building reference library"
 bowtie2-build -f --quiet "$REFFASTA" "${REFFASTA%.fasta}"
 
 if [[ "$USEPHIX" == "1" ]]; then
   #download phix genome reference
-  echo "Downloading PhiX reference genome..."
+  log "Downloading PhiX reference genome..."
   PHIX_REFSEQID="NC_001422.1"
   EFETCH_BASE="https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
   PHIX_URL="${EFETCH_BASE}?db=nuccore&id=${PHIX_REFSEQID}&rettype=fasta&retmode=text"
   PHIXFASTA="${REFDIR}/phix.fasta"
   curl "$PHIX_URL">"$PHIXFASTA"
 
-  echo "Building PhiX reference library"
+  log "Building PhiX reference library"
   bowtie2-build -f --quiet "$PHIXFASTA" "${PHIXFASTA%.fasta}"
 fi
 
 #PHASE 1: Run alignment jobs and monitor
-echo ""
-echo "###########################################"
-echo "# PHASE 1: Performing sequence alignments #"
-echo "###########################################"
+echo "
+###########################################
+# PHASE 1: Performing sequence alignments #
+###########################################
+"
 
 extractJobID() {
   RETVAL=${1//$'\n'/ }
@@ -372,15 +380,15 @@ submitAlignments() {
         SAMFILE="${SAMDIR}/phix_R2.sam"
         FQ="$PHIXR2"
       else 
-        echo "Invalid job tag. Report this as a bug!">&2
+        logErr "Invalid job tag. Report this as a bug!"
         exit 100
       fi
       RETVAL=$(submitjob.sh -n "bowtiePhix" -c ${CPUS} -m 1G \
-        -l $LOGFILE -e $LOGFILE $CONDAARG $QUEUEARG --report -- \
+        -l $LOGFILE -e $LOGFILE $CONDAARG $QUEUEARG --report --skipValidation -- \
         bowtie2 --no-unal --no-head --no-sq --rdg 12,1 --rfg 12,1 \
         --local --threads ${CPUS} -x "${PHIXFASTA%.fasta}" \
         -U "$FQ" -S "$SAMFILE" )
-      JOBS=$(cons $(extractJobID "$RETVAL") "$JOBS" ",")
+      JOBS=$(cons "$(extractJobID "$RETVAL")" "$JOBS" ",")
     else
       i="${JOBTAG%%_*}"
       if [[ "$JOBTAG" == *R1 ]]; then
@@ -394,19 +402,19 @@ submitAlignments() {
         FQ="${R2S[$i]}"
         FWREV="--nofw"
       else 
-        echo "Invalid job tag. Report this as a bug!">&2
+        logErr "Invalid job tag. Report this as a bug!"
         exit 100
       fi
       #profiling showed that bowtie uses < 1GB RAM even with 8 threads
       RETVAL=$(submitjob.sh -n "bowtie${SIDS[$i]}" -c ${CPUS} -m 2G \
-        -l $LOGFILE -e $LOGFILE $CONDAARG $QUEUEARG --report -- \
+        -l $LOGFILE -e $LOGFILE $CONDAARG $QUEUEARG --report --skipValidation -- \
         bowtie2 ${FWREV} --rdg 12,1 --rfg 12,1 --local \
         --threads ${CPUS} -x "${REFFASTA%.fasta}" -U "$FQ" \
         '|samtools sort' -@ "$CPUS" -n -u - \
         '|samtools view' --no-header -o "$SAMFILE" -O SAM -)
         # bowtie2 --no-head ${FWREV} --no-sq --rdg 12,1 --rfg 12,1 --local \
         # -x "${REFFASTA%.fasta}" -U "$FQ" -S "$SAMFILE" )
-      JOBS=$(cons $(extractJobID "$RETVAL") "$JOBS" ",")
+      JOBS=$(cons "$(extractJobID "$RETVAL")" "$JOBS" ",")
     fi
   done
   echo "$JOBS"
@@ -446,18 +454,18 @@ FAILEDJOBTAGS="$(findFailedAlignments "$JOBTAGS")"
 RETRIES=0
 while [[ -n "$FAILEDJOBTAGS" && "$RETRIES" -lt 3 ]]; do
   ((RETRIES++))
-  echo "WARNING: $(echo $FAILEDJOBTAGS|wc -w) alignment jobs failed and will be re-submitted."
+  logWarn "$(echo $FAILEDJOBTAGS|wc -w) alignment jobs failed and will be re-submitted."
   JOBS="$(submitAlignments "$FAILEDJOBTAGS" "$SAMDIR")"
   waitForJobs.sh -v "$JOBS"
   FAILEDJOBTAGS="$(findFailedAlignments "$FAILEDJOBTAGS")"
 done
 #if there are still failed jobs left, throw an error
 if [[ -n "$FAILEDJOBTAGS" ]]; then
-  echo "ERROR: The following alignment jobs failed and have exhausted all re-tries: $FAILEDJOBTAGS">&2
+  logErr "The following alignment jobs failed and have exhausted all re-tries: $FAILEDJOBTAGS"
   exit 1
 fi
 
-echo "All $(echo $JOBTAGS|wc -w) alignment jobs reported success!"
+log "All $(echo $JOBTAGS|wc -w) alignment jobs reported success!"
 
 # VALIDATE SAM FILES
 ISBROKEN=0
@@ -466,22 +474,23 @@ for ((i=0; i<${#SIDS[@]}; i++)); do
   SAMR2="${SAMDIR}/${SIDS[$i]}_R2.sam"
   ISDIFF=$(diff -q <(awk '{print $1}' "$SAMR1") <(awk '{print $1}' "$SAMR2"))
   if [[ "$ISDIFF" == Files*differ ]]; then
-    echo "R1/R2 SAM files for ${SIDS[$i]} differ in contents!">&2
+    logErr "R1/R2 SAM files for ${SIDS[$i]} differ in contents!"
     ISBROKEN=1
   fi
 done
 if [[ "$ISBROKEN" == 1 ]]; then
-  echo "ERROR: Alignment (SAM) files failed validation.">&2
+  logErr "Alignment (SAM) files failed validation."
   exit 1
 fi
 
-echo "All alignments appear healthy."
+log "All alignments appear healthy."
 
 #PHASE 2: Run calibrateQC jobs
-echo ""
-echo "#################################"
-echo "# PHASE 2: Calibrating Q-scores #"
-echo "#################################"
+echo "
+#################################
+# PHASE 2: Calibrating Q-scores #
+#################################
+"
 
 #output file naming scheme required by tilseqMut: 
 # f"{wt_id}_T{self._sample_tile}_R1_calibrate_phred.csv"
@@ -500,11 +509,12 @@ submitCalibrations() {
     LOG2="${OUTDIR}/${PREFIX}_internal.log"
     SAMFILE="${SAMDIR}/${PREFIX}.sam"
     RETVAL=$(submitjob.sh -n "calibrate${SIDS[$i]}R1" -c $CPUS -m 1G \
-      -l "$LOG" -e "$LOG" $CONDAARG $QUEUEARG --report -- \
+      -l "$LOG" -e "$LOG" $CONDAARG $QUEUEARG --report --skipValidation -- \
       tsm calibratePhred "$SAMFILE" -p "$PARAMETERS" \
       -o "$OUT" -l "$LOG2" --cores $CPUS)
+    echo "$RETVAL">&2
     #extract job ID from return value and add to jobs list
-    JOBS="$(cons $(extractJobID "$RETVAL") $JOBS ',')"
+    JOBS=$(cons "$(extractJobID "$RETVAL")" "$JOBS" ',')
   done
   echo "$JOBS"
 }
@@ -561,24 +571,25 @@ FAILEDJOBTAGS="$(findFailedCalibrations "$JOBTAGS" "$CALIBDIR")"
 RETRIES=0
 while [[ -n "$FAILEDJOBTAGS" && "$RETRIES" -lt 3 ]]; do
   ((RETRIES++))
-  echo "WARNING: $(echo $FAILEDJOBTAGS|wc -w) calibration jobs failed and will be re-submitted."
+  logWarn "$(echo $FAILEDJOBTAGS|wc -w) calibration jobs failed and will be re-submitted."
   JOBS="$(submitCalibrations "$FAILEDJOBTAGS" "$CALIBDIR")"
   waitForJobs.sh -v "$JOBS"
   FAILEDJOBTAGS="$(findFailedAlignments "$FAILEDJOBTAGS" "$CALIBDIR")"
 done
 #if there are still failed jobs left, throw an error
 if [[ -n "$FAILEDJOBTAGS" ]]; then
-  echo "ERROR: The following calibration jobs failed and have exhausted all re-tries: $FAILEDJOBTAGS">&2
+  logErr "The following calibration jobs failed and have exhausted all re-tries: $FAILEDJOBTAGS"
   exit 1
 fi
 
-echo "All $(echo $JOBTAGS|wc -w) calibration jobs reported success!"
+log "All $(echo $JOBTAGS|wc -w) calibration jobs reported success!"
 
 #PHASE 3: Run variant calling jobs and monitor
-echo ""
-echo "#############################"
-echo "# PHASE 3: Calling variants #"
-echo "#############################"
+echo "
+#############################
+# PHASE 3: Calling variants #
+#############################
+"
 
 submitVarcalls() {
   TAGS="$1"
@@ -595,13 +606,13 @@ submitVarcalls() {
     R1SAM="${SAMDIR}/${SID}_R1.sam"
     R2SAM="${SAMDIR}/${SID}_R2.sam"
     RETVAL=$(submitjob.sh -n "PTM-${SID}" -c "$CPUS" -m "$VARCALLMEM" \
-      -t "36:00:00" -l "$VCLOG" -e "$VCLOG" $CONDAARG $QUEUEARG --report -- \
+      -t "36:00:00" -l "$VCLOG" -e "$VCLOG" $CONDAARG $QUEUEARG --report --skipValidation -- \
       tileseq_mut -n "$PROJECT" -r1 "$R1SAM" -r2 "$R2SAM" -o "$VCDIR" \
       -p "$PARAMETERS" --skip_alignment -log info -c "$CPUS" \
       $CALIBARG \
     )
     #extract job ID from return value and add to jobs list
-    JOBS="$(cons $(extractJobID "$RETVAL") $JOBS ',')"
+    JOBS="$(cons "$(extractJobID "$RETVAL")" $JOBS ',')"
   done
   echo "$JOBS"
 }
@@ -643,14 +654,14 @@ FAILEDJOBTAGS="$(findFailedVarcalls "$JOBTAGS" "$VARCALLDIR")"
 RETRIES=0
 while [[ -n "$FAILEDJOBTAGS" && "$RETRIES" -lt 3 ]]; do
   ((RETRIES++))
-  echo "WARNING: $(echo $FAILEDJOBTAGS|wc -w) variant calling jobs failed and will be re-submitted."
+  logWarn "$(echo $FAILEDJOBTAGS|wc -w) variant calling jobs failed and will be re-submitted."
   JOBS="$(submitVarcalls "$FAILEDJOBTAGS" "$VARCALLDIR")"
   waitForJobs.sh -v "$JOBS"
   FAILEDJOBTAGS="$(findFailedVarcalls "$FAILEDJOBTAGS" "$VARCALLDIR")"
 done
 #if there are still failed jobs left, throw an error
 if [[ -n "$FAILEDJOBTAGS" ]]; then
-  echo "ERROR: The following variant calling jobs failed and have exhausted all re-tries: $FAILEDJOBTAGS">&2
+  logErr "The following variant calling jobs failed and have exhausted all re-tries: $FAILEDJOBTAGS"
   exit 1
 fi
 
