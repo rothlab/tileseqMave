@@ -3,7 +3,7 @@
 #fail on error, even within pipes; require variable declarations, disable history tracking
 set -euo pipefail +H
 
-BLACKLIST=""
+BLARG=""
 CONDAARG=""
 QUEUEARG=""
 USEPHIX=0
@@ -12,6 +12,11 @@ VARCALLMEM=15G
 INDIR=""
 WORKDIR=$(pwd)
 PARAMETERS=""
+
+#Testing parameters
+# INDIR=fastq/
+# PARAMETERS=parameters.json
+# CONDAARG='--conda pacybara'
 
 #helper function to print usage information
 usage () {
@@ -79,7 +84,7 @@ while (( "$#" )); do
       ;;
     -b|--blacklist)
       if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
-        BLACKLIST=$2
+        BLARG="--blacklist $2"
         shift 2
       else
         echo "ERROR: Argument for $1 is missing" >&2
@@ -128,7 +133,7 @@ while (( "$#" )); do
       ;;
     --) # end of options indicates that the main command follows
       shift
-      PARAMS="$PARAMS $@"
+      PARAMS="$PARAMS $*"
       eval set -- ""
       ;;
     -*|--*=) # unsupported flags
@@ -180,20 +185,14 @@ elif ! [[ -r "$PARAMETERS" ]]; then
   exit 1
 fi
 
-if [[ -z $BLACKLIST ]]; then
-  BLARG=""
-else
-  BLARG="--blacklist $BLACKLIST"
-fi
-
 log() {
-  echo "$(date +%Y/%m/%d-%H:%M:%S) : $*"
+  printf '%s : %s\n' "$(date +%Y/%m/%d-%H:%M:%S)" "$*"
 }
 logWarn() {
-  echo "$(date +%Y/%m/%d-%H:%M:%S) WARNING: $*"
+  printf '%s \033[33mWARNING: %s\033[m\n' "$(date +%Y/%m/%d-%H:%M:%S)" "$*"
 }
 logErr() {
-  echo "$(date +%Y/%m/%d-%H:%M:%S) ERROR: $*">&2
+  printf '%s \033[31mERROR: %s\033[m\n' "$(date +%Y/%m/%d-%H:%M:%S)" "$*">&2
 }
 
 #Helper function to extract an element from a json file
@@ -259,17 +258,17 @@ matches() {
   done
 }
 
-#get the intersection of lists of indices 
-intersect() {
-  LISTA=$1
-  shift
-  while (( "$#" )); do
-    LISTB=$1
-    shift
-    LISTA="$(comm -12 <(echo "$LISTA"|sort) <(echo "$LISTB"|sort) |sort -n)"
-  done
-  echo "$LISTA"
-}
+# #get the intersection of lists of indices 
+# intersect() {
+#   LISTA=$1
+#   shift
+#   while (( "$#" )); do
+#     LISTB=$1
+#     shift
+#     LISTA="$(comm -12 <(echo "$LISTA"|sort) <(echo "$LISTB"|sort) |sort -n)"
+#   done
+#   echo "$LISTA"
+# }
 
 #PHASE 0: Validate parameters and files, setup template libraries
 
@@ -290,8 +289,8 @@ SAMPLETABLE="$(extractJSON "$PARAMETERS" samples)"
 mapfile -t SIDS < <(extractCol "$SAMPLETABLE" 1)
 mapfile -t STILES < <(extractCol "$SAMPLETABLE" 2)
 mapfile -t SCONDS < <(extractCol "$SAMPLETABLE" 3)
-mapfile -t STPS < <(extractCol "$SAMPLETABLE" 4)
-mapfile -t SREPS < <(extractCol "$SAMPLETABLE" 5)
+# mapfile -t STPS < <(extractCol "$SAMPLETABLE" 4)
+# mapfile -t SREPS < <(extractCol "$SAMPLETABLE" 5)
 
 # mapfile SAMPLELINES < <(extractJSON "$PARAMETERS" samples)
 
@@ -383,10 +382,11 @@ submitAlignments() {
         logErr "Invalid job tag. Report this as a bug!"
         exit 100
       fi
-      RETVAL=$(submitjob.sh -n "bowtiePhix" -c ${CPUS} -m 1G \
-        -l $LOGFILE -e $LOGFILE $CONDAARG $QUEUEARG --report --skipValidation -- \
+      RETVAL=$(submitjob.sh -n "bowtiePhix" -c "${CPUS}" -m 1G \
+        -l "$LOGFILE" -e "$LOGFILE" $CONDAARG $QUEUEARG $BLARG \
+        --report --skipValidation -- \
         bowtie2 --no-unal --no-head --no-sq --rdg 12,1 --rfg 12,1 \
-        --local --threads ${CPUS} -x "${PHIXFASTA%.fasta}" \
+        --local --threads "${CPUS}" -x "${PHIXFASTA%.fasta}" \
         -U "$FQ" -S "$SAMFILE" )
       JOBS=$(cons "$(extractJobID "$RETVAL")" "$JOBS" ",")
     else
@@ -406,10 +406,11 @@ submitAlignments() {
         exit 100
       fi
       #profiling showed that bowtie uses < 1GB RAM even with 8 threads
-      RETVAL=$(submitjob.sh -n "bowtie${SIDS[$i]}" -c ${CPUS} -m 2G \
-        -l $LOGFILE -e $LOGFILE $CONDAARG $QUEUEARG --report --skipValidation -- \
+      RETVAL=$(submitjob.sh -n "bowtie${SIDS[$i]}" -c "${CPUS}" -m 2G \
+        -l "$LOGFILE" -e "$LOGFILE" $CONDAARG $QUEUEARG $BLARG \
+        --report --skipValidation -- \
         bowtie2 ${FWREV} --rdg 12,1 --rfg 12,1 --local \
-        --threads ${CPUS} -x "${REFFASTA%.fasta}" -U "$FQ" \
+        --threads "${CPUS}" -x "${REFFASTA%.fasta}" -U "$FQ" \
         '|samtools sort' -@ "$CPUS" -n -u - \
         '|samtools view' --no-header -o "$SAMFILE" -O SAM -)
         # bowtie2 --no-head ${FWREV} --no-sq --rdg 12,1 --rfg 12,1 --local \
@@ -426,7 +427,7 @@ findFailedAlignments() {
   FAILEDJOBTAGS=""
   for JOBTAG in $TAGS; do
     LOGFILE="${SAMDIR}/bowtie_${JOBTAG#*_}.log"
-    LASTLOGLINE=$(tail -1 $LOGFILE)
+    LASTLOGLINE=$(tail -1 "$LOGFILE")
     if [[ "$LASTLOGLINE" != "Job completed successfully." ]]; then
       FAILEDJOBTAGS="$(cons "$JOBTAG" "$FAILEDJOBTAGS" ' ')"
     fi
@@ -454,7 +455,7 @@ FAILEDJOBTAGS="$(findFailedAlignments "$JOBTAGS")"
 RETRIES=0
 while [[ -n "$FAILEDJOBTAGS" && "$RETRIES" -lt 3 ]]; do
   ((RETRIES++))
-  logWarn "$(echo $FAILEDJOBTAGS|wc -w) alignment jobs failed and will be re-submitted."
+  logWarn "$(echo "$FAILEDJOBTAGS"|wc -w) alignment jobs failed and will be re-submitted."
   JOBS="$(submitAlignments "$FAILEDJOBTAGS" "$SAMDIR")"
   waitForJobs.sh -v "$JOBS"
   FAILEDJOBTAGS="$(findFailedAlignments "$FAILEDJOBTAGS")"
@@ -465,7 +466,9 @@ if [[ -n "$FAILEDJOBTAGS" ]]; then
   exit 1
 fi
 
-log "All $(echo $JOBTAGS|wc -w) alignment jobs reported success!"
+log "All $(echo "$JOBTAGS"|wc -w) alignment jobs reported success!"
+
+log "Validating alignments..."
 
 # VALIDATE SAM FILES
 ISBROKEN=0
@@ -474,8 +477,10 @@ for ((i=0; i<${#SIDS[@]}; i++)); do
   SAMR2="${SAMDIR}/${SIDS[$i]}_R2.sam"
   ISDIFF=$(diff -q <(awk '{print $1}' "$SAMR1") <(awk '{print $1}' "$SAMR2"))
   if [[ "$ISDIFF" == Files*differ ]]; then
-    logErr "R1/R2 SAM files for ${SIDS[$i]} differ in contents!"
+    log "Alignments for sample ${SIDS[$i]} ❌"
     ISBROKEN=1
+  else
+    log "Alignments for sample ${SIDS[$i]} ✅"
   fi
 done
 if [[ "$ISBROKEN" == 1 ]]; then
@@ -508,11 +513,12 @@ submitCalibrations() {
     LOG="${OUTDIR}/${PREFIX}.log"
     LOG2="${OUTDIR}/${PREFIX}_internal.log"
     SAMFILE="${SAMDIR}/${PREFIX}.sam"
-    RETVAL=$(submitjob.sh -n "calibrate${SIDS[$i]}R1" -c $CPUS -m 1G \
-      -l "$LOG" -e "$LOG" $CONDAARG $QUEUEARG --report --skipValidation -- \
+    RETVAL=$(submitjob.sh -n "calibrate${SIDS[$i]}R1" -c "$CPUS" -m 1G \
+      -l "$LOG" -e "$LOG" $CONDAARG $QUEUEARG $BLARG \
+      --report --skipValidation -- \
       tsm calibratePhred "$SAMFILE" -p "$PARAMETERS" \
-      -o "$OUT" -l "$LOG2" --cores $CPUS)
-    echo "$RETVAL">&2
+      -o "$OUT" -l "$LOG2" --cores "$CPUS")
+    # echo "$RETVAL">&2
     #extract job ID from return value and add to jobs list
     JOBS=$(cons "$(extractJobID "$RETVAL")" "$JOBS" ',')
   done
@@ -526,7 +532,7 @@ findFailedCalibrations() {
   FAILEDJOBTAGS=""
   for JOBTAG in $TAGS; do
     LOGFILE="${LOGDIR}/${JOBTAG#*_}.log"
-    LASTLOGLINE=$(tail -1 $LOGFILE)
+    LASTLOGLINE=$(tail -1 "$LOGFILE")
     if [[ "$LASTLOGLINE" != "Job completed successfully." ]]; then
       FAILEDJOBTAGS="$(cons "$JOBTAG" "$FAILEDJOBTAGS" ' ')"
     fi
@@ -535,7 +541,7 @@ findFailedCalibrations() {
 }
 
 #Find the appropriate WT sample for each non-WT sample
-CONDEFS="$(extractJSON $PARAMETERS conditions/definitions)"
+CONDEFS="$(extractJSON "$PARAMETERS" "conditions/definitions")"
 # declare -a SWTCOND
 # for ((i=0; i<${#SIDS[@]}; i++)); do
 #   WTCONDNAME=$(echo "$CONDEFS" | grep "is_wt_control_for ${SCONDS[$i]}" | awk '{print $1}')
@@ -553,7 +559,7 @@ if [[ "$USEPHIX" == 1 ]]; then
 else # i.e. if USEPHIX=0
   WTCONDNAMES=$(grep "is_wt_control_for" < <(echo "$CONDEFS")|awk '{print $1}'|sort|uniq)
   for WTCONDNAME in $WTCONDNAMES; do
-    for i in $(matches SCONDS $WTCONDNAME); do
+    for i in $(matches SCONDS "$WTCONDNAME"); do
       SID=${SIDS[$i]}
       JOBTAGS="$(cons "${i}_${SID}_R1 ${i}_${SID}_R2" "$JOBTAGS" ' ')"
     done
@@ -571,7 +577,7 @@ FAILEDJOBTAGS="$(findFailedCalibrations "$JOBTAGS" "$CALIBDIR")"
 RETRIES=0
 while [[ -n "$FAILEDJOBTAGS" && "$RETRIES" -lt 3 ]]; do
   ((RETRIES++))
-  logWarn "$(echo $FAILEDJOBTAGS|wc -w) calibration jobs failed and will be re-submitted."
+  logWarn "$(echo "$FAILEDJOBTAGS"|wc -w) calibration jobs failed and will be re-submitted."
   JOBS="$(submitCalibrations "$FAILEDJOBTAGS" "$CALIBDIR")"
   waitForJobs.sh -v "$JOBS"
   FAILEDJOBTAGS="$(findFailedAlignments "$FAILEDJOBTAGS" "$CALIBDIR")"
@@ -582,7 +588,7 @@ if [[ -n "$FAILEDJOBTAGS" ]]; then
   exit 1
 fi
 
-log "All $(echo $JOBTAGS|wc -w) calibration jobs reported success!"
+log "All $(echo "$JOBTAGS"|wc -w) calibration jobs reported success!"
 
 #PHASE 3: Run variant calling jobs and monitor
 echo "
@@ -606,13 +612,15 @@ submitVarcalls() {
     R1SAM="${SAMDIR}/${SID}_R1.sam"
     R2SAM="${SAMDIR}/${SID}_R2.sam"
     RETVAL=$(submitjob.sh -n "PTM-${SID}" -c "$CPUS" -m "$VARCALLMEM" \
-      -t "36:00:00" -l "$VCLOG" -e "$VCLOG" $CONDAARG $QUEUEARG --report --skipValidation -- \
+      -t "36:00:00" -l "$VCLOG" -e "$VCLOG" $CONDAARG $QUEUEARG $BLARG \
+      --report --skipValidation -- \
       tileseq_mut -n "$PROJECT" -r1 "$R1SAM" -r2 "$R2SAM" -o "$VCDIR" \
       -p "$PARAMETERS" --skip_alignment -log info -c "$CPUS" \
       $CALIBARG \
     )
+    # echo "$RETVAL">&2
     #extract job ID from return value and add to jobs list
-    JOBS="$(cons "$(extractJobID "$RETVAL")" $JOBS ',')"
+    JOBS="$(cons "$(extractJobID "$RETVAL")" "$JOBS" ',')"
   done
   echo "$JOBS"
 }
@@ -624,7 +632,7 @@ findFailedVarcalls() {
   for JOBTAG in $TAGS; do
     SID="${JOBTAG#*_}"
     VCLOG="${VCDIR}/${SID}_varcall.log"
-    LASTLOGLINE=$(tail -1 $VCLOG)
+    LASTLOGLINE=$(tail -1 "$VCLOG")
     if [[ "$LASTLOGLINE" != "Job completed successfully." ]]; then
       FAILEDJOBTAGS="$(cons "$JOBTAG" "$FAILEDJOBTAGS" ' ')"
     fi
@@ -654,7 +662,7 @@ FAILEDJOBTAGS="$(findFailedVarcalls "$JOBTAGS" "$VARCALLDIR")"
 RETRIES=0
 while [[ -n "$FAILEDJOBTAGS" && "$RETRIES" -lt 3 ]]; do
   ((RETRIES++))
-  logWarn "$(echo $FAILEDJOBTAGS|wc -w) variant calling jobs failed and will be re-submitted."
+  logWarn "$(echo "$FAILEDJOBTAGS"|wc -w) variant calling jobs failed and will be re-submitted."
   JOBS="$(submitVarcalls "$FAILEDJOBTAGS" "$VARCALLDIR")"
   waitForJobs.sh -v "$JOBS"
   FAILEDJOBTAGS="$(findFailedVarcalls "$FAILEDJOBTAGS" "$VARCALLDIR")"
@@ -667,4 +675,34 @@ fi
 
 #PHASE 4: Validate results
 
+FAILEDJOBTAGS=""
+for JOBTAG in $JOBTAGS; do
+  SID="${JOBTAG#*_}"
+  # VCLOG="${VARCALLDIR}/${SID}_varcall.log"
+  COUNTFILE="${VARCALLDIR}/counts_sample_${SID}.csv"
+  NVARS=$(grep -cP '^c\.' "$COUNTFILE")
+  if (( NVARS > 0 )); then
+    log "Sample $SID has $NVARS unique variant calls."
+  else
+    lowWarn "No variants found in sample ${SID}!"
+  fi
+done
+
 #CLEANUP
+log "Cleaning up and compressing files..."
+
+for SAM in "${SAMDIR}"/*.sam; do
+  submitjob.sh -n cleanup -c 1 -m 1G $CONDAARG $BLARG -- \
+  gzip "$SAM"
+done
+tar czvf "${SAMDIR}/logs.tgz" "${SAMDIR}/"*.log && rm "${SAMDIR}/"*.log
+tar czvf "${VARCALLDIR}/calibrationLogs.tgz" "${CALIBDIR}/"* && rm -r "${CALIBDIR}"
+
+log "Mutcount is done!"
+
+
+submitjob.sh -n mutcount -c 2 -m 2G -l mutcount.log -e mutcount.log \
+  --conda pacybara -- \
+  ~/projects/tileseqMave/inst/scripts/mutcount.sh \
+  -f ~/tileseq/SUMO1/SUMO1_FASTQ_joint \
+  -p ~/tileseq/SUMO1/parameters.json --conda pacybara
