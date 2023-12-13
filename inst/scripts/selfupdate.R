@@ -22,3 +22,7 @@
 ##############################################
 
 remotes::install_github("rothlab/tileseqMave")
+
+repo <- system.file(package="tileseqMave")
+tsmFile <- paste0(repo,"/scripts/tsm")
+file.copy(tsmFile,"~/.local/bin/",overwrite=TRUE)
