@@ -18,6 +18,9 @@ PARAMETERS=""
 # PARAMETERS=parameters.json
 # CONDAARG='--conda pacybara'
 
+#Display Logo and version number
+Rscript -e 'library(tileseqMave)'
+
 #helper function to print usage information
 usage () {
   cat << EOF
