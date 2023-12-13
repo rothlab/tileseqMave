@@ -704,8 +704,8 @@ tar czvf "${VARCALLDIR}/calibrationLogs.tgz" "${CALIBDIR}/"* && rm -r "${CALIBDI
 log "Mutcount is done!"
 
 
-submitjob.sh -n mutcount -c 2 -m 2G -l mutcount.log -e mutcount.log \
-  --conda pacybara -- \
-  ~/projects/tileseqMave/inst/scripts/mutcount.sh \
-  -f ~/tileseq/SUMO1/SUMO1_FASTQ_joint \
-  -p ~/tileseq/SUMO1/parameters.json --conda pacybara
+# submitjob.sh -n mutcount -c 2 -m 2G -l mutcount.log -e mutcount.log \
+#   --conda pacybara -- \
+#   ~/projects/tileseqMave/inst/scripts/mutcount.sh \
+#   -f ~/tileseq/SUMO1/SUMO1_FASTQ_joint \
+#   -p ~/tileseq/SUMO1/parameters.json --conda pacybara
