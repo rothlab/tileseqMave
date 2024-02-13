@@ -2,6 +2,7 @@
 
 #fail on error, even within pipes; require variable declarations, disable history tracking
 set -eEuo pipefail +H
+# set -eEo pipefail +H
 
 #define log functions
 log() {
@@ -33,9 +34,12 @@ VARCALLMEM=15G
 INDIR=""
 WORKDIR=$(pwd)
 PARAMETERS=""
+VALIDATEFASTQ=1
+SAMDIR=""
+SCRATCH="/scratch"
 
 #Testing parameters
-# INDIR=fastq/
+# INDIR=CBS_FASTQ_fixed/
 # PARAMETERS=parameters.json
 # CONDAARG='--conda pacybara'
 
@@ -52,20 +56,24 @@ by Jochen Weile <jochenweile@gmail.com> 2023
 
 A new job manager for tileseq_mutcount
 
-Usage: mutcount.sh [-f|--fastq <DIRECTORY>] [-o|--output <DIRECTORY>] 
-       [-p|--parameters <JSONFILE>] [--usePhiX] 
+Usage: mutcount.sh [-f|--fastq <DIRECTORY>] [-p|--parameters <JSONFILE>]
+       [-o|--output <DIRECTORY>]  [--usePhiX] [--skipValidation]
+       [-e|--existingAlignments <DIRECTORY> ]
        [-t|--threads <INTEGER>] [-m|--memory <INTEGER>G]  
        [-b|--blacklist <BLACKLIST>] [-c|--conda <ENV>] [-q|--queue <QUEUENAME>]
 
--f|--fastq      : The input directory containing the fastq.gz files. Required.
--p|--parameters : A parameter sheet JSON file. Required
--o|--output     : The working directory to which results will be written. Defaults to current directory.
--t|--threads    : Number of threads to use per job for alignment and variant calling. Default: $CPUS
--m|--memory     : Amount of memory to request for each variant calling job. Default: $VARCALLMEM
---usePhiX       : calibrate Q-scores based on phiX reads instead of WT controls
--c|--conda      : Conda environment to activate for jobs. (Optional)
--b|--blacklist  : A comma-separated blacklist of nodes to avoid. (Optional)
--q|--queue      : Submit jobs to given HPC queue. (Optional)
+-f|--fastq              : The input directory containing the fastq.gz files. Required.
+-p|--parameters         : A parameter sheet JSON file. Required.
+-o|--output             : The working directory to which results will be written. Defaults to current directory.
+--usePhiX               : calibrate Q-scores based on phiX reads instead of WT controls
+--skipValidation        : skip validation of FASTQ files
+-e|--existingAlignments : Use existing alignments in the given folder
+-t|--threads            : Number of threads to use per job for alignment and variant calling. Default: $CPUS
+-m|--memory             : Amount of memory to request for each variant calling job. Default: $VARCALLMEM
+-c|--conda              : Conda environment to activate for jobs. (Optional)
+-b|--blacklist          : A comma-separated blacklist of nodes to avoid. (Optional)
+-q|--queue              : Submit jobs to given HPC queue. (Optional)
+--scratch               : Path to cluster's local scratch folder. Default: $SCRATCH
 
 EOF
  exit $1
@@ -100,6 +108,15 @@ while (( "$#" )); do
     -p|--parameters)
       if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
         PARAMETERS=$2
+        shift 2
+      else
+        echo "ERROR: Argument for $1 is missing" >&2
+        usage 1
+      fi
+      ;;
+    -e|--existingAlignments)
+      if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
+        SAMDIR=$2
         shift 2
       else
         echo "ERROR: Argument for $1 is missing" >&2
@@ -151,8 +168,21 @@ while (( "$#" )); do
         usage 1
       fi
       ;;
+    --scratch)
+      if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
+        SCRATCH=$2
+        shift 2
+      else
+        echo "ERROR: Argument for $1 is missing" >&2
+        usage 1
+      fi
+      ;;
     --usePhiX)
       USEPHIX=1
+      shift
+      ;;
+    --skipValidation)
+      VALIDATEFASTQ=0
       shift
       ;;
     --) # end of options indicates that the main command follows
@@ -179,16 +209,16 @@ if [[ -z "$INDIR" ]]; then
   usage 1
 elif ! [[ -d "$INDIR" ]]; then
   echo "$INDIR is not a valid directory!">&2
-  exit 1
+  usage 1
 fi
 
 # WORKDIR="$2"
 if [[ -z "$WORKDIR" ]]; then
-  echo "No output directory provided!">&2
+  logErr "No output directory provided!"
   usage 1
 elif ! [[ -d "$WORKDIR" ]]; then
-  echo "$WORKDIR is not a valid directory!">&2
-  exit 1
+  logErr "$WORKDIR is not a valid directory!"
+  usage 1
 fi
 
 #TODO: Make a result folder in the Output directory named:
@@ -197,15 +227,15 @@ fi
 #parameter file
 # PARAMETERS=${3:-parameters.json}
 if [[ -z "$PARAMETERS" ]]; then
-  echo "No parameter sheet provided! Use -p or --parameters to specify.">&2
+  logErr "No parameter sheet provided! Use -p or --parameters to specify."
   usage 1
 elif ! [[ -r "$PARAMETERS" ]]; then
   #TODO: Auto-convert csv to json if provided?
   if [[ "$PARAMETERS" != *.json ]]; then
-    echo "Parameter file $PARAMETERS must be a .json file!">&2
-    exit 1
+    logErr "Parameter file $PARAMETERS must be a .json file!"
+    usage 1
   fi
-  echo "Parameter sheet $PARAMETERS doesn't exist or is unreadable!">&2
+  logErr "Parameter sheet $PARAMETERS doesn't exist or is unreadable!"
   exit 1
 fi
 
@@ -286,14 +316,23 @@ matches() {
 
 #PHASE 0: Validate parameters and files, setup template libraries
 
-#Create output directory
+#Extract project name
 PROJECT=$(extractJSON "$PARAMETERS" project)
 #Replace space with dashes in project name
 PROJECT="${PROJECT// /-}"
 PROJECT="${PROJECT//_/-}"
-TIMESTAMP=$(date +%Y-%m-%d-%H-%M-%S)
-OUTDIR="${WORKDIR}/${PROJECT}_${TIMESTAMP}"
-mkdir -p "$OUTDIR"
+
+#Create or find output directory
+#if SAMDIR is defined, then were using existing alignments,
+#so our ourput folder is the parent folder of SAMDIR
+if [[ -n "$SAMDIR" ]]; then
+  OUTDIR=$(dirname "$SAMDIR")
+else
+  #otherwise we make a new outdir from scratch
+  TIMESTAMP=$(date +%Y-%m-%d-%H-%M-%S)
+  OUTDIR="${WORKDIR}/${PROJECT}_${TIMESTAMP}"
+  mkdir -p "$OUTDIR"
+fi
 
 
 #Read sample table
@@ -333,154 +372,199 @@ if [[ "$USEPHIX" == "1" ]]; then
 fi
 
 if [[ -n "$MISSING" ]]; then
-  logErr "ERROR: No FASTQ files found for the following samples: $MISSING"
+  logErr "No FASTQ files found for the following samples: $MISSING"
   exit 1
 fi
 
+#If we're using existing alignments then the whole first section can be skipped!
+if [[ -z "$SAMDIR" ]]; then
 
-# Create reference libraries
-REFDIR="${OUTDIR}/ref"
-mkdir -p "$REFDIR"
+  #Check that R1 and R2 files are not corrupted
+  if [[ "$VALIDATEFASTQ" == 1 ]]; then
+    printReadIDS() {
+      FASTQ=$1
+      zcat "$FASTQ"|awk '{if (NR % 4 == 1) {print $1}}'
+    }
 
-GENE=$(extractJSON "$PARAMETERS" template/geneName)
-REFSEQ=$(extractJSON "$PARAMETERS" template/seq)
-REFFASTA="${REFDIR}/${GENE}.fasta"
-echo ">$GENE">"$REFFASTA"
-echo "$REFSEQ">>"$REFFASTA"
-
-log "Building reference library"
-bowtie2-build -f --quiet "$REFFASTA" "${REFFASTA%.fasta}"
-
-if [[ "$USEPHIX" == "1" ]]; then
-  #download phix genome reference
-  log "Downloading PhiX reference genome..."
-  PHIX_REFSEQID="NC_001422.1"
-  EFETCH_BASE="https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
-  PHIX_URL="${EFETCH_BASE}?db=nuccore&id=${PHIX_REFSEQID}&rettype=fasta&retmode=text"
-  PHIXFASTA="${REFDIR}/phix.fasta"
-  curl "$PHIX_URL">"$PHIXFASTA"
-
-  log "Building PhiX reference library"
-  bowtie2-build -f --quiet "$PHIXFASTA" "${PHIXFASTA%.fasta}"
-fi
-
-#PHASE 1: Run alignment jobs and monitor
-echo "
-###########################################
-# PHASE 1: Performing sequence alignments #
-###########################################
-"
-
-extractJobID() {
-  RETVAL=${1//$'\n'/ }
-  echo "${RETVAL##* }"
-}
-
-#helper function to submit alignment jobs
-submitAlignments() {
-  JOBTAGS="$1"
-  SAMDIR="$2"
-  JOBS="" 
-  # for ((i=0; i<${#SIDS[@]}; i++)); do
-  for JOBTAG in $JOBTAGS; do
-    if [[ "$JOBTAG" == *phix* ]]; then
-      if [[ "$JOBTAG" == *R1 ]]; then
-        LOGFILE="${SAMDIR}/bowtie_phix_R1.log"
-        SAMFILE="${SAMDIR}/phix_R1.sam"
-        FQ="$PHIXR1"
-      elif [[ "$JOBTAG" == *R2 ]]; then
-        LOGFILE="${SAMDIR}/bowtie_phix_R2.log"
-        SAMFILE="${SAMDIR}/phix_R2.sam"
-        FQ="$PHIXR2"
-      else 
-        logErr "Invalid job tag. Report this as a bug!"
-        exit 100
+    BROKEN=""
+    for ((i=0; i<${#SIDS[@]}; i++)); do
+      printf "Checking FASTQ file integrity for sample %s ... " "${SIDS[$i]}"
+      ISDIFF=$(diff -q <(printReadIDS "${R1S[$i]}") <(printReadIDS "${R2S[$i]}")||true)
+      if [[ "$ISDIFF" == Files*differ ]]; then
+        echo "❌"
+        BROKEN=$(cons "${SID}" "$BROKEN" "; ")
+      else
+        echo "✅"
       fi
-      RETVAL=$(submitjob.sh -n "bowtiePhix" -c "${CPUS}" -m 1G \
-        -l "$LOGFILE" -e "$LOGFILE" $CONDAARG $QUEUEARG $BLARG \
-        --report --skipValidation -- \
-        bowtie2 --no-unal --no-head --no-sq --rdg 12,1 --rfg 12,1 \
-        --local --threads "${CPUS}" -x "${PHIXFASTA%.fasta}" \
-        -U "$FQ" -S "$SAMFILE" )
-      JOBS=$(cons "$(extractJobID "$RETVAL")" "$JOBS" ",")
-    else
-      i="${JOBTAG%%_*}"
-      if [[ "$JOBTAG" == *R1 ]]; then
-        LOGFILE="${SAMDIR}/bowtie_${SIDS[$i]}_R1.log"
-        SAMFILE="${SAMDIR}/${SIDS[$i]}_R1.sam"
-        FQ="${R1S[$i]}"
-        FWREV="--norc"
-      elif [[ "$JOBTAG" == *R2 ]]; then
-        LOGFILE="${SAMDIR}/bowtie_${SIDS[$i]}_R2.log"
-        SAMFILE="${SAMDIR}/${SIDS[$i]}_R2.sam"
-        FQ="${R2S[$i]}"
-        FWREV="--nofw"
-      else 
-        logErr "Invalid job tag. Report this as a bug!"
-        exit 100
+    done
+
+    if [[ -n "$BROKEN" ]]; then
+      logErr "R1/R2 FASTQ files for the following samples have mismatching cluster IDs: $BROKEN"
+      exit 1
+    fi
+  fi
+
+  # Create reference libraries
+  REFDIR="${OUTDIR}/ref"
+  mkdir -p "$REFDIR"
+
+  GENE=$(extractJSON "$PARAMETERS" template/geneName)
+  REFSEQ=$(extractJSON "$PARAMETERS" template/seq)
+  REFFASTA="${REFDIR}/${GENE}.fasta"
+  echo ">$GENE">"$REFFASTA"
+  echo "$REFSEQ">>"$REFFASTA"
+
+  log "Building reference library"
+  bowtie2-build -f --quiet "$REFFASTA" "${REFFASTA%.fasta}"
+
+  if [[ "$USEPHIX" == "1" ]]; then
+    #download phix genome reference
+    log "Downloading PhiX reference genome..."
+    PHIX_REFSEQID="NC_001422.1"
+    EFETCH_BASE="https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
+    PHIX_URL="${EFETCH_BASE}?db=nuccore&id=${PHIX_REFSEQID}&rettype=fasta&retmode=text"
+    PHIXFASTA="${REFDIR}/phix.fasta"
+    curl "$PHIX_URL">"$PHIXFASTA"
+
+    log "Building PhiX reference library"
+    bowtie2-build -f --quiet "$PHIXFASTA" "${PHIXFASTA%.fasta}"
+  fi
+
+  #PHASE 1: Run alignment jobs and monitor
+  echo "
+  ###########################################
+  # PHASE 1: Performing sequence alignments #
+  ###########################################
+  "
+
+  extractJobID() {
+    RETVAL=${1//$'\n'/ }
+    echo "${RETVAL##* }"
+  }
+
+
+  #helper function to submit alignment jobs
+  submitAlignments() {
+    JOBTAGS="$1"
+    SAMDIR="$2"
+    JOBS="" 
+    # for ((i=0; i<${#SIDS[@]}; i++)); do
+    for JOBTAG in $JOBTAGS; do
+      #generate a random alphanumeric ID for the scratch file to avoid name collisions
+      ALPHATAG=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 16||true)
+      SCRATCHFILE="${SCRATCH}/${JOBTAG}_${ALPHATAG}.sam"
+      if [[ "$JOBTAG" == *phix* ]]; then
+        if [[ "$JOBTAG" == *R1 ]]; then
+          LOGFILE="${SAMDIR}/bowtie_phix_R1.log"
+          SAMFILE="${SAMDIR}/phix_R1.sam"
+          FQ="$PHIXR1"
+        elif [[ "$JOBTAG" == *R2 ]]; then
+          LOGFILE="${SAMDIR}/bowtie_phix_R2.log"
+          SAMFILE="${SAMDIR}/phix_R2.sam"
+          FQ="$PHIXR2"
+        else 
+          logErr "Invalid job tag. Report this as a bug!"
+          exit 100
+        fi
+        RETVAL=$(submitjob.sh -n "bowtiePhix" -c "${CPUS}" -m 1G \
+          -l "$LOGFILE" -e "$LOGFILE" $CONDAARG $QUEUEARG $BLARG \
+          --report --skipValidation -- \
+          bowtie2 --no-unal --no-head --no-sq --rdg 12,1 --rfg 12,1 \
+          --local --threads "${CPUS}" --reorder -x "${PHIXFASTA%.fasta}" \
+          -U "$FQ" -S "$SCRATCHFILE" '&&' mv "$SCRATCHFILE" "$SAMFILE")
+        JOBS=$(cons "$(extractJobID "$RETVAL")" "$JOBS" ",")
+      else
+        i="${JOBTAG%%_*}"
+        if [[ "$JOBTAG" == *R1 ]]; then
+          LOGFILE="${SAMDIR}/bowtie_${SIDS[$i]}_R1.log"
+          SAMFILE="${SAMDIR}/${SIDS[$i]}_R1.sam"
+          FQ="${R1S[$i]}"
+          FWREV="--norc"
+        elif [[ "$JOBTAG" == *R2 ]]; then
+          LOGFILE="${SAMDIR}/bowtie_${SIDS[$i]}_R2.log"
+          SAMFILE="${SAMDIR}/${SIDS[$i]}_R2.sam"
+          FQ="${R2S[$i]}"
+          FWREV="--nofw"
+        else 
+          logErr "Invalid job tag. Report this as a bug!"
+          exit 100
+        fi
+        #profiling showed that bowtie uses < 1GB RAM even with 8 threads
+        # RETVAL=$(submitjob.sh -n "bowtie${SIDS[$i]}" -c "${CPUS}" -m 2G \
+        RETVAL=$(submitjob.sh -n "bowtie${SIDS[$i]}" -c "${CPUS}" -m 2G \
+          -l "$LOGFILE" -e "$LOGFILE" $CONDAARG $QUEUEARG $BLARG \
+          --report --skipValidation -- \
+          bowtie2 --no-head ${FWREV} --no-sq --rdg 12,1 --rfg 12,1 --local \
+          --threads "${CPUS}" --reorder \
+          -x "${REFFASTA%.fasta}" -U "$FQ" -S "$SCRATCHFILE" \
+          '&&' mv "$SCRATCHFILE" "$SAMFILE" )
+          # bowtie2 ${FWREV} --rdg 12,1 --rfg 12,1 --local \
+          # --threads "${CPUS}" -x "${REFFASTA%.fasta}" -U "$FQ" \
+          # '|samtools sort' -@ "$CPUS" -n -u - \
+          # '|samtools view' --no-header -o "$SAMFILE" -O SAM -)
+        JOBS=$(cons "$(extractJobID "$RETVAL")" "$JOBS" ",")
       fi
-      #profiling showed that bowtie uses < 1GB RAM even with 8 threads
-      RETVAL=$(submitjob.sh -n "bowtie${SIDS[$i]}" -c "${CPUS}" -m 2G \
-        -l "$LOGFILE" -e "$LOGFILE" $CONDAARG $QUEUEARG $BLARG \
-        --report --skipValidation -- \
-        bowtie2 ${FWREV} --rdg 12,1 --rfg 12,1 --local \
-        --threads "${CPUS}" -x "${REFFASTA%.fasta}" -U "$FQ" \
-        '|samtools sort' -@ "$CPUS" -n -u - \
-        '|samtools view' --no-header -o "$SAMFILE" -O SAM -)
-        # bowtie2 --no-head ${FWREV} --no-sq --rdg 12,1 --rfg 12,1 --local \
-        # -x "${REFFASTA%.fasta}" -U "$FQ" -S "$SAMFILE" )
-      JOBS=$(cons "$(extractJobID "$RETVAL")" "$JOBS" ",")
-    fi
+    done
+    echo "$JOBS"
+  }
+
+  #helper function to check if any jobs have failed
+  findFailedAlignments() {
+    TAGS="$1"
+    FAILEDJOBTAGS=""
+    for JOBTAG in $TAGS; do
+      LOGFILE="${SAMDIR}/bowtie_${JOBTAG#*_}.log"
+      if [[ -e "$LOGFILE" ]]; then
+        #FIXME: This won't work on PBS systems, as it appends extra lines with job stats to the end of logs
+        # LASTLOGLINE=$(tail -1 "$LOGFILE")
+        # if [[ "$LASTLOGLINE" != "Job completed successfully." ]]; then
+        #   FAILEDJOBTAGS="$(cons "$JOBTAG" "$FAILEDJOBTAGS" ' ')"
+        # fi
+        if ! tail -4 "$LOGFILE"|grep -q "Job completed successfully"; then
+          FAILEDJOBTAGS="$(cons "$JOBTAG" "$FAILEDJOBTAGS" ' ')"
+        fi
+      else
+        logErr "Log file for $JOBTAG is missing!"
+        FAILEDJOBTAGS="$(cons "$JOBTAG" "$FAILEDJOBTAGS" ' ')"
+      fi
+    done
+    echo "$FAILEDJOBTAGS"
+  }
+
+  #Assemble list of alignment jobs to submit
+  JOBTAGS=""
+  for ((i=0; i<${#SIDS[@]}; i++)); do
+    JOBTAGS="$(cons "${i}_${SIDS[$i]}_R1 ${i}_${SIDS[$i]}_R2" "$JOBTAGS" ' ')"
   done
-  echo "$JOBS"
-}
+  if [[ "$USEPHIX" == "1" ]]; then
+    JOBTAGS="$(cons "NA_phix_R1 NA_phix_R2" "$JOBTAGS" ' ')"
+  fi
 
-#helper function to check if any jobs have failed
-findFailedAlignments() {
-  TAGS="$1"
-  FAILEDJOBTAGS=""
-  for JOBTAG in $TAGS; do
-    LOGFILE="${SAMDIR}/bowtie_${JOBTAG#*_}.log"
-    LASTLOGLINE=$(tail -1 "$LOGFILE")
-    if [[ "$LASTLOGLINE" != "Job completed successfully." ]]; then
-      FAILEDJOBTAGS="$(cons "$JOBTAG" "$FAILEDJOBTAGS" ' ')"
-    fi
-  done
-  echo "$FAILEDJOBTAGS"
-}
-
-#Assemble list of alignment jobs to submit
-JOBTAGS=""
-for ((i=0; i<${#SIDS[@]}; i++)); do
-  JOBTAGS="$(cons "${i}_${SIDS[$i]}_R1 ${i}_${SIDS[$i]}_R2" "$JOBTAGS" ' ')"
-done
-if [[ "$USEPHIX" == "1" ]]; then
-  JOBTAGS="$(cons "NA_phix_R1 NA_phix_R2" "$JOBTAGS" ' ')"
-fi
-
-#submit alignment jobs
-SAMDIR="${OUTDIR}/sam_files"
-mkdir -p "${SAMDIR}"
-JOBS="$(submitAlignments "$JOBTAGS" "$SAMDIR")"
-waitForJobs.sh -v "$JOBS"
-
-#find any failed jobs and re-run them up to 3 times
-FAILEDJOBTAGS="$(findFailedAlignments "$JOBTAGS")"
-RETRIES=0
-while [[ -n "$FAILEDJOBTAGS" && "$RETRIES" -lt 3 ]]; do
-  ((RETRIES++))
-  logWarn "$(echo "$FAILEDJOBTAGS"|wc -w) alignment jobs failed and will be re-submitted."
-  JOBS="$(submitAlignments "$FAILEDJOBTAGS" "$SAMDIR")"
+  #submit alignment jobs
+  SAMDIR="${OUTDIR}/sam_files"
+  mkdir -p "${SAMDIR}"
+  JOBS="$(submitAlignments "$JOBTAGS" "$SAMDIR")"
   waitForJobs.sh -v "$JOBS"
-  FAILEDJOBTAGS="$(findFailedAlignments "$FAILEDJOBTAGS")"
-done
-#if there are still failed jobs left, throw an error
-if [[ -n "$FAILEDJOBTAGS" ]]; then
-  logErr "The following alignment jobs failed and have exhausted all re-tries: $FAILEDJOBTAGS"
-  exit 1
-fi
 
-log "All $(echo "$JOBTAGS"|wc -w) alignment jobs reported success!"
+  #find any failed jobs and re-run them up to 3 times
+  FAILEDJOBTAGS="$(findFailedAlignments "$JOBTAGS")"
+  RETRIES=0
+  while [[ -n "$FAILEDJOBTAGS" && "$RETRIES" -lt 3 ]]; do
+    ((RETRIES++))||true
+    logWarn "$(echo "$FAILEDJOBTAGS"|wc -w) alignment jobs failed and will be re-submitted."
+    JOBS="$(submitAlignments "$FAILEDJOBTAGS" "$SAMDIR")"
+    waitForJobs.sh -v "$JOBS"
+    FAILEDJOBTAGS="$(findFailedAlignments "$FAILEDJOBTAGS")"
+  done
+  #if there are still failed jobs left, throw an error
+  if [[ -n "$FAILEDJOBTAGS" ]]; then
+    logErr "The following alignment jobs failed and have exhausted all re-tries: $FAILEDJOBTAGS"
+    exit 1
+  fi
+
+  log "All $(echo "$JOBTAGS"|wc -w) alignment jobs reported success!"
+
+fi #this is the end of "if [[ -z $SAMDIR]] "
 
 log "Validating alignments..."
 
@@ -489,12 +573,17 @@ ISBROKEN=0
 for ((i=0; i<${#SIDS[@]}; i++)); do
   SAMR1="${SAMDIR}/${SIDS[$i]}_R1.sam"
   SAMR2="${SAMDIR}/${SIDS[$i]}_R2.sam"
-  ISDIFF=$(diff -q <(awk '{print $1}' "$SAMR1") <(awk '{print $1}' "$SAMR2")||true)
-  if [[ "$ISDIFF" == Files*differ ]]; then
-    log "Alignments for sample ${SIDS[$i]} ❌"
-    ISBROKEN=1
+  if [[ -e "$SAMR1" && -e "$SAMR2" ]]; then
+    ISDIFF=$(diff -q <(awk '{print $1}' "$SAMR1") <(awk '{print $1}' "$SAMR2")||true)
+    if [[ "$ISDIFF" == Files*differ ]]; then
+      log "Alignments for sample ${SIDS[$i]} ❌"
+      ISBROKEN=1
+    else
+      log "Alignments for sample ${SIDS[$i]} ✅"
+    fi
   else
-    log "Alignments for sample ${SIDS[$i]} ✅"
+    log "Alignments for sample ${SIDS[$i]} missing!"
+    ISBROKEN=1
   fi
 done
 if [[ "$ISBROKEN" == 1 ]]; then
@@ -546,8 +635,11 @@ findFailedCalibrations() {
   FAILEDJOBTAGS=""
   for JOBTAG in $TAGS; do
     LOGFILE="${LOGDIR}/${JOBTAG#*_}.log"
-    LASTLOGLINE=$(tail -1 "$LOGFILE")
-    if [[ "$LASTLOGLINE" != "Job completed successfully." ]]; then
+    # LASTLOGLINE=$(tail -1 "$LOGFILE")
+    # if [[ "$LASTLOGLINE" != "Job completed successfully." ]]; then
+    #   FAILEDJOBTAGS="$(cons "$JOBTAG" "$FAILEDJOBTAGS" ' ')"
+    # fi
+    if ! tail -4 "$LOGFILE"|grep -q "Job completed successfully"; then
       FAILEDJOBTAGS="$(cons "$JOBTAG" "$FAILEDJOBTAGS" ' ')"
     fi
   done
@@ -590,7 +682,7 @@ waitForJobs.sh -v "$JOBS"
 FAILEDJOBTAGS="$(findFailedCalibrations "$JOBTAGS" "$CALIBDIR")"
 RETRIES=0
 while [[ -n "$FAILEDJOBTAGS" && "$RETRIES" -lt 3 ]]; do
-  ((RETRIES++))
+  ((RETRIES++))||true
   logWarn "$(echo "$FAILEDJOBTAGS"|wc -w) calibration jobs failed and will be re-submitted."
   JOBS="$(submitCalibrations "$FAILEDJOBTAGS" "$CALIBDIR")"
   waitForJobs.sh -v "$JOBS"
@@ -646,8 +738,11 @@ findFailedVarcalls() {
   for JOBTAG in $TAGS; do
     SID="${JOBTAG#*_}"
     VCLOG="${VCDIR}/${SID}_varcall.log"
-    LASTLOGLINE=$(tail -1 "$VCLOG")
-    if [[ "$LASTLOGLINE" != "Job completed successfully." ]]; then
+    # LASTLOGLINE=$(tail -1 "$VCLOG")
+    # if [[ "$LASTLOGLINE" != "Job completed successfully." ]]; then
+    #   FAILEDJOBTAGS="$(cons "$JOBTAG" "$FAILEDJOBTAGS" ' ')"
+    # fi
+    if ! tail -4 "$VCLOG"|grep -q "Job completed successfully"; then
       FAILEDJOBTAGS="$(cons "$JOBTAG" "$FAILEDJOBTAGS" ' ')"
     fi
   done
@@ -675,7 +770,7 @@ waitForJobs.sh -v "$JOBS"
 FAILEDJOBTAGS="$(findFailedVarcalls "$JOBTAGS" "$VARCALLDIR")"
 RETRIES=0
 while [[ -n "$FAILEDJOBTAGS" && "$RETRIES" -lt 3 ]]; do
-  ((RETRIES++))
+  ((RETRIES++))||true
   logWarn "$(echo "$FAILEDJOBTAGS"|wc -w) variant calling jobs failed and will be re-submitted."
   JOBS="$(submitVarcalls "$FAILEDJOBTAGS" "$VARCALLDIR")"
   waitForJobs.sh -v "$JOBS"
