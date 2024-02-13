@@ -1,8 +1,29 @@
 #!/usr/bin/bash
 
 #fail on error, even within pipes; require variable declarations, disable history tracking
-set -euo pipefail +H
+set -eEuo pipefail +H
 
+#define log functions
+log() {
+  printf '%s : %s\n' "$(date +%Y/%m/%d-%H:%M:%S)" "$*"
+}
+logWarn() {
+  printf '%s \033[33mWARNING: %s\033[m\n' "$(date +%Y/%m/%d-%H:%M:%S)" "$*"
+}
+logErr() {
+  printf '%s \033[31mERROR: %s\033[m\n' "$(date +%Y/%m/%d-%H:%M:%S)" "$*">&2
+}
+
+#if an error occurs, print where it happened for debug purposes
+handle_error() {
+  local retval=$?
+  local line=$1
+  logErr "Failed at $line: $BASH_COMMAND"
+  exit $retval
+}
+trap 'handle_error $LINENO' ERR
+
+#set default parameters
 BLARG=""
 CONDAARG=""
 QUEUEARG=""
@@ -187,16 +208,6 @@ elif ! [[ -r "$PARAMETERS" ]]; then
   echo "Parameter sheet $PARAMETERS doesn't exist or is unreadable!">&2
   exit 1
 fi
-
-log() {
-  printf '%s : %s\n' "$(date +%Y/%m/%d-%H:%M:%S)" "$*"
-}
-logWarn() {
-  printf '%s \033[33mWARNING: %s\033[m\n' "$(date +%Y/%m/%d-%H:%M:%S)" "$*"
-}
-logErr() {
-  printf '%s \033[31mERROR: %s\033[m\n' "$(date +%Y/%m/%d-%H:%M:%S)" "$*">&2
-}
 
 #Helper function to extract an element from a json file
 # first argument: json file name
@@ -478,7 +489,7 @@ ISBROKEN=0
 for ((i=0; i<${#SIDS[@]}; i++)); do
   SAMR1="${SAMDIR}/${SIDS[$i]}_R1.sam"
   SAMR2="${SAMDIR}/${SIDS[$i]}_R2.sam"
-  ISDIFF=$(diff -q <(awk '{print $1}' "$SAMR1") <(awk '{print $1}' "$SAMR2"))
+  ISDIFF=$(diff -q <(awk '{print $1}' "$SAMR1") <(awk '{print $1}' "$SAMR2")||true)
   if [[ "$ISDIFF" == Files*differ ]]; then
     log "Alignments for sample ${SIDS[$i]} ❌"
     ISBROKEN=1
@@ -704,8 +715,9 @@ tar czvf "${VARCALLDIR}/calibrationLogs.tgz" "${CALIBDIR}/"* && rm -r "${CALIBDI
 log "Mutcount is done!"
 
 
-# submitjob.sh -n mutcount -c 2 -m 2G -l mutcount.log -e mutcount.log \
+# submitjob.sh -n mutcount -c 2 -m 2G -t 7-00:00:00 \
+#   -l mutcount.log -e mutcount.log \
 #   --conda pacybara -- \
-#   ~/projects/tileseqMave/inst/scripts/mutcount.sh \
+#   tsm mutcount \
 #   -f ~/tileseq/SUMO1/SUMO1_FASTQ_joint \
 #   -p ~/tileseq/SUMO1/parameters.json --conda pacybara
