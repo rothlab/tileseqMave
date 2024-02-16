@@ -34,14 +34,13 @@ VARCALLMEM=15G
 INDIR=""
 WORKDIR=$(pwd)
 PARAMETERS=""
-VALIDATEFASTQ=1
+VALIDATE=1
 SAMDIR=""
 SCRATCH="/scratch"
 
 #Testing parameters
 # INDIR=CBS_FASTQ_fixed/
 # PARAMETERS=parameters.json
-# CONDAARG='--conda pacybara'
 
 #Display Logo and version number
 Rscript -e 'library(tileseqMave)'
@@ -182,7 +181,7 @@ while (( "$#" )); do
       shift
       ;;
     --skipValidation)
-      VALIDATEFASTQ=0
+      VALIDATE=0
       shift
       ;;
     --) # end of options indicates that the main command follows
@@ -297,9 +296,16 @@ cons() {
 matches() {
   #load the array with the given name via eval
   eval ARR=\( \${${1}[@]} \)
-  for ((i=0;i<${#ARR[@]};i++)); do
-    [[ "${ARR[$i]}" == $2 ]] && echo "$i"
+  for (( i=0; i<${#ARR[@]}; i++ )); do
+    if [[ "${ARR[$i]}" == $2 ]]; then
+      echo "$i"
+    fi
   done
+}
+
+extractJobID() {
+  RETVAL=${1//$'\n'/ }
+  echo "${RETVAL##* }"
 }
 
 # #get the intersection of lists of indices 
@@ -380,7 +386,7 @@ fi
 if [[ -z "$SAMDIR" ]]; then
 
   #Check that R1 and R2 files are not corrupted
-  if [[ "$VALIDATEFASTQ" == 1 ]]; then
+  if [[ "$VALIDATE" == 1 ]]; then
     printReadIDS() {
       FASTQ=$1
       zcat "$FASTQ"|awk '{if (NR % 4 == 1) {print $1}}'
@@ -437,11 +443,6 @@ if [[ -z "$SAMDIR" ]]; then
   ###########################################
   "
 
-  extractJobID() {
-    RETVAL=${1//$'\n'/ }
-    echo "${RETVAL##* }"
-  }
-
 
   #helper function to submit alignment jobs
   submitAlignments() {
@@ -471,7 +472,8 @@ if [[ -z "$SAMDIR" ]]; then
           --report --skipValidation -- \
           bowtie2 --no-unal --no-head --no-sq --rdg 12,1 --rfg 12,1 \
           --local --threads "${CPUS}" --reorder -x "${PHIXFASTA%.fasta}" \
-          -U "$FQ" -S "$SCRATCHFILE" '&&' mv "$SCRATCHFILE" "$SAMFILE")
+          -U "$FQ" -S "$SAMFILE")
+          # -U "$FQ" -S "$SCRATCHFILE" '&&' mv -v "$SCRATCHFILE" "$SAMFILE")
         JOBS=$(cons "$(extractJobID "$RETVAL")" "$JOBS" ",")
       else
         i="${JOBTAG%%_*}"
@@ -496,8 +498,9 @@ if [[ -z "$SAMDIR" ]]; then
           --report --skipValidation -- \
           bowtie2 --no-head ${FWREV} --no-sq --rdg 12,1 --rfg 12,1 --local \
           --threads "${CPUS}" --reorder \
-          -x "${REFFASTA%.fasta}" -U "$FQ" -S "$SCRATCHFILE" \
-          '&&' mv "$SCRATCHFILE" "$SAMFILE" )
+          -x "${REFFASTA%.fasta}" -U "$FQ" -S "$SAMFILE" )
+          # -x "${REFFASTA%.fasta}" -U "$FQ" -S "$SCRATCHFILE" '&&' mv -v "$SCRATCHFILE" "$SAMFILE" )
+
           # bowtie2 ${FWREV} --rdg 12,1 --rfg 12,1 --local \
           # --threads "${CPUS}" -x "${REFFASTA%.fasta}" -U "$FQ" \
           # '|samtools sort' -@ "$CPUS" -n -u - \
@@ -563,35 +566,42 @@ if [[ -z "$SAMDIR" ]]; then
   fi
 
   log "All $(echo "$JOBTAGS"|wc -w) alignment jobs reported success!"
+  #Since the SAM files are now brand-new, we turn validation back on (even if --skipValidation was used)
+  VALIDATE=1
 
 fi #this is the end of "if [[ -z $SAMDIR]] "
 
-log "Validating alignments..."
 
-# VALIDATE SAM FILES
-ISBROKEN=0
-for ((i=0; i<${#SIDS[@]}; i++)); do
-  SAMR1="${SAMDIR}/${SIDS[$i]}_R1.sam"
-  SAMR2="${SAMDIR}/${SIDS[$i]}_R2.sam"
-  if [[ -e "$SAMR1" && -e "$SAMR2" ]]; then
-    ISDIFF=$(diff -q <(awk '{print $1}' "$SAMR1") <(awk '{print $1}' "$SAMR2")||true)
-    if [[ "$ISDIFF" == Files*differ ]]; then
-      log "Alignments for sample ${SIDS[$i]} ❌"
-      ISBROKEN=1
+if [[ "$VALIDATE" == 1 ]]; then
+  log "Validating alignments..."
+
+  # VALIDATE SAM FILES
+  ISBROKEN=0
+  for ((i=0; i<${#SIDS[@]}; i++)); do
+    SAMR1="${SAMDIR}/${SIDS[$i]}_R1.sam"
+    SAMR2="${SAMDIR}/${SIDS[$i]}_R2.sam"
+    if [[ -e "$SAMR1" && -e "$SAMR2" ]]; then
+      ISDIFF=$(diff -q <(awk '{print $1}' "$SAMR1") <(awk '{print $1}' "$SAMR2")||true)
+      if [[ "$ISDIFF" == Files*differ ]]; then
+        log "Alignments for sample ${SIDS[$i]} ❌"
+        ISBROKEN=1
+      else
+        log "Alignments for sample ${SIDS[$i]} ✅"
+      fi
     else
-      log "Alignments for sample ${SIDS[$i]} ✅"
+      log "Alignments for sample ${SIDS[$i]} missing!"
+      ISBROKEN=1
     fi
-  else
-    log "Alignments for sample ${SIDS[$i]} missing!"
-    ISBROKEN=1
+  done
+  if [[ "$ISBROKEN" == 1 ]]; then
+    logErr "Alignment (SAM) files failed validation."
+    exit 1
   fi
-done
-if [[ "$ISBROKEN" == 1 ]]; then
-  logErr "Alignment (SAM) files failed validation."
-  exit 1
-fi
 
-log "All alignments appear healthy."
+  log "All alignments appear healthy."
+else
+  log "Alignment validation skipped."
+fi
 
 #PHASE 2: Run calibrateQC jobs
 echo "
