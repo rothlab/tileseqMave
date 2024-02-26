@@ -275,11 +275,36 @@ fetchClinvar <- function(gene,stagger=TRUE,overrideCache=FALSE,logger=NULL,maxVa
           #extract the variant description
           # varStr <- htmlDecode(vset$variation_set[[1]]$cdna_change)
           varStr <- htmlDecode(vset$variation_set[[1]]$variation_name)
-          trait <- htmlDecode(vset$trait_set[[1]]$trait_name)
-          #and the clinical significance statement
-          clinsig <- vset$clinical_significance[["description"]]
-          quality <- vset$clinical_significance[["review_status"]]
-          evalDate <- as.Date(vset$clinical_significance[["last_evaluated"]])
+
+          # trait <- htmlDecode(vset$trait_set[[1]]$trait_name)
+          # #and the clinical significance statement
+          # clinsig <- vset$clinical_significance[["description"]]
+          # quality <- vset$clinical_significance[["review_status"]]
+          # evalDate <- as.Date(vset$clinical_significance[["last_evaluated"]])
+
+          if (length(vset$germline_classification$trait_set) > 0) {
+            trait <- htmlDecode(vset$germline_classification$trait_set[[1]]$trait_name)
+            clinsig <- vset$germline_classification[["description"]]
+            quality <- vset$germline_classification[["review_status"]]
+            evalDate <- as.Date(vset$germline_classification[["last_evaluated"]])
+
+          } else if (length(vset$clinical_impact_classification$trait_set) > 0) {
+            trait <- vset$clinical_impact_classification$trait_set[[1]]$trait_name
+            clinsig <- vset$clinical_impact_classification[["description"]]
+            quality <- vset$clinical_impact_classification[["review_status"]]
+            evalDate <- as.Date(vset$clinical_impact_classification[["last_evaluated"]])
+
+          } else if (length(vset$oncogenicity_classification$trait_set) > 0) {
+            trait <- vset$oncogenicity_classification$trait_set[[1]]$trait_name
+            clinsig <- vset$oncogenicity_classification[["description"]]
+            quality <- vset$oncogenicity_classification[["review_status"]]
+            evalDate <- as.Date(vset$oncogenicity_classification[["last_evaluated"]])
+
+          } else {
+            warning("No classification for ",varStr," available")
+            return(list(var=varStr,clinsig=NA,trait=NA,quality=NA,date=as.Date(NA)))
+          }
+
           return(list(var=varStr,clinsig=clinsig,trait=trait,quality=quality,date=evalDate))
         }))
 

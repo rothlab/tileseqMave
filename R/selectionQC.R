@@ -781,7 +781,8 @@ regularizationQC <- function(scores,modelParams,params,sCond,tp,outDir) {
     
     with(scores[which(tiles==tile & deepEnough),],{
 
-      if (all(is.na(nonselect.count)) || all(nonselect.count == 0)) {
+      if (all(is.na(nonselect.count)) || all(nonselect.count == 0) || 
+          all(is.na(nonselect.cv)) || all(nonselect.cv == 0)) {
         plotNoData(tile)
         tagger$cycle()
       } else {
@@ -806,7 +807,8 @@ regularizationQC <- function(scores,modelParams,params,sCond,tp,outDir) {
         tagger$cycle()
       }
       
-      if (all(is.na(select.count)) || all(select.count == 0)) {
+      if (all(is.na(select.count)) || all(select.count == 0) ||
+          all(is.na(select.cv)) || all(select.cv == 0)) {
         plotNoData(tile)
         tagger$cycle()
       } else {

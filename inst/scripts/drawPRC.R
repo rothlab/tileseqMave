@@ -201,7 +201,7 @@ lapply(posRanges, function(range) {
     labelTable <- data.frame(
       prec = configure.prec(yr[[1]],monotonized=!args$noMono,balanced=!args$noBalancing),
       sens = yr[[1]][,"tpr.sens"],
-      label = sprintf("%.02f",yr[[1]][,"thresh"])
+      label = sprintf("%.02f",-yr[[1]][,"thresh"])
     )
     labelTable <- labelTable[changePoints(labelTable$prec),]
     with(labelTable,{
