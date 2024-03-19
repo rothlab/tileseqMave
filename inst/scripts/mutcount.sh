@@ -615,18 +615,23 @@ echo "
 
 submitCalibrations() {
   TAGS="$1"
-  OUTDIR="$2"
+  CALIBDIR="$2"
   JOBS=""
   for JOBTAG in $TAGS; do
     PREFIX="${JOBTAG#*_}"
     i="${JOBTAG%%_*}"
     R12="${PREFIX#*_}"
-    # OUT="${OUTDIR}/${PREFIX}.csv"
-    OUT="${OUTDIR}/${SIDS[$i]}_T${STILES[$i]}_${R12}_calibrate_phred.csv"
-    LOG="${OUTDIR}/${PREFIX}.log"
-    LOG2="${OUTDIR}/${PREFIX}_internal.log"
+    #if i==NA then we're using a PhiX sample
+    if [[ "$i" == "NA" ]]; then
+      OUT="${CALIBDIR}/phix_${R12}_calibrate_phred.csv"
+    else
+      OUT="${CALIBDIR}/${SIDS[$i]}_T${STILES[$i]}_${R12}_calibrate_phred.csv"
+    fi
+    # OUT="${CALIBDIR}/${PREFIX}.csv"
+    LOG="${CALIBDIR}/${PREFIX}.log"
+    LOG2="${CALIBDIR}/${PREFIX}_internal.log"
     SAMFILE="${SAMDIR}/${PREFIX}.sam"
-    RETVAL=$(submitjob.sh -n "calibrate${SIDS[$i]}R1" -c "$CPUS" -m 1G \
+    RETVAL=$(submitjob.sh -n "calibrate${i}R1" -c "$CPUS" -m 1G \
       -l "$LOG" -e "$LOG" $CONDAARG $QUEUEARG $BLARG \
       --report --skipValidation -- \
       tsm calibratePhred "$SAMFILE" -p "$PARAMETERS" \
