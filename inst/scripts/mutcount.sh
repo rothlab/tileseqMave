@@ -569,6 +569,19 @@ if [[ -z "$SAMDIR" ]]; then
   #Since the SAM files are now brand-new, we turn validation back on (even if --skipValidation was used)
   VALIDATE=1
 
+else #i.e. if SAMDIR is already defined
+  #we still need to define the location of the (hopefully existing phix fasta file)
+  if [[ "$USEPHIX" == "1" ]]; then
+    PHIXFASTA="${REFDIR}/phix.fasta"
+    if [[ ! -e "$PHIXFASTA" ]]; then
+      #download phix genome reference
+      log "Downloading PhiX reference genome..."
+      PHIX_REFSEQID="NC_001422.1"
+      EFETCH_BASE="https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
+      PHIX_URL="${EFETCH_BASE}?db=nuccore&id=${PHIX_REFSEQID}&rettype=fasta&retmode=text"
+      curl "$PHIX_URL">"$PHIXFASTA"
+    fi
+  fi
 fi #this is the end of "if [[ -z $SAMDIR]] "
 
 
