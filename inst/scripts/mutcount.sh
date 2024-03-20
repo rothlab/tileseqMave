@@ -572,6 +572,8 @@ if [[ -z "$SAMDIR" ]]; then
 else #i.e. if SAMDIR is already defined
   #we still need to define the location of the (hopefully existing phix fasta file)
   if [[ "$USEPHIX" == "1" ]]; then
+    REFDIR="${OUTDIR}/ref"
+    mkdir -p "$REFDIR"
     PHIXFASTA="${REFDIR}/phix.fasta"
     if [[ ! -e "$PHIXFASTA" ]]; then
       #download phix genome reference
