@@ -701,7 +701,7 @@ while [[ -n "$FAILEDJOBTAGS" && "$RETRIES" -lt 3 ]]; do
   logWarn "$(echo "$FAILEDJOBTAGS"|wc -w) calibration jobs failed and will be re-submitted."
   JOBS="$(submitCalibrations "$FAILEDJOBTAGS" "$CALIBDIR")"
   waitForJobs.sh -v "$JOBS"
-  FAILEDJOBTAGS="$(findFailedAlignments "$FAILEDJOBTAGS" "$CALIBDIR")"
+  FAILEDJOBTAGS="$(findFailedCalibrations "$FAILEDJOBTAGS" "$CALIBDIR")"
 done
 #if there are still failed jobs left, throw an error
 if [[ -n "$FAILEDJOBTAGS" ]]; then
