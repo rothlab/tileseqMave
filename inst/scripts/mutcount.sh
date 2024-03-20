@@ -631,11 +631,20 @@ submitCalibrations() {
     LOG="${CALIBDIR}/${PREFIX}.log"
     LOG2="${CALIBDIR}/${PREFIX}_internal.log"
     SAMFILE="${SAMDIR}/${PREFIX}.sam"
-    RETVAL=$(submitjob.sh -n "calibrate${i}R1" -c "$CPUS" -m 1G \
-      -l "$LOG" -e "$LOG" $CONDAARG $QUEUEARG $BLARG \
-      --report --skipValidation -- \
-      tsm calibratePhred "$SAMFILE" -p "$PARAMETERS" \
-      -o "$OUT" -l "$LOG2" --cores "$CPUS")
+    #if i==NA then we're using a PhiX sample
+    if [[ "$i" == "NA" ]]; then
+      RETVAL=$(submitjob.sh -n "calibrate${i}R1" -c "$CPUS" -m 1G \
+        -l "$LOG" -e "$LOG" $CONDAARG $QUEUEARG $BLARG \
+        --report --skipValidation -- \
+        tsm calibratePhred "$SAMFILE" -f "$PHIXFASTA" \
+        -o "$OUT" -l "$LOG2" --cores "$CPUS")
+    else
+      RETVAL=$(submitjob.sh -n "calibrate${i}R1" -c "$CPUS" -m 1G \
+        -l "$LOG" -e "$LOG" $CONDAARG $QUEUEARG $BLARG \
+        --report --skipValidation -- \
+        tsm calibratePhred "$SAMFILE" -p "$PARAMETERS" \
+        -o "$OUT" -l "$LOG2" --cores "$CPUS")
+    fi
     # echo "$RETVAL">&2
     #extract job ID from return value and add to jobs list
     JOBS=$(cons "$(extractJobID "$RETVAL")" "$JOBS" ',')
