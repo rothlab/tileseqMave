@@ -457,11 +457,11 @@ if [[ -z "$SAMDIR" ]]; then
       if [[ "$JOBTAG" == *phix* ]]; then
         if [[ "$JOBTAG" == *R1 ]]; then
           LOGFILE="${SAMDIR}/bowtie_phix_R1.log"
-          SAMFILE="${SAMDIR}/phix_R1.sam"
+          SAMFILE="${SAMDIR}/Undetermined_R1_.sam"
           FQ="$PHIXR1"
         elif [[ "$JOBTAG" == *R2 ]]; then
           LOGFILE="${SAMDIR}/bowtie_phix_R2.log"
-          SAMFILE="${SAMDIR}/phix_R2.sam"
+          SAMFILE="${SAMDIR}/Undetermined_R2_.sam"
           FQ="$PHIXR2"
         else 
           logErr "Invalid job tag. Report this as a bug!"
@@ -636,24 +636,20 @@ submitCalibrations() {
     PREFIX="${JOBTAG#*_}"
     i="${JOBTAG%%_*}"
     R12="${PREFIX#*_}"
+    LOG="${CALIBDIR}/${PREFIX}.log"
+    LOG2="${CALIBDIR}/${PREFIX}_internal.log"
     #if i==NA then we're using a PhiX sample
     if [[ "$i" == "NA" ]]; then
       OUT="${CALIBDIR}/phix_${R12}_calibrate_phred.csv"
-    else
-      OUT="${CALIBDIR}/${SIDS[$i]}_T${STILES[$i]}_${R12}_calibrate_phred.csv"
-    fi
-    # OUT="${CALIBDIR}/${PREFIX}.csv"
-    LOG="${CALIBDIR}/${PREFIX}.log"
-    LOG2="${CALIBDIR}/${PREFIX}_internal.log"
-    SAMFILE="${SAMDIR}/${PREFIX}.sam"
-    #if i==NA then we're using a PhiX sample
-    if [[ "$i" == "NA" ]]; then
+      SAMFILE="${SAMDIR}/Undetermined_${R12}_.sam"
       RETVAL=$(submitjob.sh -n "calibrate${i}R1" -c "$CPUS" -m 1G \
         -l "$LOG" -e "$LOG" $CONDAARG $QUEUEARG $BLARG \
         --report --skipValidation -- \
         tsm calibratePhred "$SAMFILE" -f "$PHIXFASTA" \
         -o "$OUT" -l "$LOG2" --cores "$CPUS")
     else
+      OUT="${CALIBDIR}/${SIDS[$i]}_T${STILES[$i]}_${R12}_calibrate_phred.csv"
+      SAMFILE="${SAMDIR}/${PREFIX}.sam"
       RETVAL=$(submitjob.sh -n "calibrate${i}R1" -c "$CPUS" -m 1G \
         -l "$LOG" -e "$LOG" $CONDAARG $QUEUEARG $BLARG \
         --report --skipValidation -- \
