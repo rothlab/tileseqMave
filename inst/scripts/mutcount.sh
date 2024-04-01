@@ -457,11 +457,11 @@ if [[ -z "$SAMDIR" ]]; then
       if [[ "$JOBTAG" == *phix* ]]; then
         if [[ "$JOBTAG" == *R1 ]]; then
           LOGFILE="${SAMDIR}/bowtie_phix_R1.log"
-          SAMFILE="${SAMDIR}/phix_R1.sam"
+          SAMFILE="${SAMDIR}/Undetermined_R1_.sam"
           FQ="$PHIXR1"
         elif [[ "$JOBTAG" == *R2 ]]; then
           LOGFILE="${SAMDIR}/bowtie_phix_R2.log"
-          SAMFILE="${SAMDIR}/phix_R2.sam"
+          SAMFILE="${SAMDIR}/Undetermined_R2_.sam"
           FQ="$PHIXR2"
         else 
           logErr "Invalid job tag. Report this as a bug!"
@@ -569,6 +569,21 @@ if [[ -z "$SAMDIR" ]]; then
   #Since the SAM files are now brand-new, we turn validation back on (even if --skipValidation was used)
   VALIDATE=1
 
+else #i.e. if SAMDIR is already defined
+  #we still need to define the location of the (hopefully existing phix fasta file)
+  if [[ "$USEPHIX" == "1" ]]; then
+    REFDIR="${OUTDIR}/ref"
+    mkdir -p "$REFDIR"
+    PHIXFASTA="${REFDIR}/phix.fasta"
+    if [[ ! -e "$PHIXFASTA" ]]; then
+      #download phix genome reference
+      log "Downloading PhiX reference genome..."
+      PHIX_REFSEQID="NC_001422.1"
+      EFETCH_BASE="https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
+      PHIX_URL="${EFETCH_BASE}?db=nuccore&id=${PHIX_REFSEQID}&rettype=fasta&retmode=text"
+      curl "$PHIX_URL">"$PHIXFASTA"
+    fi
+  fi
 fi #this is the end of "if [[ -z $SAMDIR]] "
 
 
@@ -615,22 +630,32 @@ echo "
 
 submitCalibrations() {
   TAGS="$1"
-  OUTDIR="$2"
+  CALIBDIR="$2"
   JOBS=""
   for JOBTAG in $TAGS; do
     PREFIX="${JOBTAG#*_}"
     i="${JOBTAG%%_*}"
     R12="${PREFIX#*_}"
-    # OUT="${OUTDIR}/${PREFIX}.csv"
-    OUT="${OUTDIR}/${SIDS[$i]}_T${STILES[$i]}_${R12}_calibrate_phred.csv"
-    LOG="${OUTDIR}/${PREFIX}.log"
-    LOG2="${OUTDIR}/${PREFIX}_internal.log"
-    SAMFILE="${SAMDIR}/${PREFIX}.sam"
-    RETVAL=$(submitjob.sh -n "calibrate${SIDS[$i]}R1" -c "$CPUS" -m 1G \
-      -l "$LOG" -e "$LOG" $CONDAARG $QUEUEARG $BLARG \
-      --report --skipValidation -- \
-      tsm calibratePhred "$SAMFILE" -p "$PARAMETERS" \
-      -o "$OUT" -l "$LOG2" --cores "$CPUS")
+    LOG="${CALIBDIR}/${PREFIX}.log"
+    LOG2="${CALIBDIR}/${PREFIX}_internal.log"
+    #if i==NA then we're using a PhiX sample
+    if [[ "$i" == "NA" ]]; then
+      OUT="${CALIBDIR}/phix_${R12}_calibrate_phred.csv"
+      SAMFILE="${SAMDIR}/Undetermined_${R12}_.sam"
+      RETVAL=$(submitjob.sh -n "calibrate${i}R1" -c "$CPUS" -m 1G \
+        -l "$LOG" -e "$LOG" $CONDAARG $QUEUEARG $BLARG \
+        --report --skipValidation -- \
+        tsm calibratePhred "$SAMFILE" -f "$PHIXFASTA" \
+        -o "$OUT" -l "$LOG2" --cores "$CPUS")
+    else
+      OUT="${CALIBDIR}/${SIDS[$i]}_T${STILES[$i]}_${R12}_calibrate_phred.csv"
+      SAMFILE="${SAMDIR}/${PREFIX}.sam"
+      RETVAL=$(submitjob.sh -n "calibrate${i}R1" -c "$CPUS" -m 1G \
+        -l "$LOG" -e "$LOG" $CONDAARG $QUEUEARG $BLARG \
+        --report --skipValidation -- \
+        tsm calibratePhred "$SAMFILE" -p "$PARAMETERS" \
+        -o "$OUT" -l "$LOG2" --cores "$CPUS")
+    fi
     # echo "$RETVAL">&2
     #extract job ID from return value and add to jobs list
     JOBS=$(cons "$(extractJobID "$RETVAL")" "$JOBS" ',')
@@ -696,7 +721,7 @@ while [[ -n "$FAILEDJOBTAGS" && "$RETRIES" -lt 3 ]]; do
   logWarn "$(echo "$FAILEDJOBTAGS"|wc -w) calibration jobs failed and will be re-submitted."
   JOBS="$(submitCalibrations "$FAILEDJOBTAGS" "$CALIBDIR")"
   waitForJobs.sh -v "$JOBS"
-  FAILEDJOBTAGS="$(findFailedAlignments "$FAILEDJOBTAGS" "$CALIBDIR")"
+  FAILEDJOBTAGS="$(findFailedCalibrations "$FAILEDJOBTAGS" "$CALIBDIR")"
 done
 #if there are still failed jobs left, throw an error
 if [[ -n "$FAILEDJOBTAGS" ]]; then
