@@ -244,7 +244,15 @@ for (infile in infiles) {
   }
   
   cat("Drawing genophenogram...\n")
-  
+
+  customColors <- NULL
+  if (args$color_pallete == "custom") {
+    if (is.na(args$custom_colors)) {
+      stop("Custom color palette selected, but no colors provided!")
+    }
+    customColors <- unlist(strsplit(args$custom_colors, ","))
+  }
+
   #build genophenogram
   # img.width <- length(wt.aa) * 0.06 + 2.5
   if (args$squish) {
