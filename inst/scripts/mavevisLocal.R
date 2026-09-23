@@ -245,12 +245,16 @@ for (infile in infiles) {
   
   cat("Drawing genophenogram...\n")
 
+    is_valid_color <- function(color) {
+      tryCatch({
+        col2rgb(color)
+        TRUE
+      }, error = function(e) FALSE)
+  }
+
   customColors <- NULL
   if (args$color_pallete == "custom") {
-    if (is.na(args$custom_colors)) {
-      stop("Custom color palette selected, but no colors provided!")
-    }
-    customColors <- unlist(strsplit(args$custom_colors, ","))
+    customColors <- normalize_custom_colors(args$custom_colors)
   }
 
   #build genophenogram
