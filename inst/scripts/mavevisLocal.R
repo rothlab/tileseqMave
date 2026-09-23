@@ -51,6 +51,9 @@ p <- add_argument(p, "--pdb", help="PDB structures. Semicolon-separated list of 
 p <- add_argument(p, "--squish", help="Compress x-axis to fit map onto single screen.",flag=TRUE)
 p <- add_argument(p, "--srOverride", help="Manual override to allow singleton replicates. USE WITH EXTREME CAUTION!",flag=TRUE)
 p <- add_argument(p, "--overrideCache", help="Re-query all webservices instead of using cached results.",flag=TRUE)
+
+p <- add_argument(p, "--color-pallete", help="Color pallete for the genophenogram. Options: 'default', 'viridis', 'cividis', 'purple-white-orange', 'custom'. Default is mavevis genophenogram default.",default="default")
+p <- add_argument(p, "--custom-colors", help="Only used when --palette custom. Provide 3 colors: low,mid,high, e.g. '#1B2A41,#D9D9D9,#D1495B'")
 args <- parse_args(p)
 
 
