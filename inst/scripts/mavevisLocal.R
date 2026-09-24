@@ -290,6 +290,28 @@ for (infile in infiles) {
     palettes[[palette]]
   }
 
+  customGenophenogram <- function(wt.aa, start, variant, score, minVal,
+                                  maxVal, error, img.width, tracks, palette = "default", customColors = NULL) {                                                
+    gradient <- resolveGradient(palette, customColors)
+
+    ns <- asNamespace("mavevis")
+    orgColmap <- get("colmap", envir = ns, mode = "function")
+
+    assign("colmap", function(valStops, colStops) {
+      yogitools::colmap(valStops, colStops, gradient = gradient)
+    }, envir = ns)
+    genophenogram(wt.aa, start, variant, score, minVal, maxVal, error,
+                  grayBack = TRUE, img.width = img.width, tracks = tracks,
+                  gradient = gradient)
+
+    on.exit({
+      assign("colmap", orgColmap, envir = ns)
+    }, add = TRUE)
+
+    mavevis::genophenogram(wt.aa, start, variant, score, minVal, maxVal, error,
+                        grayBack = TRUE, img.width = img.width, tracks = tracks)
+  }
+
   #build genophenogram
   # img.width <- length(wt.aa) * 0.06 + 2.5
   if (args$squish) {
@@ -300,7 +322,7 @@ for (infile in infiles) {
   img.height <- 4.5 + 0.13 * if(is.null(td)) 0 else td$num.tracks()
   
   pdf(pdffile,width=img.width,height=img.height)
-  genophenogram(
+  customGenophenogram(
     wt.aa,
     data$start,
     data$variant,
@@ -309,7 +331,9 @@ for (infile in infiles) {
     error=data$se,
     grayBack=TRUE,
     img.width=img.width,
-    tracks=td
+    tracks=td,
+    palette = args$color_palette,
+    customColors = customColors
   )
   invisible(dev.off())
   cat("done\n")
