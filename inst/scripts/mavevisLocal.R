@@ -246,10 +246,8 @@ for (infile in infiles) {
   cat("Drawing genophenogram...\n")
 
   is_valid_color <- function(color) {
-    tryCatch({
-      col2rgb(color)
-      TRUE
-    }, error = function(e) FALSE)
+    result <- try(col2rgb(color), silent = TRUE)
+    !inherits(result, "try-error")
   }
 
   customColors <- NULL
