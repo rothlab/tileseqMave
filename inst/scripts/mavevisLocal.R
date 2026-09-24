@@ -346,6 +346,3 @@ for (infile in infiles) {
 }
 
 cat("\nScript completed successfully!\n")
-
-
-
