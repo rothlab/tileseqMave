@@ -250,6 +250,18 @@ for (infile in infiles) {
     !inherits(result, "try-error")
   }
 
+  normalize_custom_colors <- function(custom_colors) {
+    colors <- unlist(strsplit(custom_colors, ","))
+    if (length(colors) != 3) {
+      stop("Custom color palette must contain exactly 3 colors for low, mid, and high values.")
+    }
+    bad_colors <- colors[!sapply(colors, is_valid_color)]
+    if (length(bad_colors) > 0) {
+      stop(paste("Invalid color(s) provided in custom palette:", paste(bad_colors, collapse = ", ")))
+    }
+    return(colors)
+  }
+
   customColors <- NULL
   if (args$color_pallete == "custom") {
     if (is.na(args$custom_colors)) {
