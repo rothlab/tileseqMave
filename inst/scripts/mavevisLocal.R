@@ -252,6 +252,9 @@ for (infile in infiles) {
 
   customColors <- NULL
   if (args$color_pallete == "custom") {
+    if (is.na(args$custom_colors)) {
+      stop("Custom color palette selected, but no colors provided. Please provide 3 colors for low, mid, and high values.")
+    }
     customColors <- normalize_custom_colors(args$custom_colors)
   }
 
