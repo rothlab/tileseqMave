@@ -251,7 +251,7 @@ for (infile in infiles) {
   }
 
   normalize_custom_colors <- function(custom_colors) {
-    colors <- unlist(strsplit(custom_colors, ","))
+    colors <- trimws(unlist(strsplit(custom_colors, ",")))
     if (length(colors) != 3) {
       stop("Custom color palette must contain exactly 3 colors for low, mid, and high values.")
     }
@@ -259,15 +259,7 @@ for (infile in infiles) {
     if (length(bad_colors) > 0) {
       stop(paste("Invalid color(s) provided in custom palette:", paste(bad_colors, collapse = ", ")))
     }
-    return(colors)
-  }
-
-  customColors <- NULL
-  if (args$color_palette == "custom") {
-    if (is.na(args$custom_colors)) {
-      stop("Custom color palette selected, but no colors provided. Please provide 3 colors for low, mid, and high values.")
-    }
-    customColors <- normalize_custom_colors(args$custom_colors)
+    colors
   }
 
   resolveGradient <- function(palette, customColors = NULL) {
@@ -291,18 +283,17 @@ for (infile in infiles) {
   }
 
   customGenophenogram <- function(wt.aa, start, variant, score, minVal,
-                                  maxVal, error, img.width, tracks, palette = "default", customColors = NULL) {                                                
+                                  maxVal, error, grayBack = TRUE, img.width, tracks,
+                                  palette = "default", customColors = NULL) {   
+
     gradient <- resolveGradient(palette, customColors)
 
     ns <- asNamespace("mavevis")
     orgColmap <- get("colmap", envir = ns, mode = "function")
 
     assign("colmap", function(valStops, colStops) {
-      yogitools::colmap(valStops, colStops, gradient = gradient)
+      yogitools::colmap(valStops, colStops = gradient)
     }, envir = ns)
-    genophenogram(wt.aa, start, variant, score, minVal, maxVal, error,
-                  grayBack = TRUE, img.width = img.width, tracks = tracks,
-                  gradient = gradient)
 
     on.exit({
       assign("colmap", orgColmap, envir = ns)
@@ -310,6 +301,14 @@ for (infile in infiles) {
 
     mavevis::genophenogram(wt.aa, start, variant, score, minVal, maxVal, error,
                         grayBack = TRUE, img.width = img.width, tracks = tracks)
+  }
+
+  customColors <- NULL
+  if (args$color_palette == "custom") {
+    if (is.na(args$custom_colors)) {
+      stop("Custom color palette selected, but no colors provided. Please provide 3 colors for low, mid, and high values.")
+    }
+    customColors <- normalize_custom_colors(args$custom_colors)
   }
 
   #build genophenogram
