@@ -270,6 +270,26 @@ for (infile in infiles) {
     customColors <- normalize_custom_colors(args$custom_colors)
   }
 
+  resolveGradient <- function(palette, customColors = NULL) {
+    palettes <- list(
+      "default" = c("mediumorchid4", "white", "white", "green4"),
+      viridis = c("#440154", "#3b528b", "#21918c", "#fde725"),
+      cividis = c("#00204D", "#234E70", "#6AAED6", "#FDE725"),
+      `purple-white-orange` = c("purple4", "white", "white", "darkorange3"),
+      custom = NULL
+    )
+
+    if (palette == "custom") {
+      return (c(customColors[1], customColors[2], customColors[2], customColors[3]))
+    }
+
+    if (!palette %in% names(palettes)) {
+      stop("Invalid color palette specified. Valid options are: ", paste(names(palettes), collapse = ", "))
+    }
+
+    palettes[[palette]]
+  }
+
   #build genophenogram
   # img.width <- length(wt.aa) * 0.06 + 2.5
   if (args$squish) {
