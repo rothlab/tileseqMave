@@ -306,7 +306,7 @@ for (infile in infiles) {
   cat("Drawing genophenogram...\n")
 
   customColors <- NULL
-  if (args$color_palette == "custom") {
+  if (args$color-palette == "custom") {
     if (is.na(args$custom_colors)) {
       stop("Custom color palette selected, but no colors provided. Please provide 3 colors for low, mid, and high values.")
     }
@@ -323,7 +323,7 @@ for (infile in infiles) {
   img.height <- 4.5 + 0.13 * if(is.null(td)) 0 else td$num.tracks()
   
   pdf(pdffile,width=img.width,height=img.height)
-  customGenophenogram(
+  customGenophenogram( #monkey patch mavevis::genophenogram to allow custom color palettes
     wt.aa,
     data$start,
     data$variant,
