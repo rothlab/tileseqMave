@@ -1,0 +1,37 @@
+2026-09-24_17:19:29 INFO: Running tileseqMave version 1.3.1
+2026-09-24_17:19:29 FATAL: Error in csvParam2Json(args$infile, outfile, srOverride = args$srOverride) : 
+  Input file cannot be read!
+ 
+ 
+2026-09-24_17:20:13 INFO: Running tileseqMave version 1.3.1
+2026-09-24_17:20:13 FATAL: Error in validateParameters(output, srOverride = srOverride) : 
+  CDS end is out of bounds!
+Calls: csvParam2Json -> withCallingHandlers -> validateParameters
+ 
+ 
+2026-09-24_17:20:51 INFO: Running tileseqMave version 1.3.1
+2026-09-24_17:20:51 FATAL: Error in validateParameters(output, srOverride = srOverride) : 
+  Template sequence is not a valid DNA sequence!
+Calls: csvParam2Json -> withCallingHandlers -> validateParameters
+ 
+ 
+2026-09-24_17:21:16 INFO: Running tileseqMave version 1.3.1
+2026-09-24_17:21:16 FATAL: Error in validateParameters(output, srOverride = srOverride) : 
+  Number of replicates must be at least 2!
+Calls: csvParam2Json -> withCallingHandlers -> validateParameters
+ 
+ 
+2026-09-24_17:23:28 INFO: Running tileseqMave version 1.3.1
+2026-09-24_17:23:28 WARNING: Tile 1 includes start codon!!
+2026-09-24_17:23:28 WARNING: Region 1 includes start codon!!
+2026-09-24_17:23:28 INFO: Writing output to inst/testdata/test_mavevisLocal/parameters.json 
+
+2026-09-24_17:23:28 INFO: Conversion successful!
+
+2026-09-24_17:24:13 INFO: Running tileseqMave version 1.3.1
+2026-09-24_17:24:13 WARNING: Tile 1 includes start codon!!
+2026-09-24_17:24:13 WARNING: Region 1 includes start codon!!
+2026-09-24_17:24:13 INFO: Writing output to inst/testdata/test_mavevisLocal/parameters.json 
+
+2026-09-24_17:24:13 INFO: Conversion successful!
+
