@@ -53,7 +53,7 @@ p <- add_argument(p, "--srOverride", help="Manual override to allow singleton re
 p <- add_argument(p, "--overrideCache", help="Re-query all webservices instead of using cached results.",flag=TRUE)
 
 p <- add_argument(p, "--color-palette", help="Color palette for the genophenogram. Options: 'default', 'viridis', 'cividis', 'purple-white-orange', 'custom'. Default is mavevis genophenogram default.",default="default")
-p <- add_argument(p, "--custom-colors", help="Only used when --palette custom. Provide 3 colors: low,mid,high, e.g. '#1B2A41,#D9D9D9,#D1495B'")
+p <- add_argument(p, "--custom-colors", help="Only used when --color-palette is set to custom. Provide 3 colors: low,mid,high, e.g. '#1B2A41,#D9D9D9,#D1495B'")
 args <- parse_args(p)
 
 
@@ -117,6 +117,66 @@ if (!is.na(args$pdb)) {
   if (!all(grepl("^[A-Z]{1}$",pdbChains))) {
     stop("One or more of the PDB chain identifiers is invalid!")
   }
+}
+
+#helper functions for genophenogram color palette resolution
+
+is_valid_color <- function(color) {
+  result <- try(col2rgb(color), silent = TRUE)
+  !inherits(result, "try-error")
+}
+
+normalize_custom_colors <- function(custom_colors) {
+  colors <- trimws(unlist(strsplit(custom_colors, ",")))
+  if (length(colors) != 3) {
+    stop("Custom color palette must contain exactly 3 colors for low, mid, and high values.")
+  }
+  bad_colors <- colors[!sapply(colors, is_valid_color)]
+  if (length(bad_colors) > 0) {
+    stop(paste("Invalid color(s) provided in custom palette:", paste(bad_colors, collapse = ", ")))
+  }
+  colors
+}
+
+resolveGradient <- function(palette, customColors = NULL) {
+  palettes <- list(
+    "default" = c("mediumorchid4", "white", "white", "green4"),
+    viridis = c("#440154", "#3b528b", "#21918c", "#fde725"),
+    cividis = c("#00204D", "#234E70", "#6AAED6", "#FDE725"),
+    `purple-white-orange` = c("purple4", "white", "white", "darkorange3"),
+    custom = NULL
+  )
+
+  if (palette == "custom") {
+    return (c(customColors[1], customColors[2], customColors[2], customColors[3]))
+  }
+
+  if (!palette %in% names(palettes)) {
+    stop("Invalid color palette specified. Valid options are: ", paste(names(palettes), collapse = ", "))
+  }
+
+  palettes[[palette]]
+}
+
+customGenophenogram <- function(wt.aa, start, variant, score, minVal,
+                                maxVal, error, grayBack = TRUE, img.width, tracks,
+                                palette = "default", customColors = NULL) {   
+
+  gradient <- resolveGradient(palette, customColors)
+
+  ns <- asNamespace("mavevis")
+  orgColmap <- get("colmap", envir = ns, mode = "function")
+
+  assign("colmap", function(valStops, colStops) {
+    yogitools::colmap(valStops, colStops = gradient)
+  }, envir = ns)
+
+  on.exit({
+    assign("colmap", orgColmap, envir = ns)
+  }, add = TRUE)
+
+  mavevis::genophenogram(wt.aa, start, variant, score, minVal, maxVal, error,
+                      grayBack = TRUE, img.width = img.width, tracks = tracks)
 }
 
 #iterate over input files
@@ -244,64 +304,6 @@ for (infile in infiles) {
   }
   
   cat("Drawing genophenogram...\n")
-
-  is_valid_color <- function(color) {
-    result <- try(col2rgb(color), silent = TRUE)
-    !inherits(result, "try-error")
-  }
-
-  normalize_custom_colors <- function(custom_colors) {
-    colors <- trimws(unlist(strsplit(custom_colors, ",")))
-    if (length(colors) != 3) {
-      stop("Custom color palette must contain exactly 3 colors for low, mid, and high values.")
-    }
-    bad_colors <- colors[!sapply(colors, is_valid_color)]
-    if (length(bad_colors) > 0) {
-      stop(paste("Invalid color(s) provided in custom palette:", paste(bad_colors, collapse = ", ")))
-    }
-    colors
-  }
-
-  resolveGradient <- function(palette, customColors = NULL) {
-    palettes <- list(
-      "default" = c("mediumorchid4", "white", "white", "green4"),
-      viridis = c("#440154", "#3b528b", "#21918c", "#fde725"),
-      cividis = c("#00204D", "#234E70", "#6AAED6", "#FDE725"),
-      `purple-white-orange` = c("purple4", "white", "white", "darkorange3"),
-      custom = NULL
-    )
-
-    if (palette == "custom") {
-      return (c(customColors[1], customColors[2], customColors[2], customColors[3]))
-    }
-
-    if (!palette %in% names(palettes)) {
-      stop("Invalid color palette specified. Valid options are: ", paste(names(palettes), collapse = ", "))
-    }
-
-    palettes[[palette]]
-  }
-
-  customGenophenogram <- function(wt.aa, start, variant, score, minVal,
-                                  maxVal, error, grayBack = TRUE, img.width, tracks,
-                                  palette = "default", customColors = NULL) {   
-
-    gradient <- resolveGradient(palette, customColors)
-
-    ns <- asNamespace("mavevis")
-    orgColmap <- get("colmap", envir = ns, mode = "function")
-
-    assign("colmap", function(valStops, colStops) {
-      yogitools::colmap(valStops, colStops = gradient)
-    }, envir = ns)
-
-    on.exit({
-      assign("colmap", orgColmap, envir = ns)
-    }, add = TRUE)
-
-    mavevis::genophenogram(wt.aa, start, variant, score, minVal, maxVal, error,
-                        grayBack = TRUE, img.width = img.width, tracks = tracks)
-  }
 
   customColors <- NULL
   if (args$color_palette == "custom") {
