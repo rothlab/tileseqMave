@@ -518,6 +518,11 @@ optional arguments:
                     adjusts automatically depending on input type
   -p, --parameters  parameter file. Defaults to parameters.json in the
                     data directory.
+  --colorPalette    Color palette for the genophenogram. Options: 'default', 'viridis',
+                    'cividis', 'purple-white-orange', 'custom'. Default is mavevis
+                    genophenogram default.
+  --customColors    Only used when --colorPalette is set to custom. Provide 3 colors: 
+                    low,mid,high, e.g. '#1B2A41,#D9D9D9,#D1495B'
   --pdb             PDB structures. Semicolon-separated list of
                     #-separated pairings between PDB IDs and chain IDs.
 ```
