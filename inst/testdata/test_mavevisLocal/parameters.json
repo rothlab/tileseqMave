@@ -1,0 +1,88 @@
+{
+ "project": "Demo project",
+"template": {
+ "geneName": "DEMO",
+"seq": "ATGGCTCAAGGTAAAACCCTGCCTGTGTGGGAAGGTGCTACCAATCAATTCCGTACCTACCAT",
+"cds_start": 1,
+"cds_end": 63,
+"uniprot": "P35520" 
+},
+"assay": {
+ "name": "Demo assay",
+"selection": "Positive" 
+},
+"conditions": {
+ "names": [ "nonselect", "select", "wtSelect", "wtNonselect" ],
+"definitions": [ {
+"Condition 1": "select",
+"Relationship": "is_selection_for",
+"Condition 2": "nonselect"
+},
+{
+"Condition 1": "wtSelect",
+"Relationship": "is_wt_control_for",
+"Condition 2": "select"
+},
+{
+"Condition 1": "wtNonselect",
+"Relationship": "is_wt_control_for",
+"Condition 2": "nonselect"
+} ] 
+},
+"numReplicates": {
+"nonselect": 2,
+"select": 2,
+"wtSelect": 2,
+"wtNonselect": 2
+},
+"numTimepoints": {
+"nonselect": 1,
+"select": 1,
+"wtSelect": 1,
+"wtNonselect": 1
+},
+"regions": {
+ "Region Number": [ 1 ],
+"Start AA": [ 1 ],
+"End AA": [ 21 ] 
+},
+"tiles": [ {
+  "Tile Number": 1,
+  "Start AA": 1,
+  "End AA": 21
+  } ],
+"timepoints": {
+ "Time point name": [ "1" ],
+"Time": [        0 ],
+"Unit": [ "h" ] 
+},
+"samples": {
+ "Sample ID": [ "n1", "n2", "s1", "s2", "ws1", "ws2", "wns1", "wns2" ],
+"Tile ID": [ 1, 1, 1, 1, 1, 1, 1, 1 ],
+"Condition": [ "nonselect", "nonselect", "select", "select", "wtSelect", "wtSelect", "wtNonselect", "wtNonselect" ],
+"Time point": [ "1", "1", "1", "1", "1", "1", "1", "1" ],
+"Replicate": [ 1, 2, 1, 2, 1, 2, 1, 2 ] 
+},
+"varcaller": {
+ "posteriorThreshold":      0.5,
+"minCover":      0.4,
+"mutRate":   0.0025,
+"maxDrop":      0.2 
+},
+"scoring": {
+ "countThreshold": 10,
+"pseudo.n": 8,
+"sdThreshold":      0.3,
+"wtQuantile":     0.95,
+"cvDeviation":       10,
+"lastFuncPos": "21",
+"lpdCutoff":        1 
+},
+"pivots": {
+ "Condition": [ "select", "select" ],
+"Time point": [ "1", "1" ],
+"Region": [        1,        1 ],
+"Type": [ "synonymous", "nonsense" ],
+"Value": [    -0.01,    -1.02 ] 
+} 
+}
