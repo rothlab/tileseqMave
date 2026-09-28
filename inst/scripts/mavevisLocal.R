@@ -51,6 +51,9 @@ p <- add_argument(p, "--pdb", help="PDB structures. Semicolon-separated list of 
 p <- add_argument(p, "--squish", help="Compress x-axis to fit map onto single screen.",flag=TRUE)
 p <- add_argument(p, "--srOverride", help="Manual override to allow singleton replicates. USE WITH EXTREME CAUTION!",flag=TRUE)
 p <- add_argument(p, "--overrideCache", help="Re-query all webservices instead of using cached results.",flag=TRUE)
+
+p <- add_argument(p, "--colorPalette", help="Color palette for the genophenogram. Options: 'default', 'viridis', 'cividis', 'purple-white-orange', 'custom'. Default is mavevis genophenogram default.",default="default")
+p <- add_argument(p, "--customColors", help="Only used when --colorPalette is set to custom. Provide 3 colors: low,mid,high, e.g. '#1B2A41,#D9D9D9,#D1495B'")
 args <- parse_args(p)
 
 
@@ -114,6 +117,70 @@ if (!is.na(args$pdb)) {
   if (!all(grepl("^[A-Z]{1}$",pdbChains))) {
     stop("One or more of the PDB chain identifiers is invalid!")
   }
+}
+
+#helper functions for genophenogram color palette resolution
+
+is_valid_color <- function(color) {
+  result <- try(col2rgb(color), silent = TRUE)
+  !inherits(result, "try-error")
+}
+
+normalize_custom_colors <- function(custom_colors) {
+  colors <- trimws(unlist(strsplit(custom_colors, ",")))
+  if (length(colors) != 3) {
+    stop("Custom color palette must contain exactly 3 colors for low, mid, and high values.")
+  }
+  bad_colors <- colors[!sapply(colors, is_valid_color)]
+  if (length(bad_colors) > 0) {
+    stop(paste("Invalid color(s) provided in custom palette:", paste(bad_colors, collapse = ", ")))
+  }
+  colors
+}
+
+resolveGradient <- function(palette, customColors = NULL) {
+  cat("Resolving color palette:", palette, "\n")
+  palettes <- list(
+    "default" = c("mediumorchid4", "white", "white", "green4"),
+    "viridis" = c("#440154", "#3b528b", "#21918c", "#fde725"),
+    "cividis" = c("#00204D", "#234E70", "#6AAED6", "#FDE725"),
+    "purple-white-orange" = c("purple4", "white", "white", "darkorange3"),
+    "custom" = NULL
+  )
+
+  if (palette == "custom") {
+    return (c(customColors[1], customColors[2], customColors[2], customColors[3]))
+  }
+
+  if (!palette %in% names(palettes)) {
+    stop("Invalid color palette specified. Valid options are: ", paste(names(palettes), collapse = ", "))
+  }
+
+  palettes[[palette]]
+}
+
+customGenophenogram <- function(wt.aa, start, variant, score, minVal,
+                                maxVal, error, grayBack = TRUE, img.width, tracks,
+                                palette = "default", customColors = NULL) {
+
+    cat("Using color palette:", palette, "\n")
+
+  gradient <- resolveGradient(palette, customColors)
+  cat("Gradient colors resolved to:", paste(gradient, collapse = ", "), "\n")
+
+  origColmap <- get("colmap", mode = "function")
+  assign("colmap",
+         function(valStops, colStops = gradient, naCol = "gray") {
+           origColmap(valStops = valStops, colStops = gradient, naCol = naCol)
+         },
+         envir = .GlobalEnv)
+
+  on.exit({
+    assign("colmap", origColmap, envir = .GlobalEnv)
+  }, add = TRUE)
+
+  mavevis::genophenogram(wt.aa, start, variant, score, minVal, maxVal, error,
+                      grayBack = TRUE, img.width = img.width, tracks = tracks)
 }
 
 #iterate over input files
@@ -241,7 +308,15 @@ for (infile in infiles) {
   }
   
   cat("Drawing genophenogram...\n")
-  
+
+  customColors <- NULL
+  if (args$colorPalette == "custom") {
+    if (is.na(args$customColors)) {
+      stop("Custom color palette selected, but no colors provided. Please provide 3 colors for low, mid, and high values.")
+    }
+    customColors <- normalize_custom_colors(args$customColors)
+  }
+
   #build genophenogram
   # img.width <- length(wt.aa) * 0.06 + 2.5
   if (args$squish) {
@@ -252,7 +327,7 @@ for (infile in infiles) {
   img.height <- 4.5 + 0.13 * if(is.null(td)) 0 else td$num.tracks()
   
   pdf(pdffile,width=img.width,height=img.height)
-  genophenogram(
+  customGenophenogram( #monkey patch mavevis::genophenogram to allow custom color palettes
     wt.aa,
     data$start,
     data$variant,
@@ -261,7 +336,9 @@ for (infile in infiles) {
     error=data$se,
     grayBack=TRUE,
     img.width=img.width,
-    tracks=td
+    tracks=td,
+    palette = args$colorPalette,
+    customColors = customColors
   )
   invisible(dev.off())
   cat("done\n")
@@ -269,6 +346,3 @@ for (infile in infiles) {
 }
 
 cat("\nScript completed successfully!\n")
-
-
-

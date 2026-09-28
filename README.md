@@ -518,8 +518,25 @@ optional arguments:
                     adjusts automatically depending on input type
   -p, --parameters  parameter file. Defaults to parameters.json in the
                     data directory.
+  --colorPalette    Color palette for the genophenogram. Options: 'default', 'viridis',
+                    'cividis', 'purple-white-orange', 'custom'. Default is mavevis
+                    genophenogram default.
+  --customColors    Only used when --colorPalette is set to custom. Provide 3 colors: 
+                    low,mid,high, e.g. '#1B2A41,#D9D9D9,#D1495B'
   --pdb             PDB structures. Semicolon-separated list of
                     #-separated pairings between PDB IDs and chain IDs.
 ```
 
-The output of `mavevisLocal` will be written to the `_scores` subfolder (like the output of `calcEnrichment` and `scaleScores` before). It will generate a PDF file with a heatmap for each MaveDB-formatted file in the folder by default. 
+If you pass a directory as the input, `mavevisLocal` will generate one PDF per matching score file in that directory. By default, it writes the PDF files into that same input directory. If you provide `--output`, that directory or file path is used instead.
+
+To validate the new color gradient options manually, run the wrapper directly with your project inputs:
+
+```bash
+tsm mavevisLocal --input /path/to/your/_scores --parameters /path/to/your/parameters.json --output /tmp/demo_default.pdf
+
+tsm mavevisLocal --input /path/to/your/_scores --parameters /path/to/your/parameters.json --output /tmp/demo_viridis.pdf --colorPalette viridis
+
+tsm mavevisLocal --input /path/to/your/_scores --parameters /path/to/your/parameters.json --output /tmp/demo_custom.pdf --colorPalette custom --customColors '#1B2A41,#D9D9D9,#D1495B'
+```
+
+Each command should generate a PDF without error. A bad palette name should also fail with a clear validation message.
