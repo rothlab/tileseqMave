@@ -54,6 +54,7 @@ p <- add_argument(p, "--overrideCache", help="Re-query all webservices instead o
 
 p <- add_argument(p, "--colorPalette", help="Color palette for the genophenogram. Options: 'default', 'viridis', 'cividis', 'purple-white-orange', 'custom'. Default is mavevis genophenogram default.",default="default")
 p <- add_argument(p, "--customColors", help="Only used when --colorPalette is set to custom. Provide 3 colors: low,mid,high, e.g. '#1B2A41,#D9D9D9,#D1495B'")
+p <- add_argument(p, "--scoreRange", help="Optional score range for the genophenogram. Provide two comma-separated values: min,max, e.g. '-1,1'")
 args <- parse_args(p)
 
 
