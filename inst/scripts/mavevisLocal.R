@@ -174,6 +174,16 @@ customGenophenogram <- function(wt.aa, start, variant, score, syn.med, stop.med,
   gradient <- resolveGradient(palette, customColors)
   cat("Gradient colors resolved to:", paste(gradient, collapse = ", "), "\n")
 
+  cat("grabbing color range from data...\n")
+  if (is.null(colorRange)) {
+    colorMin <- stop.med
+    colorMax <- syn.med + (syn.med - stop.med) #syn.top recalculation from mavevis::genophenogram
+  } else {
+    colorMin <- colorRange[1]
+    colorMax <- colorRange[2]
+  }
+  cat("Color range set to: min =", colorMin, ", max =", colorMax, "\n") 
+
   origColmap <- get("colmap", mode = "function")
   assign("colmap",
          function(valStops, colStops = gradient, naCol = "gray") {
@@ -332,7 +342,7 @@ for (infile in infiles) {
 
     cat("Using color range: min =", colorRange[1], ", max =", colorRange[2], "\n")
   }
-  
+
   #build genophenogram
   # img.width <- length(wt.aa) * 0.06 + 2.5
   if (args$squish) {
