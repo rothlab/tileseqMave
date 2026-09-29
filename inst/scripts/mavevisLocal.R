@@ -61,7 +61,6 @@ p <- add_argument(p, "--customColors", help="Only used when --colorPalette is se
 p <- add_argument(p, "--colorRange", help="Optional color range for the genophenogram. Provide two comma-separated values: min,max, e.g. '-1,1'", default=NULL)
 args <- parse_args(p)
 
-
 dataDir <- args$workspace
 if (is.na(dataDir)) {
   dataDir <- getwd()
@@ -356,8 +355,8 @@ for (infile in infiles) {
   }
 
   colorRange <- NULL
-  if (!is.null(args$colorRange)) {
-    colorRange <- as.numeric(strsplit(args$colorRange,","))
+  if (!is.na(args$colorRange)) {
+    colorRange <- as.numeric(strsplit(args$colorRange,",")[[1]])
     if (length(colorRange) != 2 || any(is.na(colorRange))) {
       stop("Invalid color range provided. Please provide two comma-separated values: min,max, e.g. '-1,1'")
     }
