@@ -37,6 +37,10 @@ To install it, open an interactive R session and type `remotes::install_github('
   )
 }
 
+# global variables
+REF_MIN = 0 #hardcode the median stop score value to 0 for the genophenogram color scale
+REF_MED = 1 #hardcode the median synonymous score value to 1 for the genophenogram color scale
+
 
 #process command line arguments
 p <- arg_parser(
@@ -160,8 +164,8 @@ resolveGradient <- function(palette, customColors = NULL) {
   palettes[[palette]]
 }
 
-customGenophenogram <- function(wt.aa, start, variant, score, minVal,
-                                maxVal, error, grayBack = TRUE, img.width, tracks,
+customGenophenogram <- function(wt.aa, start, variant, score, REF_MIN, REF_MED,
+                                error, grayBack = TRUE, img.width, tracks,
                                 palette = "default", customColors = NULL) {
 
     cat("Using color palette:", palette, "\n")
@@ -180,7 +184,7 @@ customGenophenogram <- function(wt.aa, start, variant, score, minVal,
     assign("colmap", origColmap, envir = .GlobalEnv)
   }, add = TRUE)
 
-  mavevis::genophenogram(wt.aa, start, variant, score, minVal, maxVal, error,
+  mavevis::genophenogram(wt.aa, start, variant, score, REF_MIN, REF_MED, error,
                       grayBack = TRUE, img.width = img.width, tracks = tracks)
 }
 
@@ -339,8 +343,8 @@ for (infile in infiles) {
     data$start,
     data$variant,
     data$score,
-    minVal=scores[2],
-    maxVal=scores[1],
+    REF_MIN,
+    REF_MED,
     error=data$se,
     grayBack=TRUE,
     img.width=img.width,
