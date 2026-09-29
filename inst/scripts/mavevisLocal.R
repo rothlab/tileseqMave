@@ -174,8 +174,11 @@ customGenophenogram <- function(wt.aa, start, variant, score, syn.med, stop.med,
   gradient <- resolveGradient(palette, customColors)
   cat("Gradient colors resolved to:", paste(gradient, collapse = ", "), "\n")
 
-  cat("grabbing color range from data...\n")
+
+  cat("grabbing color range from arg...\n")
   if (is.null(colorRange)) {
+
+    #preserve mavevis color range behavior if no color range is specified
     colorMin <- stop.med
     colorMax <- syn.med + (syn.med - stop.med) #syn.top recalculation from mavevis::genophenogram
   } else {
@@ -184,19 +187,38 @@ customGenophenogram <- function(wt.aa, start, variant, score, syn.med, stop.med,
   }
   cat("Color range set to: min =", colorMin, ", max =", colorMax, "\n") 
 
-  origColmap <- get("colmap", mode = "function")
-  assign("colmap",
-         function(valStops, colStops = gradient, naCol = "gray") {
-           origColmap(valStops = valStops, colStops = gradient, naCol = naCol)
-         },
-         envir = .GlobalEnv)
+  #make a patch environment to override mavevis::colmap() with our own version that uses the specified gradient
+  orig_env <- environment(mavevis::genophenogram)
+  patch_env <- new.env(parent = orig_env)
 
-  on.exit({
-    assign("colmap", origColmap, envir = .GlobalEnv)
-  }, add = TRUE)
+  #make colmap() replacement
+  origColmap <- get("colmap", envir = orig_env, inherits = TRUE)
+  patchedColmap <- function(valStops, colStops, naCol = "gray") {
 
-  mavevis::genophenogram(wt.aa, start, variant, score, REF_MIN, REF_MED, error,
-                      grayBack = TRUE, img.width = img.width, tracks = tracks)
+    valStops[1] <- colorMin
+    valStops[4] <- colorMax
+
+    origColmap(valStops = valStops, colStops = gradient, naCol = naCol)
+  }
+
+  assign("colmap", patchedColmap, envir = patch_env)
+
+  #grab copy of mavevis::genophenogram() and set its environment to the patch environment
+  patchedGenophenogram <- mavevis::genophenogram
+  environment(patchedGenophenogram) <- patch_env
+
+  patchedGenophenogram(
+    wt.aa = wt.aa,
+    pos = start,
+    mut.aa = variant,
+    score = score,
+    syn.med = syn.med,
+    stop.med = stop.med,
+    error = error,
+    grayBack = grayBack,
+    img.width = img.width,
+    tracks = tracks
+  )
 }
 
 #iterate over input files
