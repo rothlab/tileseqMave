@@ -72,11 +72,11 @@ run_case("default", palette = "default")
 run_case("viridis", palette = "viridis")
 run_case("custom", palette = "custom", custom_colors = "#1B2A41,#D9D9D9,#D1495B")
 run_case("all_default")
-run_case("score_range[0,1.5]",score_range = "0,1.5")
-run_case("score_range[-0.5,2]",score_range = "-0.5,2")
-run_case("score_range[0,3]",score_range = "0,3")
-run_case("score_range[-1,4]",score_range = "-1,4")
- # Should use default score range
+run_case("color_range[0,1.5]",color_range = "0,1.5")
+run_case("color_range[-0.5,2]",color_range = "-0.5,2")
+run_case("color_range[0,3]",color_range = "0,3")
+run_case("color_range[-1,4]",color_range = "-1,4")
+ # Should use default color range
 
 # Invalid palette should fail
 cat("\n=== Running: invalid_palette_should_fail ===\n")
