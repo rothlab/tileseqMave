@@ -169,7 +169,7 @@ customGenophenogram <- function(wt.aa, start, variant, score, syn.med, stop.med,
                                 palette = "default", customColors = NULL,
                                 colorRange = NULL) {
 
-    cat("Using color palette:", palette, "\n")
+  cat("Using color palette:", palette, "\n")
 
   gradient <- resolveGradient(palette, customColors)
   cat("Gradient colors resolved to:", paste(gradient, collapse = ", "), "\n")
@@ -323,6 +323,7 @@ for (infile in infiles) {
     customColors <- normalize_custom_colors(args$customColors)
   }
 
+  colorRange <- NULL
   if (!is.null(args$colorRange)) {
     colorRange <- as.numeric(strsplit(args$colorRange,","))
     if (length(colorRange) != 2 || any(is.na(colorRange))) {
@@ -330,9 +331,6 @@ for (infile in infiles) {
     }
 
     cat("Using color range: min =", colorRange[1], ", max =", colorRange[2], "\n")
-  } else {
-    colorRange <- NULL
-    cat("No color range provided. Using default color range.\n")
   }
   
   #build genophenogram
