@@ -37,6 +37,10 @@ To install it, open an interactive R session and type `remotes::install_github('
   )
 }
 
+# global variables
+REF_MIN = 0 #hardcode the median stop score value to 0 for the genophenogram color scale
+REF_MED = 1 #hardcode the median synonymous score value to 1 for the genophenogram color scale
+
 
 #process command line arguments
 p <- arg_parser(
@@ -54,8 +58,8 @@ p <- add_argument(p, "--overrideCache", help="Re-query all webservices instead o
 
 p <- add_argument(p, "--colorPalette", help="Color palette for the genophenogram. Options: 'default', 'viridis', 'cividis', 'purple-white-orange', 'custom'. Default is mavevis genophenogram default.",default="default")
 p <- add_argument(p, "--customColors", help="Only used when --colorPalette is set to custom. Provide 3 colors: low,mid,high, e.g. '#1B2A41,#D9D9D9,#D1495B'")
+p <- add_argument(p, "--colorRange", help="Optional color range for the genophenogram. Provide two comma-separated values: min,max, e.g. '-1,1'", default=NULL)
 args <- parse_args(p)
-
 
 dataDir <- args$workspace
 if (is.na(dataDir)) {
@@ -159,28 +163,61 @@ resolveGradient <- function(palette, customColors = NULL) {
   palettes[[palette]]
 }
 
-customGenophenogram <- function(wt.aa, start, variant, score, minVal,
-                                maxVal, error, grayBack = TRUE, img.width, tracks,
-                                palette = "default", customColors = NULL) {
+customGenophenogram <- function(wt.aa, start, variant, score, syn.med, stop.med,
+                                error, grayBack = TRUE, img.width, tracks,
+                                palette = "default", customColors = NULL,
+                                colorRange = NULL) {
 
-    cat("Using color palette:", palette, "\n")
+  cat("Using color palette:", palette, "\n")
 
   gradient <- resolveGradient(palette, customColors)
   cat("Gradient colors resolved to:", paste(gradient, collapse = ", "), "\n")
 
-  origColmap <- get("colmap", mode = "function")
-  assign("colmap",
-         function(valStops, colStops = gradient, naCol = "gray") {
-           origColmap(valStops = valStops, colStops = gradient, naCol = naCol)
-         },
-         envir = .GlobalEnv)
 
-  on.exit({
-    assign("colmap", origColmap, envir = .GlobalEnv)
-  }, add = TRUE)
+  cat("grabbing color range from arg...\n")
+  if (is.null(colorRange)) {
 
-  mavevis::genophenogram(wt.aa, start, variant, score, minVal, maxVal, error,
-                      grayBack = TRUE, img.width = img.width, tracks = tracks)
+    #preserve mavevis color range behavior if no color range is specified
+    colorMin <- stop.med
+    colorMax <- syn.med + (syn.med - stop.med) #syn.top recalculation from mavevis::genophenogram
+  } else {
+    colorMin <- colorRange[1]
+    colorMax <- colorRange[2]
+  }
+  cat("Color range set to: min =", colorMin, ", max =", colorMax, "\n") 
+
+  #make a patch environment to override mavevis::colmap() with our own version that uses the specified gradient
+  orig_env <- environment(mavevis::genophenogram)
+  patch_env <- new.env(parent = orig_env)
+
+  #make colmap() replacement
+  origColmap <- get("colmap", envir = orig_env, inherits = TRUE)
+  patchedColmap <- function(valStops, colStops, naCol = "gray") {
+
+    valStops[1] <- colorMin
+    valStops[4] <- colorMax
+
+    origColmap(valStops = valStops, colStops = gradient, naCol = naCol)
+  }
+
+  assign("colmap", patchedColmap, envir = patch_env)
+
+  #grab copy of mavevis::genophenogram() and set its environment to the patch environment
+  patchedGenophenogram <- mavevis::genophenogram
+  environment(patchedGenophenogram) <- patch_env
+
+  patchedGenophenogram(
+    wt.aa = wt.aa,
+    pos = start,
+    mut.aa = variant,
+    score = score,
+    syn.med = syn.med,
+    stop.med = stop.med,
+    error = error,
+    grayBack = grayBack,
+    img.width = img.width,
+    tracks = tracks
+  )
 }
 
 #iterate over input files
@@ -317,6 +354,16 @@ for (infile in infiles) {
     customColors <- normalize_custom_colors(args$customColors)
   }
 
+  colorRange <- NULL
+  if (!is.na(args$colorRange)) {
+    colorRange <- as.numeric(strsplit(args$colorRange,",")[[1]])
+    if (length(colorRange) != 2 || any(is.na(colorRange))) {
+      stop("Invalid color range provided. Please provide two comma-separated values: min,max, e.g. '-1,1'")
+    }
+
+    cat("Using color range: min =", colorRange[1], ", max =", colorRange[2], "\n")
+  }
+
   #build genophenogram
   # img.width <- length(wt.aa) * 0.06 + 2.5
   if (args$squish) {
@@ -332,13 +379,15 @@ for (infile in infiles) {
     data$start,
     data$variant,
     data$score,
-    1,0,
+    syn.med=REF_MED,
+    stop.med=REF_MIN,
     error=data$se,
     grayBack=TRUE,
     img.width=img.width,
     tracks=td,
     palette = args$colorPalette,
-    customColors = customColors
+    customColors = customColors,
+    colorRange = colorRange
   )
   invisible(dev.off())
   cat("done\n")
