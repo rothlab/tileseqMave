@@ -32,7 +32,7 @@ wrapper <- file.path(repo_root, "inst/scripts/mavevisLocal.R")
 
 if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
-run_case <- function(label, palette = NULL, custom_colors = NULL) {
+run_case <- function(label, palette = NULL, custom_colors = NULL, color_range = NULL) {
   out_file <- file.path(out_dir, paste0("test_", label, ".pdf"))
 
   cmd <- paste(
@@ -49,6 +49,9 @@ run_case <- function(label, palette = NULL, custom_colors = NULL) {
   }
   if (!is.null(custom_colors)) {
     cmd <- paste(cmd, "--customColors", shQuote(custom_colors))
+  }
+  if (!is.null(color_range)) {
+    cmd <- paste(cmd, "--colorRange", shQuote(color_range))
   }
 
   cat("\n=== Running:", label, "===\n")
@@ -68,6 +71,15 @@ run_case <- function(label, palette = NULL, custom_colors = NULL) {
 run_case("default", palette = "default")
 run_case("viridis", palette = "viridis")
 run_case("custom", palette = "custom", custom_colors = "#1B2A41,#D9D9D9,#D1495B")
+run_case("all_default")
+run_case("color_range[0,1.5]",color_range = "0,1.5")
+run_case("color_range[-0.5,2]",color_range = "-0.5,2")
+run_case("color_range[0,3]",color_range = "0,3")
+run_case("color_range[-1, 4]",color_range = "-1, 4")
+run_case("color_range[-2, 5]_custompinkbluebrown", palette = "custom", color_range = "-2, 5", custom_colors = "#D1495B,#D9D9D9,#1B2A41")
+run_case("custom_pinkbluebrown", palette = "custom", custom_colors = "#D1495B,#D9D9D9,#1B2A41")
+
+
 
 # Invalid palette should fail
 cat("\n=== Running: invalid_palette_should_fail ===\n")
