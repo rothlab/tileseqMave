@@ -334,12 +334,12 @@ validateParameters <- function(params,srOverride=FALSE) {
         srows <- with(
           params$samples,
           which(`Time point` == tp &
-            Condition == cond &
-            Replicate == repi)
+                  Condition == cond &
+                  Replicate == repi)
         )
 
-        tilesFound <- params$samples[srows,"Tile ID"]
-        missing <- setdiff(params$samples[,"Tile ID"], tilesFound)
+        tilesFound <- params$samples[srows, "Tile ID"]
+        missing <- setdiff(params$samples[, "Tile ID"], tilesFound)
 
         if (length(missing) > 0) {
           stop(
