@@ -14,32 +14,32 @@
 "conditions": {
  "names": [ "nonselect", "select", "wtSelect", "wtNonselect" ],
 "definitions": [ {
- "Condition 1": "select",
+"Condition 1": "select",
 "Relationship": "is_selection_for",
-"Condition 2": "nonselect" 
+"Condition 2": "nonselect"
 },
 {
- "Condition 1": "wtSelect",
+"Condition 1": "wtSelect",
 "Relationship": "is_wt_control_for",
-"Condition 2": "select" 
+"Condition 2": "select"
 },
 {
- "Condition 1": "wtNonselect",
+"Condition 1": "wtNonselect",
 "Relationship": "is_wt_control_for",
-"Condition 2": "nonselect" 
+"Condition 2": "nonselect"
 } ] 
 },
 "numReplicates": {
- "nonselect": 2,
+"nonselect": 2,
 "select": 2,
 "wtSelect": 2,
-"wtNonselect": 2 
+"wtNonselect": 2
 },
 "numTimepoints": {
- "nonselect": 1,
+"nonselect": 1,
 "select": 1,
 "wtSelect": 1,
-"wtNonselect": 1 
+"wtNonselect": 1
 },
 "regions": {
  "Region Number": [ 1 ],
@@ -47,79 +47,79 @@
 "End AA": [ 551 ] 
 },
 "tiles": [ {
-   "Tile Number": 1,
+  "Tile Number": 1,
   "Start AA": 2,
-  "End AA": 36 
+  "End AA": 36
   },
 {
-   "Tile Number": 2,
+  "Tile Number": 2,
   "Start AA": 37,
-  "End AA": 70 
+  "End AA": 70
   },
 {
-   "Tile Number": 3,
+  "Tile Number": 3,
   "Start AA": 71,
-  "End AA": 108 
+  "End AA": 108
   },
 {
-   "Tile Number": 4,
+  "Tile Number": 4,
   "Start AA": 109,
-  "End AA": 146 
+  "End AA": 146
   },
 {
-   "Tile Number": 5,
+  "Tile Number": 5,
   "Start AA": 147,
-  "End AA": 184 
+  "End AA": 184
   },
 {
-   "Tile Number": 6,
+  "Tile Number": 6,
   "Start AA": 185,
-  "End AA": 222 
+  "End AA": 222
   },
 {
-   "Tile Number": 7,
+  "Tile Number": 7,
   "Start AA": 223,
-  "End AA": 258 
+  "End AA": 258
   },
 {
-   "Tile Number": 8,
+  "Tile Number": 8,
   "Start AA": 259,
-  "End AA": 296 
+  "End AA": 296
   },
 {
-   "Tile Number": 9,
+  "Tile Number": 9,
   "Start AA": 297,
-  "End AA": 334 
+  "End AA": 334
   },
 {
-   "Tile Number": 10,
+  "Tile Number": 10,
   "Start AA": 335,
-  "End AA": 372 
+  "End AA": 372
   },
 {
-   "Tile Number": 11,
+  "Tile Number": 11,
   "Start AA": 373,
-  "End AA": 410 
+  "End AA": 410
   },
 {
-   "Tile Number": 12,
+  "Tile Number": 12,
   "Start AA": 411,
-  "End AA": 448 
+  "End AA": 448
   },
 {
-   "Tile Number": 13,
+  "Tile Number": 13,
   "Start AA": 449,
-  "End AA": 485 
+  "End AA": 485
   },
 {
-   "Tile Number": 14,
+  "Tile Number": 14,
   "Start AA": 486,
-  "End AA": 521 
+  "End AA": 521
   },
 {
-   "Tile Number": 15,
+  "Tile Number": 15,
   "Start AA": 522,
-  "End AA": 551 
+  "End AA": 551
   } ],
 "timepoints": {
  "Time point name": [ "1" ],
@@ -136,14 +136,17 @@
 "varcaller": {
  "posteriorThreshold":      0.5,
 "minCover":      0.4,
-"mutRate":   0.0025 
+"mutRate":   0.0025,
+"maxDrop":      0.2 
 },
 "scoring": {
  "countThreshold": 10,
 "pseudo.n": 8,
 "sdThreshold":      0.3,
 "wtQuantile":     0.95,
-"cvDeviation":       10 
+"cvDeviation":       10,
+"lastFuncPos": "Inf",
+"lpdCutoff":        1 
 },
 "pivots": {
  "Condition": [ "select", "select" ],
