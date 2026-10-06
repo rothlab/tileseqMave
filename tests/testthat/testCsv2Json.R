@@ -21,10 +21,9 @@ test_that(
   "allows nonselect t0 with multiple select timepoints",
   {
 
-    infile <- system.file(
-      "testdata/paramtest_nonselect_timepoint.csv",
-      package = "tileseqMave",
-      mustWork = TRUE
+    infile <- test_path(
+      "fixtures",
+      "paramtest_nonselect_timepoint.csv"
     )
 
     outfile <- tempfile(fileext = ".json")
@@ -44,10 +43,9 @@ test_that(
   "missing tile is still rejected for condition-specific timepoints",
   {
 
-    infile <- system.file(
-      "testdata/paramtest_missing_tile.csv",
-      package = "tileseqMave",
-      mustWork = TRUE
+    infile <- test_path(
+      "fixtures",
+      "paramtest_missing_tile.csv"
     )
 
     outfile <- tempfile(fileext = ".json")
