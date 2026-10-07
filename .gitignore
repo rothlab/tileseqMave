@@ -1,6 +1,12 @@
+#file to ignore
 .Rhistory
 .RData
 .Rproj.user
+
+#folders to ignore
 workspace
 workspace/
 tileseqMave.Rproj
+
+#file types to ignore
+*.pdf
