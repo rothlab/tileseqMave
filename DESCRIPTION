@@ -10,8 +10,17 @@ LazyData: true
 Suggests: 
     testthat, mavevis (>= 0.1.4), maveLLR
 Imports: 
-    rapimave, hgvsParseR, yogitools (>= 0.1.1), yogilog, argparser, 
-    pbmcapply, hash, optimization, bitops, TmCalculator
+    rapimave,
+    hgvsParseR,
+    yogitools (>= 0.1.1),
+    yogilog,
+    argparser,
+    pbmcapply,
+    hash,
+    optimization,
+    bitops,
+    TmCalculator,
+    RJSONIO
 Remotes: 
     github::VariantEffect/rapimave, github::VariantEffect/hgvsParseR, 
     github::jweile/yogitools, github::jweile/yogilog, github::VariantEffect/mavevis,
