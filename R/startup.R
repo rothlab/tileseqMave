@@ -25,13 +25,13 @@ startupMessage <- function() {
 /_/ /_/_/\\__/___/\\__/\\_, /_/  /_/  \\___/
                       /_/       "
   return(paste0(
-    logo,"v",packageVersion("tileseqMave"),"\n"
+    logo, "v", utils::packageVersion("tileseqMave"), "\n"
   ))
 }
 
 #' Show message at startup
 .onAttach <- function(lib, pkg)
 {
-  packageStartupMessage(startupMessage())      
+  packageStartupMessage(startupMessage())
   invisible()
 }
