@@ -20,7 +20,9 @@ Imports:
     optimization,
     bitops,
     TmCalculator,
-    RJSONIO
+    RJSONIO,
+    mclust,
+    beeswarm
 Remotes: 
     github::VariantEffect/rapimave, github::VariantEffect/hgvsParseR, 
     github::jweile/yogitools, github::jweile/yogilog, github::VariantEffect/mavevis,
