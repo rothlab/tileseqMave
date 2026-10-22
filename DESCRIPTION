@@ -1,5 +1,5 @@
 Package: tileseqMave
-Title: TileSeq MAVE Analysis pipeline
+Title: TileSeq MAVE Analysis Pipeline
 Version: 1.3.2
 Authors@R: c(
     person("Jochen", "Weile", email = "jochenweile@gmail.com", role = "aut"),
