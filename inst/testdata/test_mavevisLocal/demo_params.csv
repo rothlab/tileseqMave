@@ -1,0 +1,68 @@
+Project name:,Demo project,,,
+,,,,
+Template construct,,,,
+Gene name:,DEMO,,,
+Sequence:,ATGGCTCAAGGTAAAACCCTGCCTGTGTGGGAAGGTGCTACCAATCAATTCCGTACCTACCAT,,,
+CDS start:,1,,,
+CDS end:,63,,,
+Uniprot Accession:,P35520,,,
+,,,,
+Assay,,,,
+Assay Name:,Demo assay,,,
+Assay Description:,Small smoke test for genophenogram plotting,,,
+Negative selection?,No,,,
+,,,,
+Conditions and replicates,,,,
+Condition IDs:,nonselect,select,wtSelect,wtNonselect
+Descriptions:,pre-selection library,post-selection library,wildtype control for select,wildtype control for nonselect
+Number of Replicates:,2,2,2,2
+Number of time points:,1,1,1,1
+,,,,
+Mutagenesis Regions,,,,
+Region Number,Start AA,End AA,,
+1,1,21,,
+,,,,
+Sequencing Tiles,,,,
+Tile Number,Start AA,End AA,,
+1,1,21,,
+,,,,
+Condition definitions,,,,
+Condition 1,Relationship,Condition 2,,
+select,is_selection_for,nonselect,,
+wtSelect,is_wt_control_for,select,,
+wtNonselect,is_wt_control_for,nonselect,,
+,,,,
+Time point definitions,,,,
+Time point name,Time,Unit,,
+1,0,h,,
+,,,,
+Sequencing samples,,,,
+Sample ID,Tile ID,Condition,Time point,Replicate
+n1,1,nonselect,1,1
+n2,1,nonselect,1,2
+s1,1,select,1,1
+s2,1,select,1,2
+ws1,1,wtSelect,1,1
+ws2,1,wtSelect,1,2
+wns1,1,wtNonselect,1,1
+wns2,1,wtNonselect,1,2
+,,,,
+Variant calling parameters,,,,
+Posterior threshold:,0.5,,,
+Minimum coverage:,0.4,,,
+Per-base mutation rate:,0.0025,,,
+Maximum depth drop:,0.2,,,
+,,,,
+Scoring function parameters,,,,
+Minimum read count:,10,,,
+Pseudo-replicates:,8,,,
+SD threshold:,0.3,,,
+WT filter quantile:,0.95,,,
+Replicate disagreement factor:,10,,,
+Last functional AA position:,21,,,
+Maximum logPhi SD:,1,,,
+,,,,
+Score normalization overrides,,,,
+Condition,Time point,Region,Type,Value
+select,1,1,synonymous,-0.01
+select,1,1,nonsense,-1.02
