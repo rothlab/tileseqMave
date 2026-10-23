@@ -36,7 +36,6 @@ Remotes:
     github::jweile/yogiseq,
     github::jweile/yogitools,
     github::VariantEffect/hgvsParseR,
-    github::VariantEffect/mavevis,
-    github::VariantEffect/rapimave
+    github::VariantEffect/mavevisi 
 RoxygenNote: 7.2.0
 SystemRequirements: Ghostscript (gs), Bowtie2 (bowtie2, bowtie2-build; used by runAlignments)
