@@ -1,0 +1,14 @@
+name: tileseqMave
+channels:
+  - conda-forge
+  - bioconda
+  - nodefaults
+dependencies:
+  - r-base>=4.5,<4.6      # tested with 4.5.3 (Bioconductor 3.22)
+  - r-remotes
+  - r-biocmanager
+  - r-devtools            # for running the test suite
+  - bowtie2               # runAlignments(); tested with 2.5.5
+  - ghostscript           # SystemRequirements: gs; tested with 10.08.0
+  - zlib                  # headers needed to build XVector
+  - compilers             # C/C++/Fortran toolchain for source builds
