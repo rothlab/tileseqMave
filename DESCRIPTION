@@ -19,7 +19,6 @@ Imports:
     optimization,
     parallel,
     pbmcapply,
-    rapimave,
     RJSONIO,
     TmCalculator,
     yogilog,
@@ -36,6 +35,6 @@ Remotes:
     github::jweile/yogiseq,
     github::jweile/yogitools,
     github::VariantEffect/hgvsParseR,
-    github::VariantEffect/mavevisi 
+    github::VariantEffect/mavevis
 RoxygenNote: 7.2.0
 SystemRequirements: Ghostscript (gs), Bowtie2 (bowtie2, bowtie2-build; used by runAlignments)
