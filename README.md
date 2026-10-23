@@ -22,17 +22,85 @@ TileSeqMave constitutes the second half of the TileSeq Pipeline. The first half 
 
 ## Requirements and Installation
 
-`tileseqMave` is compatible with Unix-based operating systems, requires R 3.6.3 or greater and has a number of R package dependencies, which will be installed automatically. It also uses the output of [`tileseq_mutcount`](https://github.com/rothlab/tileseq_mutcount), which should be installed separately on an HPC platform. 
-Finally, some of the modular components within tileseqMave also rely on other (optional) dependencies. Namely, to condense QC reports into single PDFs, `ghostscript` needs to be installed; and to conveniently draw a heatmap of the variant effect maps for the score sets calculated by tileseqMave, the [`mavevis`](https://github.com/VariantEffect/mavevis) package would need to be installed. But these functionalities are optional. 
+`tileseqMave` is compatible with Unix-based operating systems (tested on Linux with R 4.5.3 and Bioconductor 3.22) and has a number of R package dependencies from CRAN, Bioconductor, and Github, which will be installed automatically as long as the system requirements below are in place and the Bioconductor repositories are enabled (see step 2). The package declares R 3.6.3 as its minimun version, but older versions have not been tested, and recent releases of the Bioconductor dependencies of `TmCalculator` need a recent R. 
 
-For the following instructions, you will need a basic familiarity with the Unix command line. To install the `tileseqMave` package, use the `R` package `remotes`. Open an R session and execute:
+`tileseqMave` also uses the output of [`tileseq_mutcount`](https://github.com/rothlab/tileseq_mutcount), which should be installed separately on an HPC platform.
+
+Finally, some of the modular components within tileseqMave also rely on other (optional) dependencies. Namely, to condense QC reports into single PDFs, `ghostscript` needs to be installed; to conveniently draw a heatmap of the variant effect maps for the score sets calculated by tileseqMave, the [`mavevis`](https://github.com/VariantEffect/mavevis) package would need to be installed; and the alignment helper `runAlignments()` needs `bowtie2` (`bowtie2` and `bowtie2-build`). But these functionalities are optional.
+
+For the following instructions, you will need a basic familiarity with the Unix command line.
+
+### 1. System Requirements
+
+Before installing, make sure the following are available on your system:
+
+- **R**, tested with version 4.5.3 (Bioconductor 3.22)
+- **A C compiler and the zlib development headers**, which are needed to
+  build the Bioconductor dependencies of `TmCalculator` from source. If you
+  already compile R packages, you probably have them. On Debian/Ubuntu they
+  come from `build-essential` and `zlib1g-dev`.
+- **Optional:** `ghostscript` (to condense QC reports into single PDFs) and
+  `bowtie2` (for `runAlignments()`).
+
+Load your site's R, compiler, ghostscript and
+bowtie2 modules if needed (module names vary by cluster).
+
+If something is missing and you don't have administrator rights, conda can
+supply everything above in a new environment:
+
+```bash
+conda create -n tileseqMave -c conda-forge -c bioconda \
+    "r-base>=4.5,<4.6" r-remotes r-biocmanager \
+    bowtie2 ghostscript zlib compilers
+conda activate tileseqMave
+```
+
+The repository also contains a copy of this environment as
+`environment.yml`, for contributors.
+
+```bash
+conda env create -f environment.yml
+conda activate tileseqMave
+```
+
+Without conda, install the equivalents with your system's package manager.
+
+Example for Debian/Ubuntu:
+```bash
+sudo apt install build-essential zlib1g-dev ghostscript bowtie2
+```
+
+### 2. Installing tileseqMave
+
+To install the `tileseqMave` package, open an R session and execute:
 
 ```R
-install.packages("remotes")
-remotes::install_github("jweile/tileseqMave")
+# skip this line if installed via environment.yml
+install.packages(c("remotes", "BiocManager"))
+
+# needed for TmCalculator
+options(repos = BiocManager::repositories())
+
+
+remotes::install_github("rothlab/tileseqMave", upgrade = "never")
 ```
 
 After the installation completes successfully, you can close the R session again. If the installation fails for some reason, look up the exact error message and consult the "Troubleshooting" section below.
+
+To also install the optional R packages(`mavevis`, `maveLLR`, `sn`) and the packages needed to run the test suite, run the following from a local clone of the repo:
+
+```R
+remotes::install_deps(dependencies = TRUE, upgrade = "never")
+```
+
+### Dependency overview
+
+- **CRAN:** argparser, beeswarm, bitops, hash, mclust
+optimization, pbmcapply, RJSONIO, TmCalculator
+- **Bioconductor:** (required by TmCalculator): BiocGenerics,
+Biostrings, GenomeInfoDb, GenomicRanges, BiocParallel, IRanges, S4Vectors
+- **GitHub:** (resolved automatically): hgvsParseR, yogitools (>= 0.1.1), yogilog, yogiseq
+- **Optional:** mavevis(>= 0.1.4), maveLLR, sn, testthat
 
 **Important**: To ensure that the TileseqMave suite can be executed easily on the command line, its main executable needs to be available via your `$PATH` variable. The easiest way to achieve this is to symlink them to your preferred `bin/` directory after having installed the package as shown above. For `UNIX` systems, pick a directory that's already on your `$PATH`, for example `~/bin/` or `~/.local/bin/`. For example, if you want to use the latter, you can create your symlinks as follows:
 
@@ -47,13 +115,29 @@ cp $REPO/scripts/tsm ~/.local/bin/
 
 Below are the solutions to a few problems we previously encountered:
 
+#### Installing TmCalculator fails because Bioconductor packages are "not available"
+
+`TmCalculator` depends on several Bioconductor packages (such as
+`Biostrings`), which are not on CRAN. If the installation stops with an error like ``dependency ‘Biostrings’ is not available``, the Bioconductor repositories are not enabled in your R session. Run `options(repos = BiocManager::repositories())` before installing, as shown in step 2.
+
+#### Compilation fails with "zlib.h: No such file or directory"
+Some Bioconductor dependencies (such as `XVector`) are compiled from source and need the zlib development headers and a C compiler. Install them as described in step 1 (for conda: `conda install -c conda-forge zlib compilers`; on Debian/Ubuntu: `zlib1g-dev` and `build-essential`), restart R, and try again.
+
+#### Installing optional dependencies fails with "libuv was not found"
+
+Installing the test dependencies (`remotes::install_deps(dependencies =
+TRUE)`) builds the `fs` package, which needs the libuv development headers.
+Install them (Debian/Ubuntu: `libuv1-dev`; Fedora: `libuv-devel`; conda:
+`libuv` from conda-forge), or set `USE_BUNDLED_LIBUV=1` in your R session
+before installing. This only affects the optional test dependencies, not
+the package itself.
+
 #### Github refuses connection due to rate limiting
 
 If you're attempting to install software from github from a busy location with a shared IP address, such as a university HPC server, it is possible that other users have already exhausted the maximum allowed number of unauthenticated downloads from github that day. To get around this, you can create an account on [github](github.com) and use your account credentials for the download. After creating your account, follow [these instructions](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token) to create a 'personal access token' (PAT). Then, go to your home directory and create file called `.Renviron` (if it doesn't already exist). Add the following line to the file, with your PAT token after the quals sign:
 ```bash
 GITHUB_PAT=your_token_here
 ```
-
 
 #### Package compilation fails due to incompatible C compiler
 
