@@ -21,9 +21,6 @@ runAlignments <- function(dataDir, inDir, outDir=NA,
 
   op <- options(stringsAsFactors=FALSE)
 
-  library(yogitools)
-  library(yogiseq)
-
   #Check if required external software is installed
   retVal <- system2("bowtie2","--version")
   if (retVal != 0) {
@@ -44,7 +41,7 @@ runAlignments <- function(dataDir, inDir, outDir=NA,
   if (!dir.exists(inDir)) {
     stop("Data folder does not exist!")
   }
-  if (!canRead(paramFile)) {
+  if (!yogitools::canRead(paramFile)) {
     stop("Unable to read parameter file!")
   }
 
@@ -78,7 +75,7 @@ runAlignments <- function(dataDir, inDir, outDir=NA,
     }
     c(r1=allFQ[[r1Hits]],r2=allFQ[[r2Hits]])
   }
-  sampleFASTQs <- as.df(lapply(params$samples[,"Sample ID"], findFQ))
+  sampleFASTQs <- yogitools::as.df(lapply(params$samples[,"Sample ID"], findFQ))
   if (usePhiX) {
     phiXFASTQ <- findFQ("Undetermined")
   }

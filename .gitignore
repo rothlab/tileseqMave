@@ -2,11 +2,14 @@
 .Rhistory
 .RData
 .Rproj.user
+.vscode
 
 #folders to ignore
 workspace
 workspace/
 tileseqMave.Rproj
+*.Rcheck/
 
 #file types to ignore
 *.pdf
+*.tar.gz

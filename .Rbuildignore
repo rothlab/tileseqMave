@@ -1,7 +1,17 @@
-^LICENSE\.md$
-^workspace/
-workspace
+# Project files
 ^.*\.Rproj$
 ^\.Rproj\.user$
-^README*
 ^\.Rhistory$
+
+# Local working files
+^workspace/
+
+# Build and check artifacts
+^.*\.Rcheck$
+^.*\.tar\.gz$
+
+# Repo-level docs (not needed in the built package)
+^LICENSE\.md$
+^README\.md$
+^README\..*$
+^environment\.yml$
