@@ -29,13 +29,17 @@ Imports:
     yogiseq,
     yogitools (>= 0.1.1)
 Suggests: 
+    httr,
     maveLLR,
     mavevis (>= 0.1.4),
+    remotes,
     sn,
-    testthat
+    testthat,
+    yogiroc
 Remotes: 
     github::jweile/maveLLR,
     github::jweile/yogilog,
+    github::jweile/yogiroc,
     github::jweile/yogiseq,
     github::jweile/yogitools,
     github::VariantEffect/hgvsParseR@7a3a5c81ac0037a4514225924aa108d663b1fb90,
