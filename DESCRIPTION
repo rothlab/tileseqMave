@@ -13,6 +13,8 @@ Imports:
     argparser,
     beeswarm,
     bitops,
+    graphics,
+    grDevices,
     hash,
     hgvsParseR,
     mclust,
@@ -20,7 +22,9 @@ Imports:
     parallel,
     pbmcapply,
     RJSONIO,
+    stats,
     TmCalculator,
+    utils,
     yogilog,
     yogiseq,
     yogitools (>= 0.1.1)

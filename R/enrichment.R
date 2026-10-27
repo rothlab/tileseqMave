@@ -34,12 +34,7 @@ calcEnrichment <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"
   useQuorum=FALSE,useLPDfilter=FALSE) {
 
   op <- options(stringsAsFactors=FALSE)
-
-  library(yogitools)
-  library(hgvsParseR)
-  library(pbmcapply)
-  library(optimization)
-
+  
   if (nbs != 0) {
     if (nbs < 1e2) {
       stop("Must use at least 100 bootstrap samples!")

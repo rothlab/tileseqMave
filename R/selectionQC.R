@@ -31,11 +31,6 @@ selectionQC <- function(dataDir,countDir=NA, scoreDir=NA, outDir=NA,
 
   op <- options(stringsAsFactors=FALSE)
 
-  library(yogitools)
-  library(hgvsParseR)
-  library(pbmcapply)
-  # library(optimization)
-
   #make sure data exists and ends with a "/"
   if (!grepl("/$",dataDir)) {
     dataDir <- paste0(dataDir,"/")

@@ -33,7 +33,6 @@
 #'
 #' @examples
 simulatePool <- function(params,poolCV=0.2,poolLambda=1) {
-  library("hash")
   #generate all possible codons
   allCodons <- apply(do.call(expand.grid,
     replicate(3,yogitools::toChars("ACGT"),simplify=FALSE)
