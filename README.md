@@ -26,7 +26,10 @@ TileSeqMave constitutes the second half of the TileSeq Pipeline. The first half 
 
 `tileseqMave` also uses the output of [`tileseq_mutcount`](https://github.com/rothlab/tileseq_mutcount), which should be installed separately on an HPC platform.
 
-Finally, some of the modular components within tileseqMave also rely on other (optional) dependencies. Namely, to condense QC reports into single PDFs, `ghostscript` needs to be installed; to conveniently draw a heatmap of the variant effect maps for the score sets calculated by tileseqMave, the [`mavevis`](https://github.com/VariantEffect/mavevis) package would need to be installed; and the alignment helper `runAlignments()` needs `bowtie2` (`bowtie2` and `bowtie2-build`). But these functionalities are optional.
+Finally, some of the modular components within tileseqMave also rely on other (optional) dependencies. Namely, to condense QC reports into single PDFs, `ghostscript` needs to be installed; to conveniently draw a heatmap of the variant effect maps for the score sets calculated by tileseqMave, the [`mavevis`](https://github.com/VariantEffect/mavevis) package would need to be installed;  the LLR and precision-recall scripts (`calcLLR.R`,
+`prcNormalize.R`, `drawPRC.R`) need the `yogiroc` package; `referenceSets.R`
+needs `httr`; and the alignment helper `runAlignments()` needs `bowtie2`
+(`bowtie2` and `bowtie2-build`). But these functionalities are optional.
 
 For the following instructions, you will need a basic familiarity with the Unix command line.
 
@@ -87,7 +90,8 @@ remotes::install_github("rothlab/tileseqMave", upgrade = "never")
 
 After the installation completes successfully, you can close the R session again. If the installation fails for some reason, look up the exact error message and consult the "Troubleshooting" section below.
 
-To also install the optional R packages(`mavevis`, `maveLLR`, `sn`) and the packages needed to run the test suite, run the following from a local clone of the repo:
+To also install the optional R packages(`mavevis`, `maveLLR`, `yogiroc`,
+`sn`, `httr`, `remotes`) following from a local clone of the repo:
 
 ```R
 remotes::install_deps(dependencies = TRUE, upgrade = "never")
@@ -95,12 +99,14 @@ remotes::install_deps(dependencies = TRUE, upgrade = "never")
 
 ### Dependency overview
 
-- **CRAN:** argparser, beeswarm, bitops, hash, mclust
-optimization, pbmcapply, RJSONIO, TmCalculator
-- **Bioconductor:** (required by TmCalculator): BiocGenerics,
-Biostrings, GenomeInfoDb, GenomicRanges, BiocParallel, IRanges, S4Vectors
-- **GitHub:** (resolved automatically): hgvsParseR, yogitools (>= 0.1.1), yogilog, yogiseq
-- **Optional:** mavevis(>= 0.1.4), maveLLR, sn, testthat
+- **CRAN:** argparser, beeswarm, bitops, hash, mclust, optimization,
+  pbmcapply, RJSONIO, TmCalculator
+- **Bioconductor** (required by TmCalculator): BiocGenerics, Biostrings,
+  GenomeInfoDb, GenomicRanges, BiocParallel, IRanges, S4Vectors
+- **GitHub** (resolved automatically): hgvsParseR, yogitools (>= 0.1.1),
+  yogilog, yogiseq
+- **Optional, from GitHub:** mavevis (>= 0.1.4), maveLLR, yogiroc
+- **Optional, from CRAN:** httr, remotes, sn, testthat
 
 **Important**: To ensure that the TileseqMave suite can be executed easily on the command line, its main executable needs to be available via your `$PATH` variable. The easiest way to achieve this is to symlink them to your preferred `bin/` directory after having installed the package as shown above. For `UNIX` systems, pick a directory that's already on your `$PATH`, for example `~/bin/` or `~/.local/bin/`. For example, if you want to use the latter, you can create your symlinks as follows:
 
