@@ -75,3 +75,65 @@ export(splitCodonChanges)
 export(tileCensus)
 export(tilesInRegions)
 export(validateParameters)
+import(hgvsParseR)
+import(yogitools)
+importFrom(RJSONIO,
+  fromJSON,
+  toJSON
+)
+importFrom(beeswarm,
+  beeswarm,
+  bxplot
+)
+importFrom(grDevices,
+  dev.off,
+  pdf,
+  rainbow
+)
+importFrom(graphics,
+  abline,
+  axis,
+  barplot,
+  grid,
+  hist,
+  layout,
+  legend,
+  lines,
+  mtext,
+  pairs,
+  par,
+  plot.new,
+  points,
+  rect,
+  text
+)
+importFrom(hash,
+  has.key,
+  hash,
+  keys
+)
+importFrom(mclust,Mclust)
+importFrom(optimization,optim_nm)
+importFrom(pbmcapply,pbmclapply)
+importFrom(stats,
+  cor,
+  dpois,
+  lm,
+  median,
+  na.omit,
+  predict.lm,
+  qnorm,
+  quantile,
+  rbeta,
+  rnorm,
+  setNames
+)
+importFrom(utils,
+  data,
+  head,
+  packageVersion,
+  read.csv,
+  read.delim,
+  write.csv,
+  write.table
+)
