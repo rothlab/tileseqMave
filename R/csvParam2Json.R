@@ -537,11 +537,6 @@ csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",infile),
 
   op <- options(stringsAsFactors=FALSE)
 
-  #for writing JSON output
-  library(RJSONIO)
-  #for helper functions
-  library(yogitools)
-
 
   #check that the file is indeed a csv file and can be read
   if (!canRead(infile)) {
@@ -783,11 +778,6 @@ parseParameters <- function(filename,srOverride=FALSE) {
 
   op <- options(stringsAsFactors=FALSE)
 
-  #for writing JSON output
-  library(RJSONIO)
-  #for helper functions
-  library(yogitools)
-
   #check that the file is indeed a json file and can be read
   stopifnot(grepl("\\.json$",filename), canRead(filename))
 
@@ -983,7 +973,6 @@ tilesInRegions <- function(params) {
 #' @export
 reachableChanges <- function(params) {
   data(trtable)
-  library(hgvsParseR)
   hgvsp <- new.hgvs.builder.p(aacode=3)
   codons <- sapply(
     seq(1,params$template$cdsLength,3),

@@ -30,11 +30,7 @@ dropoutAnalysis <- function(dataDir,countDir=NA, #scoreDir=NA,
                         srOverride=FALSE,tile=NA) {
 
   op <- options(stringsAsFactors=FALSE)
-  
-  library(yogitools)
-  library(hgvsParseR)
-  library(pbmcapply)
-  # library(optimization)
+
   
   #make sure data exists and ends with a "/"
   if (!grepl("/$",dataDir)) {

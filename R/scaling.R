@@ -33,11 +33,7 @@ scaleScores <- function(dataDir, scoreDir=NA, outDir=NA,
   
   
   op <- options(stringsAsFactors=FALSE)
-  
-  library(yogitools)
-  # library(hgvsParseR)
-  # library(pbmcapply)
-  # library(optimization)
+
 
   if (bnOverride) {
     logWarn(

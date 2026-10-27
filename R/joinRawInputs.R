@@ -38,10 +38,6 @@ joinRawInputs <- function(countfiles,outfile=NULL,logger=NULL) {
 
   options(stringsAsFactors=FALSE)
 
-  library(yogitools)
-  library(hash)
-  library(pbmcapply)
-
   ################################
   # Check validity of parameters #
   # And set up helper functions  #

@@ -33,12 +33,6 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,
 
   op <- options(stringsAsFactors=FALSE)
 
-  library(yogitools)
-  library(hash)
-  library(hgvsParseR)
-  library(parallel)
-  library(pbmcapply)
-
   #make sure data and out dir exist and ends with a "/"
   if (!grepl("/$",dataDir)) {
     dataDir <- paste0(dataDir,"/")

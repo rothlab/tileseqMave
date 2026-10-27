@@ -29,11 +29,6 @@ fluorScore <- function(dataDir,conditionOrder,paramFile=paste0(dataDir,"paramete
 
   op <- options(stringsAsFactors=FALSE)
 
-  library(yogitools)
-  library(hgvsParseR)
-  library(pbmcapply)
-  library(optimization)
-
   #make sure data and out dir exist and ends with a "/"
   if (!grepl("/$",dataDir)) {
     dataDir <- paste0(dataDir,"/")
@@ -134,7 +129,6 @@ fluorScore <- function(dataDir,conditionOrder,paramFile=paste0(dataDir,"paramete
   allScores <- allScores[apply(allScores[,-(1:5)],1,function(x)!all(is.na(x))),]
 
   `%~%` <- function(f,g) function(...) f(g(...))
-  library(mclust)
 
   sds <- allScores[,paste0(names(conditionOrder),".logPhi.sd")]
   qualFilter <- apply(sds,1,function(x)all(x < 1))
@@ -324,8 +318,6 @@ fluorScore <- function(dataDir,conditionOrder,paramFile=paste0(dataDir,"paramete
   for (i in which(beniFilter & allScoresFits$logLikeli > -5)) drawFit(i,col="chartreuse3")
   par(op)
   dev.off()
-
-  library(beeswarm)
 
   pdf("prsNrsSlopes.pdf",5,5)
   prsNrsSlopes <- list(

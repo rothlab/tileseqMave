@@ -23,10 +23,6 @@
 #' @export
 mavedbCountExport <-  function(countfile,outdir,logger=NULL) {
 
-  library(hgvsParseR)
-  # library(yogilog)
-  library(yogitools)
-
   options(stringsAsFactors=FALSE)
 
   if (!is.null(logger)) {
