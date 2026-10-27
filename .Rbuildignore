@@ -5,6 +5,7 @@
 
 # Local working files
 ^workspace/
+^\.vscode$
 
 # Build and check artifacts
 ^.*\.Rcheck$
