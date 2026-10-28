@@ -27,13 +27,7 @@
 #'      directly to stdout.
 #' @return the merged data as a \code{data.frame}.
 #' @export
-#' @examples
-# ' countfiles <- sprintf("workspace/input/CBS/rawData_B6-%d_Q5_%s.txt",
-# '   c(0,0,1,1),
-# '   rep(c("new","old"),2)
-# ' )
-# ' joinRawInputs(countfiles)
-#'
+#' 
 joinRawInputs <- function(countfiles,outfile=NULL,logger=NULL) {
 
   options(stringsAsFactors=FALSE)
