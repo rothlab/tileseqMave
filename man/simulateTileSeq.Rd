@@ -16,6 +16,13 @@ or even all WT}
 
 \item{varcallErr}{the variant calling error to simulate}
 }
+\value{
+a list of simulated read counts with one element per tile and replicate.
+  Results for the replicates in \code{assayReps} are concatenated in order, so the
+  element names (\code{tile<N>}) repeat once per replicate. Each element holds the
+  read counts per apparent variant combination (named by the combination, with
+  "WT" for wild type), omitting combinations with zero reads.
+}
 \description{
 simulate TileSeq
 }
