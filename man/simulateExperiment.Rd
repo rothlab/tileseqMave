@@ -44,6 +44,12 @@ simulateExperiment(
 
 \item{varcallErr}{the per-base variant calling error}
 }
+\value{
+a list with three elements: \code{countDir}, the directory the simulated
+  count files were written to; \code{pool}, the simulated clone pool (see
+  \code{\link{simulatePool}}); and \code{trueFitness}, the true fitness effects
+  used in the simulation (see \code{\link{simulateFitness}}).
+}
 \description{
 Title
 }

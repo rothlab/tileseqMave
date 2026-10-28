@@ -9,6 +9,8 @@ simulateAssay(params, plasmidPools, trueFit, n, sd = 0.01, t = 3)
 \arguments{
 \item{params}{the parameter sheet}
 
+\item{plasmidPools}{the output of simulatePool()}
+
 \item{trueFit}{the output of simulateFitness()}
 
 \item{n}{The size of the pre-selection pool (number of cells)}
@@ -16,8 +18,6 @@ simulateAssay(params, plasmidPools, trueFit, n, sd = 0.01, t = 3)
 \item{sd}{the standard deviation of the noise affecting the growth assay.}
 
 \item{t}{the selection time in generations}
-
-\item{pool}{the output of simulatePool()}
 }
 \value{
 a list of vectors containing the clone frequencies in the pre- and post-selection pool

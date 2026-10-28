@@ -77,80 +77,66 @@ export(tilesInRegions)
 export(validateParameters)
 import(hgvsParseR)
 import(yogitools)
-importFrom(RJSONIO,
-  fromJSON,
-  toJSON
-)
-importFrom(beeswarm,
-  beeswarm,
-  bxplot
-)
-importFrom(grDevices,
-  colorRampPalette,
-  dev.off,
-  gray.colors,
-  pdf,
-  png,
-  rainbow
-)
-importFrom(graphics,
-  abline,
-  arrows,
-  axis,
-  barplot,
-  curve,
-  grid,
-  hist,
-  layout,
-  legend,
-  lines,
-  mtext,
-  pairs,
-  par,
-  plot.new,
-  points,
-  polygon,
-  rect,
-  segments,
-  strwidth,
-  text
-)
-importFrom(hash,
-  has.key,
-  hash,
-  keys
-)
+importFrom(RJSONIO,fromJSON)
+importFrom(RJSONIO,toJSON)
+importFrom(beeswarm,beeswarm)
+importFrom(beeswarm,bxplot)
+importFrom(grDevices,colorRampPalette)
+importFrom(grDevices,dev.off)
+importFrom(grDevices,gray.colors)
+importFrom(grDevices,pdf)
+importFrom(grDevices,png)
+importFrom(grDevices,rainbow)
+importFrom(graphics,abline)
+importFrom(graphics,arrows)
+importFrom(graphics,axis)
+importFrom(graphics,barplot)
+importFrom(graphics,curve)
+importFrom(graphics,grid)
+importFrom(graphics,hist)
+importFrom(graphics,layout)
+importFrom(graphics,legend)
+importFrom(graphics,lines)
+importFrom(graphics,mtext)
+importFrom(graphics,pairs)
+importFrom(graphics,par)
+importFrom(graphics,plot.new)
+importFrom(graphics,points)
+importFrom(graphics,polygon)
+importFrom(graphics,rect)
+importFrom(graphics,segments)
+importFrom(graphics,strwidth)
+importFrom(graphics,text)
+importFrom(hash,has.key)
+importFrom(hash,hash)
+importFrom(hash,keys)
 importFrom(mclust,Mclust)
 importFrom(optimization,optim_nm)
 importFrom(pbmcapply,pbmclapply)
-importFrom(stats,
-  as.formula,
-  coefficients,
-  cor,
-  cov,
-  dnorm,
-  dpois,
-  lm,
-  median,
-  na.omit,
-  predict,
-  predict.lm,
-  qnorm,
-  quantile,
-  rbeta,
-  rnorm,
-  rpois,
-  sd,
-  setNames,
-  var
-)
-importFrom(utils,
-  combn,
-  data,
-  head,
-  packageVersion,
-  read.csv,
-  read.delim,
-  write.csv,
-  write.table
-)
+importFrom(stats,as.formula)
+importFrom(stats,coefficients)
+importFrom(stats,cor)
+importFrom(stats,cov)
+importFrom(stats,dnorm)
+importFrom(stats,dpois)
+importFrom(stats,lm)
+importFrom(stats,median)
+importFrom(stats,na.omit)
+importFrom(stats,predict)
+importFrom(stats,predict.lm)
+importFrom(stats,qnorm)
+importFrom(stats,quantile)
+importFrom(stats,rbeta)
+importFrom(stats,rnorm)
+importFrom(stats,rpois)
+importFrom(stats,sd)
+importFrom(stats,setNames)
+importFrom(stats,var)
+importFrom(utils,combn)
+importFrom(utils,data)
+importFrom(utils,head)
+importFrom(utils,packageVersion)
+importFrom(utils,read.csv)
+importFrom(utils,read.delim)
+importFrom(utils,write.csv)
+importFrom(utils,write.table)
