@@ -28,10 +28,12 @@
 #' @param poolLambda the mean of the poisson distibution used to sample the number of 
 #'   codon-changes per clone
 #'
-#' @return
+#' @return a list with two elements: \code{allCodonChanges}, a data frame of all
+#'   possible codon changes with their true marginal frequencies, and
+#'   \code{sampleVariants}, a function that takes a number of clones \code{n} and a
+#'   \code{region} and returns a table of sampled clone counts.
 #' @export
 #'
-#' @examples
 simulatePool <- function(params,poolCV=0.2,poolLambda=1) {
   #generate all possible codons
   allCodons <- apply(do.call(expand.grid,
@@ -89,13 +91,16 @@ simulatePool <- function(params,poolCV=0.2,poolLambda=1) {
 #'
 #' @param params The parameter sheet
 #' @param pool the output of simulatePool()
-#' @param lofFreq the frequency of loss-of-function effects to simulate
-#' @param hypoFreq the frequency of hypomorphic effects to simulate
+#' @param fitBias the mean of the normal distribution (before logistic
+#'   transformation) from which random amino acid fitness effects are drawn
+#' @param fitSpread the standard deviation of that normal distribution
 #'
-#' @return
+#' @return a list with two elements: \code{allAAChanges}, a data frame of all
+#'   possible amino acid changes with their true fitness effects, and
+#'   \code{calcTrueFitness}, a function that returns the true fitness of clones
+#'   given their genotype strings (codon changes joined by "|", or "WT").
 #' @export
 #'
-#' @examples
 simulateFitness <- function(params,pool,fitBias=0,fitSpread=4) {
   #lofFreq=0.3,hypoFreq=0.1,hypoSD=0.1
   allAAChanges <- expand.grid(
@@ -157,7 +162,7 @@ simulateFitness <- function(params,pool,fitBias=0,fitSpread=4) {
 #' It then outputs the clone frequencies in the pre- and post-selection pool
 #'
 #' @param params the parameter sheet
-#' @param pool the output of simulatePool()
+#' @param plasmidPools the output of simulatePool()
 #' @param trueFit the output of simulateFitness()
 #' @param n The size of the pre-selection pool (number of cells)
 #' @param sd the standard deviation of the noise affecting the growth assay.
@@ -166,7 +171,6 @@ simulateFitness <- function(params,pool,fitBias=0,fitSpread=4) {
 #' @return a list of vectors containing the clone frequencies in the pre- and post-selection pool
 #' @export
 #'
-#' @examples
 simulateAssay <- function(params,plasmidPools,trueFit,n,sd=0.01,t=3) {
   
   #sample pre-selection clones
@@ -202,10 +206,13 @@ simulateAssay <- function(params,plasmidPools,trueFit,n,sd=0.01,t=3) {
 #' @param depth the sequencing depth to simulate
 #' @param varcallErr the variant calling error to simulate
 #'
-#' @return
+#' @return a list of simulated read counts with one element per tile and replicate.
+#'   Results for the replicates in \code{assayReps} are concatenated in order, so the
+#'   element names (\code{tile<N>}) repeat once per replicate. Each element holds the
+#'   read counts per apparent variant combination (named by the combination, with
+#'   "WT" for wild type), omitting combinations with zero reads.
 #' @export
 #'
-#' @examples
 simulateTileSeq <- function(assayReps,params,depth=1e5,varcallErr=3e-6) {
   
   #create list of possible SNVs per each tile
@@ -291,10 +298,10 @@ simulateTileSeq <- function(assayReps,params,depth=1e5,varcallErr=3e-6) {
 #' @param params the parameter sheet
 #' @param hgvsb a (coding sequence) HGVS builder object
 #'
-#' @return
+#' @return nothing. This function is called for its side effect of writing the file
+#'   \code{counts_sample_<name>.csv} to \code{outdir}.
 #' @export
 #'
-#' @examples
 exportSeqSample <- function(reads, name, outdir, params, hgvsb=new.hgvs.builder.c()) {
   
   wtCount <- reads[["WT"]]
@@ -427,10 +434,12 @@ exportRawAssay <- function(assayReps, outdir) {
 #' @param seqDepth the sequencing depth for tileseq
 #' @param varcallErr the per-base variant calling error
 #'
-#' @return
+#' @return a list with three elements: \code{countDir}, the directory the simulated
+#'   count files were written to; \code{pool}, the simulated clone pool (see
+#'   \code{\link{simulatePool}}); and \code{trueFitness}, the true fitness effects
+#'   used in the simulation (see \code{\link{simulateFitness}}).
 #' @export
 #'
-#' @examples
 simulateExperiment <- function(workdir,paramFile=paste0(workdir,"parameters.json"),
                                poolCV=0.2,poolLambda=1,
                                fitBias=0,fitSpread=4,nPlasmids=5e5,
