@@ -30,6 +30,7 @@ startupMessage <- function() {
 }
 
 #' Show message at startup
+#' @noRd
 .onAttach <- function(lib, pkg)
 {
   packageStartupMessage(startupMessage())

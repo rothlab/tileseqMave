@@ -1429,7 +1429,7 @@ regionCensus <- function(ri, tilesPerRegion, tileCensi, tileLambdas, maxChanges,
 #' @param main str, title of plot
 #' 
 #' @return NULL
-#'
+#' @noRd 
 plotCensus <- function(census,lambda,d=NULL,e=NULL,main="") {
   if (is.null(census) || any(is.na(census))) {
     plot.new()
@@ -1561,7 +1561,7 @@ drawCoverageMap <- function(params, info, aaMarginal, wmThreshold, tilesPerRegio
 #' @param lastTile number of the last tile in region
 #' 
 #' @return table that indicates the grid positions of plots for region in order of drawing
-#' 
+#' @noRd 
 buildPlotMatrix <- function(ri, tpr, tileSets, lastTile){
   bottom <- (ri-1)*5+1
   topRow <- bottom+1:tpr

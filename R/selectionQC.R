@@ -740,6 +740,7 @@ replicateCorrelation <- function(scores, marginalCounts, params, sCond, tp, outD
 #' @param tp the time point
 #' @param outDir the output directory
 #' @return NULL
+#' @noRd
 regularizationQC <- function(scores,modelParams,params,sCond,tp,outDir) {
 
   plotNoData <- function(tile) {
@@ -855,6 +856,7 @@ regularizationQC <- function(scores,modelParams,params,sCond,tp,outDir) {
 #' @param tp the time point
 #' @param outDir the output directory
 #' @return NULL
+#' @noRd
 scoreDistributions <- function(scores,sCond,tp,outDir,params,srOverride) {
   
   #enact filters and last functional AA cutoff
@@ -1235,6 +1237,7 @@ findRuns <- function(bools) {
 #' @param params the parameter sheet object
 #' @param outDir the output directory
 #' @return nothing, writes plot to output directory
+#' @noRd 
 synNonDelta <- function(scores,sCond,tp,params,outDir,srOverride){
   scores$pos <- as.integer(gsub("\\D+","",scores$aaChange))
   #positional weighted averages of synonymous variants

@@ -505,6 +505,7 @@ bnl <- function(pseudo.n,n,model.sd,empiric.sd) {
 #' @param regionalCounts the region-specific subset of the marginal counts dataframe
 #' @param tp the time point ID
 #' @param params the global parameters object
+#' @noRd
 mean.sd.count <- function(cond,regionalCounts,regionalDrops,tp,params) {
   
   #detect dummy conditions (when no WT control exists)
@@ -681,6 +682,7 @@ adhocLogPhiSD <- function(regionalCounts,params,condQuad,tp) {
 #' @param cvm coefficient of variation multiplier. Up to how much more than the 
 #'  expected CV do we accept as normal?
 #' @return a vector listing for each row in the table which (if any) filters apply, otherwise NA.
+#' @noRd
 rawFilter <- function(msc,
   countThreshold,wtq=0.95,cvm=10,srOverride=FALSE,
   useWTfilter=FALSE,lpdCutoff=NA) {
@@ -785,6 +787,7 @@ runModelFits <- function(msc,condNames, tiles, mc.cores) {
 #' 
 #' @param  subcores a subset of the count table (for a given tile)
 #' @return a list containing the model function (mapping counts to expected CV), and the model parameters
+#' @noRd
 fit.cv.model <- function(subscores,cond,noTryCutoff=10) {
   
   #if there is less than "noTryCutoff" counts each, abort the modeling process
@@ -845,6 +848,7 @@ fit.cv.model <- function(subscores,cond,noTryCutoff=10) {
 #'    in the regularization
 #' @return a data.frame containing for each condition the possion prior, bayesian regularized, and
 #'    pessimistic (maximum) standard deviation.
+#' @noRd
 regularizeRaw <- function(msc,condNames,tiles,n,pseudo.n, modelFunctions,pessimistic=TRUE) {
   #index replicates so we can look them up
   names(n) <- condNames
