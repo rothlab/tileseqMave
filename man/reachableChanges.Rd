@@ -7,7 +7,7 @@
 reachableChanges(params)
 }
 \arguments{
-\item{param}{the parameter object}
+\item{params}{the parameter object}
 }
 \value{
 a data.frame containing wt and mutant codons as well as wt and mutant AAs for all possible SNVs

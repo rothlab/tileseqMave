@@ -7,6 +7,9 @@
 plotJackpotDiagnosis(info, nsMarginalMeans, wmThreshold, marginalCounts)
 }
 \arguments{
+\item{info}{list containing details on condition (nscond), timepoint (tp), 
+pdftag and outdir}
+
 \item{nsMarginalMeans}{table with mean marginal frequency across nonselect technical replicates}
 
 \item{wmThreshold}{well-measuredness threshold}

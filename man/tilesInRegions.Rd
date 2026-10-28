@@ -7,7 +7,7 @@
 tilesInRegions(params)
 }
 \arguments{
-\item{param}{the parameter object}
+\item{params}{the parameter object}
 }
 \value{
 a  list of vectors containing the tile IDs for each region ID

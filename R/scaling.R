@@ -573,7 +573,8 @@ join.datapoints <- function(ms,sds,dfs,ws=(1/sds)/sum(1/sds)) {
 #' @param sCond the current selective condition
 #' @param scoreCol the name of the column containing the scores
 #' @param seCol the name of the column containing the stderr
-#' @param sdOverride the sdOverride flag
+#' @param srOverride the srOverride flag
+#' @param bnOverride the bnOverride flag
 #' @return a \code{data.frame} containing the collapsed score table
 #' @export
 collapseByAA <- function(scoreTable,params,sCond,scoreCol="score",seCol="score.se",srOverride=FALSE,bnOverride=FALSE) {

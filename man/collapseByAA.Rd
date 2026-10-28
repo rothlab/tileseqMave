@@ -25,7 +25,9 @@ collapseByAA(
 
 \item{seCol}{the name of the column containing the stderr}
 
-\item{sdOverride}{the sdOverride flag}
+\item{srOverride}{the srOverride flag}
+
+\item{bnOverride}{the bnOverride flag}
 }
 \value{
 a \code{data.frame} containing the collapsed score table

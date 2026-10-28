@@ -535,7 +535,6 @@ getNsConditions <- function(params, allCondOverride) {
 #' Output alignment quality plot with percentages of unmapped or mismapped reads
 #' per sample    
 #'
-#' @param params parameter sheet object
 #' @param depthTable raw depth table
 #' @param inDir input directory
 #' @param outDir output directory
@@ -805,8 +804,8 @@ calcDepthDrops <- function(xCounts, xTiles, depthTable, mc.cores=6) {
 #' drops in effective sequencing depth
 #'
 #' @param params parameter sheet object
-#' @param info list containing details on condition (nscond), timepoint (tp), 
-#' pdftag and outdir
+#' @param outDir the output directory for the plot
+#' @param pdftag the tag to use for the PDF file name
 #' @param allDepthDrops table listing the relative drop for all variants in 
 #' each condition-time-replicate combination 
 #' 
@@ -1083,6 +1082,8 @@ buildSimplifiedMarginal <- function(marginalSplitChanges, nsMarginalMeans, nsMar
 
 #' Output jackpot plot with marginal frequencies of all variants in decreasing order
 #'
+#' @param info list containing details on condition (nscond), timepoint (tp), 
+#' pdftag and outdir
 #' @param nsMarginalMeans table with mean marginal frequency across nonselect technical replicates
 #' @param wmThreshold well-measuredness threshold
 #' @param marginalCounts table of marginal counts

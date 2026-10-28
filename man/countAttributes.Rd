@@ -15,8 +15,6 @@ countAttributes(depthTable, inDir, outDir, pdftag)
 \item{outDir}{output directory}
 
 \item{pdftag}{PDF tag string}
-
-\item{params}{parameter sheet object}
 }
 \description{
 Output alignment quality plot with percentages of unmapped or mismapped reads
