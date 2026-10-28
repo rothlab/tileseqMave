@@ -292,6 +292,7 @@ filterBreakdown <- function(scores,sCond,tp,params,outDir) {
 #' @param scores the score table
 #' @param params the global parameter object
 #' @return NULL
+#' @noRd
 filterProgression <- function(scores,sCond,tp,params,outDir) {
 
   regSubsets <- data.frame(
@@ -949,6 +950,7 @@ scoreDistributions <- function(scores,sCond,tp,outDir,params,srOverride) {
 #' @param aaScores the score table
 #' @param seCutoff the stderr cutoff to apply
 #' @return NULL
+#' @noRd
 drawDistributions <- function(aaScores,seCutoff=Inf,reg=NA,bcOverride=TRUE) {
 
   if (seCutoff < Inf) {
@@ -1079,6 +1081,7 @@ drawDistributions <- function(aaScores,seCutoff=Inf,reg=NA,bcOverride=TRUE) {
 #' @param tp the time point
 #' @param outDir the output directory
 #' @return NULL
+#' @noRd
 errorProfile <- function(scores,sCond,tp,outDir,params) {
   
   plotEP <- function(scores,varname,xlab) {
@@ -1145,6 +1148,7 @@ errorProfile <- function(scores,sCond,tp,outDir,params) {
 #' @param params parameter sheet object
 #' @param outdir output directory
 #' @return nothing. writes plots to output directory
+#' @noRd
 codonAgreement <- function(scores,sCond,tp,params,outDir,srOverride) {
   codonGroups <- tapply(1:nrow(scores),scores$hgvsp,c)
   nCodons <- sapply(codonGroups,length)
