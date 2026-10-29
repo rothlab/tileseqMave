@@ -191,8 +191,13 @@ calcEnrichment <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"
       condQuad[culprits] <- paste0("X",condQuad[culprits])
     }
 
-    # iterate time points -----------------------------------------------------
-    for (tp in params$timepoints$`Time point name`) {
+    # iterate time points for selection condition -----------------------------------------------
+    tps <- getTimepointsFor(sCond,params)
+    if (length(tps) == 0) {
+      logWarn("No time points declared for selection condition",sCond, "! Skipping.")
+      next
+    }
+    for (tp in tps) {
 
       logInfo("Processing selection",sCond,"; time point",tp)
 
