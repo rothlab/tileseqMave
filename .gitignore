@@ -2,6 +2,7 @@
 .Rhistory
 .RData
 .Rproj.user
+.vscode
 
 #folders to ignore
 workspace
