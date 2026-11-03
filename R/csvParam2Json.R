@@ -532,6 +532,7 @@ checkCSV <- function(filename) {
 #' @param infile the input CSV file
 #' @param outfile the output JSON file. Defaults to parameters.json in the same directory
 #' @return NULL. Results are written to file.
+#' @inheritParams validateParameters
 #' @export
 csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",infile),srOverride=FALSE) {
 
@@ -773,6 +774,7 @@ csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",infile),
 #'
 #' @param filename the input CSV file
 #' @return the parameter object, as a list of lists
+#' @inheritParams validateParameters
 #' @export
 parseParameters <- function(filename,srOverride=FALSE) { 
 

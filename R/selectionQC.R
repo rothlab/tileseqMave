@@ -23,6 +23,7 @@
 #' @param outDir output directory, defaults to name of input directory with _QC tag attached.
 #' @param paramFile input parameter file. defaults to <dataDir>/parameters.json
 #' @return NULL. Results are written to file.
+#' @inheritParams validateParameters
 #' @export
 selectionQC <- function(dataDir,countDir=NA, scoreDir=NA, outDir=NA, 
                         paramFile=paste0(dataDir,"parameters.json"),
@@ -857,6 +858,7 @@ regularizationQC <- function(scores,modelParams,params,sCond,tp,outDir) {
 #' @param tp the time point
 #' @param outDir the output directory
 #' @return NULL
+#' @inheritParams validateParameters
 #' @noRd
 scoreDistributions <- function(scores,sCond,tp,outDir,params,srOverride) {
   
@@ -1148,6 +1150,7 @@ errorProfile <- function(scores,sCond,tp,outDir,params) {
 #' @param params parameter sheet object
 #' @param outdir output directory
 #' @return nothing. writes plots to output directory
+#' @inheritParams validateParameters
 #' @noRd
 codonAgreement <- function(scores,sCond,tp,params,outDir,srOverride) {
   codonGroups <- tapply(1:nrow(scores),scores$hgvsp,c)
@@ -1241,6 +1244,7 @@ findRuns <- function(bools) {
 #' @param params the parameter sheet object
 #' @param outDir the output directory
 #' @return nothing, writes plot to output directory
+#' @inheritParams validateParameters
 #' @noRd 
 synNonDelta <- function(scores,sCond,tp,params,outDir,srOverride){
   scores$pos <- as.integer(gsub("\\D+","",scores$aaChange))
