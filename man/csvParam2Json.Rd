@@ -14,6 +14,8 @@ csvParam2Json(
 \item{infile}{the input CSV file}
 
 \item{outfile}{the output JSON file. Defaults to parameters.json in the same directory}
+
+\item{srOverride}{single replicate override - allows single replicates}
 }
 \value{
 NULL. Results are written to file.
