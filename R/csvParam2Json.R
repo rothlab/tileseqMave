@@ -532,6 +532,7 @@ checkCSV <- function(filename) {
 #' @param infile the input CSV file
 #' @param outfile the output JSON file. Defaults to parameters.json in the same directory
 #' @return NULL. Results are written to file.
+#' @inheritParams validateParameters
 #' @export
 csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",infile),srOverride=FALSE) {
 
@@ -773,6 +774,7 @@ csvParam2Json <- function(infile,outfile=sub("[^/]+$","parameters.json",infile),
 #'
 #' @param filename the input CSV file
 #' @return the parameter object, as a list of lists
+#' @inheritParams validateParameters
 #' @export
 parseParameters <- function(filename,srOverride=FALSE) { 
 
@@ -947,7 +949,7 @@ parseParameters <- function(filename,srOverride=FALSE) {
 #'
 #' Given the parameter object returns a list of vectors containing the tile IDs for each region ID
 #'
-#' @param param the parameter object
+#' @param params the parameter object
 #' @return a  list of vectors containing the tile IDs for each region ID
 #' @export
 tilesInRegions <- function(params) {
@@ -968,7 +970,7 @@ tilesInRegions <- function(params) {
 #' Given a parameter object containing a coding sequence, this function will calculate a table
 #' of all SNV-reachable amino acid changes, detailing which codon changes correspond to each.
 #'
-#' @param param the parameter object
+#' @param params the parameter object
 #' @return a data.frame containing wt and mutant codons as well as wt and mutant AAs for all possible SNVs
 #' @export
 reachableChanges <- function(params) {
@@ -1008,7 +1010,7 @@ reachableChanges <- function(params) {
 
 #' Convenience function get all selective conditions
 #'
-#' @param param the parameter object
+#' @param params the parameter object
 #' @return the list of selective conditions
 #' @export
 getSelects <- function(params) {
@@ -1021,7 +1023,7 @@ getSelects <- function(params) {
 
 #' Convenience function get all non-selective conditions
 #'
-#' @param param the parameter object
+#' @param params the parameter object
 #' @return the list of non-selective conditions
 #' @export
 getNonselects <- function(params) {
@@ -1035,7 +1037,7 @@ getNonselects <- function(params) {
 #' Convenience function get the matching non-selective condition for the given input condition
 #'
 #' @param cond the input condition
-#' @param param the parameter object
+#' @param params the parameter object
 #' @return the list of matching non-selective conditions
 #' @export
 getNonselectFor <- function(cond,params) {
@@ -1049,7 +1051,7 @@ getNonselectFor <- function(cond,params) {
 #' Convenience function get the matching WT control condition for the given input condition
 #'
 #' @param cond the input condition
-#' @param param the parameter object
+#' @param params the parameter object
 #' @return the list of matching WT control conditions
 #' @export
 getWTControlFor <- function(cond,params) {
@@ -1063,7 +1065,7 @@ getWTControlFor <- function(cond,params) {
 #' Convenience function get the available time points for the given input condition
 #'
 #' @param cond the input condition
-#' @param param the parameter object
+#' @param params the parameter object
 #' @return the list of available time points
 #' @export
 getTimepointsFor <- function(cond,params) {

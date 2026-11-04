@@ -9,7 +9,7 @@ getTimepointsFor(cond, params)
 \arguments{
 \item{cond}{the input condition}
 
-\item{param}{the parameter object}
+\item{params}{the parameter object}
 }
 \value{
 the list of available time points

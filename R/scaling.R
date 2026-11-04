@@ -23,7 +23,17 @@
 #' @param paramFile input parameter file. defaults to <dataDir>/parameters.json
 #' @param srOverride single replicate override
 #' @param bnOverride bottleneck filter override
-#' @return NULL. Results are written to file.
+#' @param autoPivot if TRUE, the scaling pivots are determined automatically from the data.
+#'   Otherwise they must be defined in the parameter sheet, which is checked before running.
+#' @param useSimpleAverages if TRUE, amino acid scores are computed as simple (unweighted)
+#'   averages of the codon-level scores, instead of weighting them by their errors.
+#' @param codonQuorum the quorum mode used when combining codon-level scores into amino acid
+#'   scores: one of "off" (the default), "simple" or "harsh". With "simple" or "harsh", when
+#'   more than two usable codon-level scores exist, those that deviate from their median by
+#'   more than the allowed ratio (the \code{cvDeviation} parameter) are discarded. "harsh"
+#'   additionally drops amino acid changes with fewer than two usable codon-level scores, or
+#'   with exactly two whose ratio falls outside the allowed range.
+#' @return NULL. Results are written to file.s
 #' @export
 scaleScores <- function(dataDir, scoreDir=NA, outDir=NA, 
                         paramFile=paste0(dataDir,"parameters.json"),
@@ -288,7 +298,12 @@ slide <- function(xs,x0,y0,x1,y1,s0,s1) {
 #'
 #' @param values underlying datapoints
 #' @param errors the error associated with each datapoint
-#'
+#' @param mirror if TRUE, x-values above \code{wtX} are reflected around \code{wtX}
+#'   (x becomes 2*wtX - x) before the error model is evaluated.
+#' @param wtX the score corresponding to wild-type behavior, which limits where the
+#'   error model is fitted (only values up to \code{wtX} are used). Defaults to 0.
+#' @param intervalWidth the half-width of the window (on the score axis) used to group
+#'   values when computing the running median of the errors. Defaults to 0.1.
 #' @return a list containing (i) a model function that maps data point magnitude to 
 #'   expected error; (ii) the model parameters; and (iii) the a running median error across 
 #'   the provided value range.
@@ -343,6 +358,7 @@ expectedError <- function(values,errors,mirror=FALSE,wtX=0,intervalWidth=0.1) {
 #' @param errors the error associated with each datapoint
 #'
 #' @return the residual error vector
+#' @inheritParams expectedError
 #' @export
 residualError <- function(values, errors, mirror=FALSE, wtX=0) {
   
@@ -408,6 +424,11 @@ checkPivots <- function(params) {
 #' @param msc data.frame containing the enrichment ratios (phi) and log(phi)
 #' @param aac the vector of corresponding amino acid changes
 #' @param sdThreshold stdev threshold for finding the syn/stop means
+#' @param overrides a named numeric vector with elements \code{syn} and \code{non}.
+#'   Where not NA, these values are used as the synonymous and nonsense scaling pivots
+#'   instead of the medians observed in the data. Defaults to NA for both.
+#' @param lastFuncPos the last functional amino acid position. Variants after this
+#'   position are excluded when determining the pivots. Defaults to Inf (no restriction).
 #' @return data.frame with variant type, score and stdev
 #' @export
 enactScale <- function(msc,aac,sdThreshold,
@@ -573,7 +594,8 @@ join.datapoints <- function(ms,sds,dfs,ws=(1/sds)/sum(1/sds)) {
 #' @param sCond the current selective condition
 #' @param scoreCol the name of the column containing the scores
 #' @param seCol the name of the column containing the stderr
-#' @param sdOverride the sdOverride flag
+#' @param srOverride the srOverride flag
+#' @param bnOverride the bnOverride flag
 #' @return a \code{data.frame} containing the collapsed score table
 #' @export
 collapseByAA <- function(scoreTable,params,sCond,scoreCol="score",seCol="score.se",srOverride=FALSE,bnOverride=FALSE) {

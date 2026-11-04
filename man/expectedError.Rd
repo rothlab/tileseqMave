@@ -10,6 +10,15 @@ expectedError(values, errors, mirror = FALSE, wtX = 0, intervalWidth = 0.1)
 \item{values}{underlying datapoints}
 
 \item{errors}{the error associated with each datapoint}
+
+\item{mirror}{if TRUE, x-values above \code{wtX} are reflected around \code{wtX}
+(x becomes 2*wtX - x) before the error model is evaluated.}
+
+\item{wtX}{the score corresponding to wild-type behavior, which limits where the
+error model is fitted (only values up to \code{wtX} are used). Defaults to 0.}
+
+\item{intervalWidth}{the half-width of the window (on the score axis) used to group
+values when computing the running median of the errors. Defaults to 0.1.}
 }
 \value{
 a list containing (i) a model function that maps data point magnitude to 

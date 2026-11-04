@@ -33,7 +33,28 @@ calcEnrichment(
 
 \item{srOverride}{single replicate override}
 
-\item{bnOverride}{bottleneck filter override}
+\item{bnOverride}{deprecated and ignored; use the flag in scaleScores instead}
+
+\item{bcOverride}{override flag for the bias correction. If TRUE, the bias
+correction step is skipped (a warning is logged).}
+
+\item{useWTfilter}{if TRUE, enables the wild-type excess filter, which filters out
+data points with abnormally high wild-type levels (relative to the spread of the
+wild-type frequencies observed across the data).}
+
+\item{nbs}{number of bootstrap samples used to estimate the uncertainty of the logPhi
+values. Must be at least 100, or 0 to disable bootstrapping, in which case heuristic
+error propagation is used instead. Defaults to 1e4.}
+
+\item{pessimistic}{if TRUE (the default), the regularization uses the "pessimistic"
+(maximum) standard deviation estimate; otherwise the "optimistic" mode is used.}
+
+\item{useQuorum}{if TRUE, replicates whose frequency deviates from the median of the
+replicates by more than the allowed factor are excluded before averaging. This only
+applies where three or more replicates are available.}
+
+\item{useLPDfilter}{if TRUE, enables an additional filter based on an ad hoc estimate
+of the logPhi standard deviation, using the \code{lpdCutoff} from the parameter sheet.}
 }
 \value{
 NULL. Results are written to file.

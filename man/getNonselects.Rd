@@ -7,7 +7,7 @@
 getNonselects(params)
 }
 \arguments{
-\item{param}{the parameter object}
+\item{params}{the parameter object}
 }
 \value{
 the list of non-selective conditions

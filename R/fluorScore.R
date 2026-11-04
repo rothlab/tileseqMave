@@ -21,6 +21,7 @@
 #' @param conditionOrder vector containting the order in which the conditions represent fluorescence bins
 #' @param paramFile input parameter file. defaults to <dataDir>/parameters.json
 #' @return NULL. Results are written to file.
+#' @inheritParams validateParameters
 #' @export
 fluorScore <- function(dataDir,conditionOrder,paramFile=paste0(dataDir,"parameters.json"),srOverride=FALSE) {
 

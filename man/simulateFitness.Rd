@@ -11,9 +11,16 @@ simulateFitness(params, pool, fitBias = 0, fitSpread = 4)
 
 \item{pool}{the output of simulatePool()}
 
-\item{lofFreq}{the frequency of loss-of-function effects to simulate}
+\item{fitBias}{the mean of the normal distribution (before logistic
+transformation) from which random amino acid fitness effects are drawn}
 
-\item{hypoFreq}{the frequency of hypomorphic effects to simulate}
+\item{fitSpread}{the standard deviation of that normal distribution}
+}
+\value{
+a list with two elements: \code{allAAChanges}, a data frame of all
+  possible amino acid changes with their true fitness effects, and
+  \code{calcTrueFitness}, a function that returns the true fitness of clones
+  given their genotype strings (codon changes joined by "|", or "WT").
 }
 \description{
 This function generates assay fitness values for clones and their variants.

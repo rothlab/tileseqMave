@@ -10,6 +10,12 @@ residualError(values, errors, mirror = FALSE, wtX = 0)
 \item{values}{vector of underlying datapoints}
 
 \item{errors}{the error associated with each datapoint}
+
+\item{mirror}{if TRUE, x-values above \code{wtX} are reflected around \code{wtX}
+(x becomes 2*wtX - x) before the error model is evaluated.}
+
+\item{wtX}{the score corresponding to wild-type behavior, which limits where the
+error model is fitted (only values up to \code{wtX} are used). Defaults to 0.}
 }
 \value{
 the residual error vector

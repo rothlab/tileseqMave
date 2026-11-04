@@ -17,6 +17,10 @@ exportSeqSample(reads, name, outdir, params, hgvsb = new.hgvs.builder.c())
 
 \item{hgvsb}{a (coding sequence) HGVS builder object}
 }
+\value{
+nothing. This function is called for its side effect of writing the file
+  \code{counts_sample_<name>.csv} to \code{outdir}.
+}
 \description{
 Export count data to file
 }
