@@ -26,7 +26,22 @@
 #' @param paramFile input parameter file. defaults to <dataDir>/parameters.json
 #' @param mc.cores number of CPU cores to use in parallel
 #' @param srOverride single replicate override
-#' @param bnOverride bottleneck filter override
+#' @param bnOverride deprecated and ignored; use the flag in scaleScores instead
+#' @param bcOverride override flag for the bias correction. If TRUE, the bias
+#'   correction step is skipped (a warning is logged).
+#' @param useWTfilter if TRUE, enables the wild-type excess filter, which filters out
+#'   data points with abnormally high wild-type levels (relative to the spread of the
+#'   wild-type frequencies observed across the data).
+#' @param nbs number of bootstrap samples used to estimate the uncertainty of the logPhi
+#'   values. Must be at least 100, or 0 to disable bootstrapping, in which case heuristic
+#'   error propagation is used instead. Defaults to 1e4.
+#' @param pessimistic if TRUE (the default), the regularization uses the "pessimistic"
+#'   (maximum) standard deviation estimate; otherwise the "optimistic" mode is used.
+#' @param useQuorum if TRUE, replicates whose frequency deviates from the median of the
+#'   replicates by more than the allowed factor are excluded before averaging. This only
+#'   applies where three or more replicates are available.
+#' @param useLPDfilter if TRUE, enables an additional filter based on an ad hoc estimate
+#'   of the logPhi standard deviation, using the \code{lpdCutoff} from the parameter sheet.
 #' @return NULL. Results are written to file.
 #' @export
 calcEnrichment <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"parameters.json"),

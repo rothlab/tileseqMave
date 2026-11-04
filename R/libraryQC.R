@@ -28,7 +28,8 @@
 #'   at which variants are considered well-measured. Defaults to 5e-5, which roughly 
 #'   corresponds to the outdated definition in the legacy pipeline.
 #' @param allCondOverride override flag to run on ALL conditions instead of just the nonselect
-#' 
+#' @param depthFilterOverride override flag to skip filtering out variants at
+#'   insufficient sequencing depth (underpowered variants), even if a coverage table is available
 #' @return NULL. Results are written to file.
 #' @export
 libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"parameters.json"),

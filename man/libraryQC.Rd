@@ -35,6 +35,9 @@ at which variants are considered well-measured. Defaults to 5e-5, which roughly
 corresponds to the outdated definition in the legacy pipeline.}
 
 \item{allCondOverride}{override flag to run on ALL conditions instead of just the nonselect}
+
+\item{depthFilterOverride}{override flag to skip filtering out variants at
+insufficient sequencing depth (underpowered variants), even if a coverage table is available}
 }
 \value{
 NULL. Results are written to file.

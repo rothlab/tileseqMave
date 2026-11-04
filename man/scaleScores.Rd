@@ -28,9 +28,22 @@ scaleScores(
 \item{srOverride}{single replicate override}
 
 \item{bnOverride}{bottleneck filter override}
+
+\item{autoPivot}{if TRUE, the scaling pivots are determined automatically from the data.
+Otherwise they must be defined in the parameter sheet, which is checked before running.}
+
+\item{useSimpleAverages}{if TRUE, amino acid scores are computed as simple (unweighted)
+averages of the codon-level scores, instead of weighting them by their errors.}
+
+\item{codonQuorum}{the quorum mode used when combining codon-level scores into amino acid
+scores: one of "off" (the default), "simple" or "harsh". With "simple" or "harsh", when
+more than two usable codon-level scores exist, those that deviate from their median by
+more than the allowed ratio (the \code{cvDeviation} parameter) are discarded. "harsh"
+additionally drops amino acid changes with fewer than two usable codon-level scores, or
+with exactly two whose ratio falls outside the allowed range.}
 }
 \value{
-NULL. Results are written to file.
+NULL. Results are written to file.s
 }
 \description{
 perform scaling of logPhi into final scores

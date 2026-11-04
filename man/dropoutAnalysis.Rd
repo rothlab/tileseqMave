@@ -23,6 +23,9 @@ dropoutAnalysis(
 \item{paramFile}{input parameter file. defaults to <dataDir>/parameters.json}
 
 \item{srOverride}{single replicate override (use with caution)}
+
+\item{tile}{optional tile number. If given (and numeric), the analysis is restricted
+to variants in that tile. Defaults to NA, which analyzes all tiles.}
 }
 \value{
 NULL. Results are written to file.
