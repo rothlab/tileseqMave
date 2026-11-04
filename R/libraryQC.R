@@ -980,7 +980,8 @@ plotReplicateCorrelation <- function(params, nsReps, info, marginalCounts, margi
 #' @param info list containing details on condition (nscond), timepoint (tp), 
 #' pdftag and outdir
 #' @param params parameter sheet object
-#' @param wtCond 
+#' @param wtCond the name of the wild-type control condition matched to the condition
+#'   in \code{info} (see \code{\link{getWTControlFor}})
 #'
 #' @return vector of strings with corresponding WT replicates 
 #' @export
