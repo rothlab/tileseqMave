@@ -40,3 +40,6 @@ ignore_unused_imports <- function() {
   # The script needs updating before TmCalculator is genuinely usable here.
   TmCalculator::tm_nn
 }
+
+# 'x' is the expression variable of curve() in errorProfile(); R CMD check cannot see that.
+utils::globalVariables("x")

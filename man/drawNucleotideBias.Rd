@@ -4,7 +4,7 @@
 \alias{drawNucleotideBias}
 \title{Draw Nucleotide Bias Analysis plots}
 \usage{
-drawNucleotideBias(info, params, simplifiedMarginal, tile)
+drawNucleotideBias(info, params, simplifiedMarginal, tile = NULL)
 }
 \arguments{
 \item{info}{list containing details on condition (nscond), timepoint (tp), 
@@ -14,7 +14,7 @@ pdftag and outdir}
 
 \item{simplifiedMarginal}{simplified marginal frequency table}
 
-\item{tile}{the tile number being analyzed}
+\item{tile}{unused; kept for backward compatibility (the tiles are taken from \code{params})}
 }
 \description{
 Draw Nucleotide Bias Analysis plots
