@@ -28,7 +28,7 @@ TileSeqMave constitutes the second half of the TileSeq Pipeline. The first half 
 
 Finally, some of the modular components within tileseqMave also rely on other (optional) dependencies. Namely, to condense QC reports into single PDFs, `ghostscript` needs to be installed; to conveniently draw a heatmap of the variant effect maps for the score sets calculated by tileseqMave, the [`mavevis`](https://github.com/VariantEffect/mavevis) package would need to be installed;  the LLR and precision-recall scripts (`calcLLR.R`,
 `prcNormalize.R`, `drawPRC.R`) need the `yogiroc` package; `referenceSets.R`
-needs `httr`; and the alignment helper `runAlignments()` needs `bowtie2`
+needs `httr`; and `mutcount.sh` needs `bowtie2`
 (`bowtie2` and `bowtie2-build`). But these functionalities are optional.
 
 For the following instructions, you will need a basic familiarity with the Unix command line.
@@ -43,7 +43,7 @@ Before installing, make sure the following are available on your system:
   already compile R packages, you probably have them. On Debian/Ubuntu they
   come from `build-essential` and `zlib1g-dev`.
 - **Optional:** `ghostscript` (to condense QC reports into single PDFs) and
-  `bowtie2` (for `runAlignments()`).
+  `bowtie2` (for `inst/scripts/mutcount.sh`).
 
 Load your site's R, compiler, ghostscript and
 bowtie2 modules if needed (module names vary by cluster).
@@ -104,7 +104,7 @@ remotes::install_deps(dependencies = TRUE, upgrade = "never")
 - **Bioconductor** (required by TmCalculator): BiocGenerics, Biostrings,
   GenomeInfoDb, GenomicRanges, BiocParallel, IRanges, S4Vectors
 - **GitHub** (resolved automatically): hgvsParseR, yogitools (>= 0.1.1),
-  yogilog, yogiseq
+  yogilog
 - **Optional, from GitHub:** mavevis (>= 0.1.4), maveLLR, yogiroc
 - **Optional, from CRAN:** httr, remotes, sn, testthat
 
