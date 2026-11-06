@@ -26,7 +26,6 @@ Imports:
     TmCalculator,
     utils,
     yogilog,
-    yogiseq,
     yogitools (>= 0.1.1)
 Suggests: 
     httr,
@@ -40,9 +39,8 @@ Remotes:
     github::jweile/maveLLR,
     github::jweile/yogilog,
     github::jweile/yogiroc,
-    github::jweile/yogiseq,
     github::jweile/yogitools,
     github::VariantEffect/hgvsParseR@7a3a5c81ac0037a4514225924aa108d663b1fb90,
     github::VariantEffect/mavevis@ae05dce69ad71dcf43aa9e5752c4336508ea483f
 RoxygenNote: 7.2.0
-SystemRequirements: Ghostscript (gs), Bowtie2 (bowtie2, bowtie2-build; used by runAlignments)
+SystemRequirements: Ghostscript (gs), Bowtie2 (bowtie2, bowtie2-build; used by inst/scripts/mutcount.sh)
