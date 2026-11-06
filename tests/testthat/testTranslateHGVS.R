@@ -97,3 +97,7 @@ test_that("translation works", {
 
 })
 
+
+# hgvsParseR::translateHGVS() calls data(trtable), which copies trtable into the global
+# environment. Remove the copy so later tests and later runs in the same session start clean.
+if (exists("trtable", envir = globalenv(), inherits = FALSE)) rm("trtable", envir = globalenv())
