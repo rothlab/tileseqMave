@@ -39,8 +39,6 @@ simulatePool <- function(params,poolCV=0.2,poolLambda=1) {
   allCodons <- apply(do.call(expand.grid,
     replicate(3,yogitools::toChars("ACGT"),simplify=FALSE)
   ),1,paste,collapse="")
-  #import translation table
-  data(trtable)
   #generate all possible codon changes
   allCodonChanges <- do.call(rbind,lapply(2:params$template$proteinLength,function(pos) {
     from <- params$template$cdsCodons[[pos]]
@@ -135,8 +133,6 @@ simulateFitness <- function(params,pool,fitBias=0,fitSpread=4) {
   # }))
   
   calcTrueFitness <- function(codonChanges) {
-    #import translation table
-    data(trtable)
     sapply(strsplit(codonChanges,"\\|"), function(ccs) {
       if (length(ccs)==1 && ccs=="WT") return (1)
       # from <- substr(ccs,1,3)

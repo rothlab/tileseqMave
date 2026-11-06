@@ -836,7 +836,6 @@ parseParameters <- function(filename,srOverride=FALSE) {
   codons <- sapply(seq(1,cdsLength,3),function(i) substr(cdsSeq,i,i+2))
   
   #translate to protein sequence
-  data(trtable)
   # proteinSeq <- sapply(seq(1,cdsLength,3),function(pos) trtable[[substr(cdsSeq,pos,pos+2)]])
   proteinSeq <- sapply(codons,function(cd) trtable[[cd]])
   proteinLength <- length(proteinSeq)
@@ -974,7 +973,6 @@ tilesInRegions <- function(params) {
 #' @return a data.frame containing wt and mutant codons as well as wt and mutant AAs for all possible SNVs
 #' @export
 reachableChanges <- function(params) {
-  data(trtable)
   hgvsp <- new.hgvs.builder.p(aacode=3)
   codons <- sapply(
     seq(1,params$template$cdsLength,3),

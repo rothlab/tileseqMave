@@ -358,8 +358,6 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
       # COVERAGE MAP -------------------------------------------------------------
       
       logInfo("Building coverage map.")
-      #load translation table
-      data(trtable)
       #translate marginals and join by translation
       aaMarginal <- simplifiedMarginal[with(simplifiedMarginal,which(!is.na(pos) & nchar(to)==3)),]
       aaMarginal$toaa <- sapply(aaMarginal$to,function(codon)trtable[[codon]])
