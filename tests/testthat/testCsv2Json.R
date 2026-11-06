@@ -56,3 +56,16 @@ test_that(
     )
   }
 )
+
+test_that("parseParameters and reachableChanges find trtable and do not leak it", {
+  skipIfTrtableInGlobalEnv()
+  expect_false(callsDataTrtable("parseParameters"))
+  expect_false(callsDataTrtable("reachableChanges"))
+
+  params <- parseParameters(testParamFile())
+  expect_true(is.list(params))
+  changes <- reachableChanges(params)
+  expect_false(is.null(changes))
+
+  expect_false(exists("trtable", envir = globalenv(), inherits = FALSE))
+})
