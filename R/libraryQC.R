@@ -308,7 +308,7 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
       # NUCL BIAS ANALYSIS -------------------------------------------
       
       logInfo("Checking nucleotide distribution")
-      drawNucleotideBias(info, params, simplifiedMarginal, tile)
+      drawNucleotideBias(info, params, simplifiedMarginal)
       
       #calculate global filters that can be combined with tile-specific filters below
       isFrameshift <- grepl("fs$",allCounts$aaChanges)
@@ -1291,12 +1291,12 @@ nucleotideBiasAnalysis <- function(simplifiedMarginal,tile,draw=TRUE) {
 #' pdftag and outdir
 #' @param params parameter sheet object 
 #' @param simplifiedMarginal simplified marginal frequency table
-#' @param tile the tile number being analyzed
+#' @param tile unused; kept for backward compatibility (the tiles are taken from \code{params})
 #' 
 #' @return NULL
 #' @export
 #' 
-drawNucleotideBias <- function(info, params, simplifiedMarginal,tile){
+drawNucleotideBias <- function(info, params, simplifiedMarginal,tile = NULL){
   pdf(paste0(info$outDir,info$nsCond,"_t",info$tp,"_nucleotide_bias.pdf"),8.5,11)
   opar <- par(mfrow=c(6,1),oma=c(2,2,2,2))
   #set up pdf tagger
