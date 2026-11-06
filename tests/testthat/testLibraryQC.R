@@ -46,3 +46,23 @@ test_that("drawNucleotideBias does not depend on its tile argument", {
   graphics.off()
   unlink(base, recursive = TRUE)
 })
+
+test_that("mut_breakdown never evaluates its freq/fromaa/toaa/to arguments", {
+  sm <- data.frame(
+    tile   = rep(1, 5),
+    freq   = c(0.10, 0.02, 0.30, 0.05, 0.40),
+    toaa   = c("fs", "ins", "*", "G", "A"),
+    fromaa = c("K", "K", "L", "G", "S"),
+    to     = c("A", "AAAAAA", "TAA", "GGT", "GCT"),
+    stringsAsFactors = FALSE
+  )
+  expected <- c(fs = 0.10, indel = 0.02, stop = 0.30, syn = 0.05, mis = 0.40)
+  res <- mut_breakdown(1, sm,
+                       freq   = stop("freq was evaluated"),
+                       fromaa = stop("fromaa was evaluated"),
+                       toaa   = stop("toaa was evaluated"),
+                       to     = stop("to was evaluated"))
+  expect_equal(res, expected)
+  expect_equal(mut_breakdown(1, sm), expected)
+  expect_true(all(is.na(mut_breakdown(2, sm))))   # a tile without data
+})

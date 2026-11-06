@@ -480,11 +480,7 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
                                           function(codon) if (is.na(codon)) "" else trtable[[codon]]
       )
       mutbreakdown <- do.call(cbind,lapply(params$tiles[,1], mut_breakdown, 
-                                           simplifiedMarginal=simplifiedMarginal,
-                                           freq=freq, 
-                                           fromaa=fromaa, 
-                                           toaa=toaa, 
-                                           to=to))
+                                           simplifiedMarginal=simplifiedMarginal,))
       colnames(mutbreakdown) <- params$tiles[,1]
       
       plotMutbreakdown(info, mutbreakdown)
