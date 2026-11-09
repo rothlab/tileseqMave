@@ -490,6 +490,7 @@ ratio.sd <- function(m1,m2,sd1,sd2,cov12=0) {
 #' @param m1 the mean of the random variable
 #' @param sd1 the standard deviation of the RV
 #' @param base the logarithm base (default 10)
+#' @exportS3Method NULL
 log.sd <- function(m1,sd1,base=10) {
   abs(sd1/(m1*log(base)))
 }
@@ -518,9 +519,11 @@ bnl <- function(pseudo.n,n,model.sd,empiric.sd) {
 #'
 #' @param cond the names of the condition (e.g. select, nonselect)
 #' @param regionalCounts the region-specific subset of the marginal counts dataframe
+#' @param regionalDrops the region-specific subset of the relative depth drops table
 #' @param tp the time point ID
 #' @param params the global parameters object
 #' @noRd
+#' @exportS3Method NULL
 mean.sd.count <- function(cond,regionalCounts,regionalDrops,tp,params) {
   
   #detect dummy conditions (when no WT control exists)
