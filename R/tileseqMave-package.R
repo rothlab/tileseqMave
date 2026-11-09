@@ -1,3 +1,6 @@
+# NAMESPACE and man/*.Rd are generated: edit the roxygen comments, then run
+# roxygen2::roxygenise() with roxygen2 >= 8.1.0 (see Config/roxygen2/version).
+
 # Package-level imports for tileseqMave.
 #
 # All NAMESPACE import directives are generated from the roxygen tags in this
