@@ -1554,7 +1554,7 @@ drawCoverageMap <- function(params, info, aaMarginal, wmThreshold, tilesPerRegio
 #'
 #' @param ri region index
 #' @param tpr number of tiles per row
-#' @param tileSets 
+#' @param tileSets a list of vectors of tile numbers, one vector per row of the layout
 #' @param lastTile number of the last tile in region
 #' 
 #' @return table that indicates the grid positions of plots for region in order of drawing
