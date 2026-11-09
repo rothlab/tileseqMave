@@ -28,17 +28,14 @@
 #'   at which variants are considered well-measured. Defaults to 5e-5, which roughly 
 #'   corresponds to the outdated definition in the legacy pipeline.
 #' @param allCondOverride override flag to run on ALL conditions instead of just the nonselect
-#' 
+#' @param depthFilterOverride override flag to skip filtering out variants at
+#'   insufficient sequencing depth (underpowered variants), even if a coverage table is available
 #' @return NULL. Results are written to file.
 #' @export
 libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"parameters.json"),
                       mc.cores=6,srOverride=FALSE, wmThreshold=5e-5,allCondOverride=FALSE,depthFilterOverride=FALSE) {
   
   op <- options(stringsAsFactors=FALSE)
-  
-  library(yogitools)
-  library(hgvsParseR)
-  library(pbmcapply)
   
   #make sure data and out dir exist and ends with a "/"
   if (!grepl("/$",dataDir)) {
@@ -311,7 +308,7 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
       # NUCL BIAS ANALYSIS -------------------------------------------
       
       logInfo("Checking nucleotide distribution")
-      drawNucleotideBias(info, params, simplifiedMarginal, tile)
+      drawNucleotideBias(info, params, simplifiedMarginal)
       
       #calculate global filters that can be combined with tile-specific filters below
       isFrameshift <- grepl("fs$",allCounts$aaChanges)
@@ -361,8 +358,6 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
       # COVERAGE MAP -------------------------------------------------------------
       
       logInfo("Building coverage map.")
-      #load translation table
-      data(trtable)
       #translate marginals and join by translation
       aaMarginal <- simplifiedMarginal[with(simplifiedMarginal,which(!is.na(pos) & nchar(to)==3)),]
       aaMarginal$toaa <- sapply(aaMarginal$to,function(codon)trtable[[codon]])
@@ -485,11 +480,7 @@ libraryQC <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"param
                                           function(codon) if (is.na(codon)) "" else trtable[[codon]]
       )
       mutbreakdown <- do.call(cbind,lapply(params$tiles[,1], mut_breakdown, 
-                                           simplifiedMarginal=simplifiedMarginal,
-                                           freq=freq, 
-                                           fromaa=fromaa, 
-                                           toaa=toaa, 
-                                           to=to))
+                                           simplifiedMarginal=simplifiedMarginal,))
       colnames(mutbreakdown) <- params$tiles[,1]
       
       plotMutbreakdown(info, mutbreakdown)
@@ -539,7 +530,6 @@ getNsConditions <- function(params, allCondOverride) {
 #' Output alignment quality plot with percentages of unmapped or mismapped reads
 #' per sample    
 #'
-#' @param params parameter sheet object
 #' @param depthTable raw depth table
 #' @param inDir input directory
 #' @param outDir output directory
@@ -809,8 +799,8 @@ calcDepthDrops <- function(xCounts, xTiles, depthTable, mc.cores=6) {
 #' drops in effective sequencing depth
 #'
 #' @param params parameter sheet object
-#' @param info list containing details on condition (nscond), timepoint (tp), 
-#' pdftag and outdir
+#' @param outDir the output directory for the plot
+#' @param pdftag the tag to use for the PDF file name
 #' @param allDepthDrops table listing the relative drop for all variants in 
 #' each condition-time-replicate combination 
 #' 
@@ -984,7 +974,8 @@ plotReplicateCorrelation <- function(params, nsReps, info, marginalCounts, margi
 #' @param info list containing details on condition (nscond), timepoint (tp), 
 #' pdftag and outdir
 #' @param params parameter sheet object
-#' @param wtCond 
+#' @param wtCond the name of the wild-type control condition matched to the condition
+#'   in \code{info} (see \code{\link{getWTControlFor}})
 #'
 #' @return vector of strings with corresponding WT replicates 
 #' @export
@@ -1087,6 +1078,8 @@ buildSimplifiedMarginal <- function(marginalSplitChanges, nsMarginalMeans, nsMar
 
 #' Output jackpot plot with marginal frequencies of all variants in decreasing order
 #'
+#' @param info list containing details on condition (nscond), timepoint (tp), 
+#' pdftag and outdir
 #' @param nsMarginalMeans table with mean marginal frequency across nonselect technical replicates
 #' @param wmThreshold well-measuredness threshold
 #' @param marginalCounts table of marginal counts
@@ -1294,12 +1287,12 @@ nucleotideBiasAnalysis <- function(simplifiedMarginal,tile,draw=TRUE) {
 #' pdftag and outdir
 #' @param params parameter sheet object 
 #' @param simplifiedMarginal simplified marginal frequency table
-#' @param tile the tile number being analyzed
+#' @param tile unused; kept for backward compatibility (the tiles are taken from \code{params})
 #' 
 #' @return NULL
 #' @export
 #' 
-drawNucleotideBias <- function(info, params, simplifiedMarginal,tile){
+drawNucleotideBias <- function(info, params, simplifiedMarginal,tile = NULL){
   pdf(paste0(info$outDir,info$nsCond,"_t",info$tp,"_nucleotide_bias.pdf"),8.5,11)
   opar <- par(mfrow=c(6,1),oma=c(2,2,2,2))
   #set up pdf tagger
@@ -1433,7 +1426,7 @@ regionCensus <- function(ri, tilesPerRegion, tileCensi, tileLambdas, maxChanges,
 #' @param main str, title of plot
 #' 
 #' @return NULL
-#'
+#' @noRd 
 plotCensus <- function(census,lambda,d=NULL,e=NULL,main="") {
   if (is.null(census) || any(is.na(census))) {
     plot.new()
@@ -1561,11 +1554,11 @@ drawCoverageMap <- function(params, info, aaMarginal, wmThreshold, tilesPerRegio
 #'
 #' @param ri region index
 #' @param tpr number of tiles per row
-#' @param tileSets 
+#' @param tileSets a list of vectors of tile numbers, one vector per row of the layout
 #' @param lastTile number of the last tile in region
 #' 
 #' @return table that indicates the grid positions of plots for region in order of drawing
-#' 
+#' @noRd 
 buildPlotMatrix <- function(ri, tpr, tileSets, lastTile){
   bottom <- (ri-1)*5+1
   topRow <- bottom+1:tpr

@@ -28,10 +28,6 @@ legacyCountConverter <- function(dataDir, outdir,
   mut2funcFile=paste0(dataDir,"mut2func_info.csv"), 
   countFolder=paste0(dataDir,"mutationCallfile/"),
   logger=NULL) {
-  
-  library(hgvsParseR)
-  # library(yogilog)
-  library(yogitools)
 
   op <- options(stringsAsFactors=FALSE)
 
@@ -216,10 +212,6 @@ legacyCountConverter <- function(dataDir, outdir,
 #' @export
 analyzeLegacyTileseqCounts <- function(countfile,regionfile,outdir,logger=NULL,
   inverseAssay=FALSE,pseudoObservations=2,conservativeMode=TRUE) {
-
-  library(hgvsParseR)
-  # library(yogilog)
-  library(yogitools)
 
   options(stringsAsFactors=FALSE)
 
@@ -1036,12 +1028,6 @@ libraryQCLegacy <- function(dataDir,outdir,
   mut2funcFile=paste0(dataDir,"mut2func_info.csv"),
   logger=NULL,mc.cores=8) {
 
-  # library(hgvsParseR)
-  # library(yogilog)
-  library(yogitools)
-  library(hash)
-  library(pbmcapply)
-
   options(stringsAsFactors=FALSE)
 
   if (!is.null(logger)) {
@@ -1466,8 +1452,6 @@ libraryQCLegacy <- function(dataDir,outdir,
 
 #legacy converter for mut2func_info
 convertLegacyMut2Func <- function(infile,outfile) {
-
-  library(yogitools)
 
   op <- options(stringsAsFactors=FALSE); on.exit(options(op))
 

@@ -1,20 +1,46 @@
 Package: tileseqMave
-Title: TileSeq MAVE Analysis pipeline
-Version: 1.3.1
-Authors@R: 'Jochen Weile <jochenweile@gmail.com> [aut,cre]'
-Description: Analyze TileSEQ data for Multiplexed Assays of Variant Effect (MAVE)
+Title: TileSeq MAVE Analysis Pipeline
+Version: 1.3.2
+Authors@R: c(
+    person("Jochen", "Weile", email = "jochenweile@gmail.com", role = "aut"),
+    person("Linett", "Medina Calderon", email = "lim315@pitt.edu", role = "cre"))
+Description: Analyzes TileSEQ data for Multiplexed Assays of Variant Effect (MAVE).
 Depends: R (>= 3.6.3)
-License: GPL-3 + file LICENSE.md
+License: GPL-3
 Encoding: UTF-8
 LazyData: true
-Suggests: 
-    testthat, mavevis (>= 0.1.4), maveLLR
 Imports: 
-    rapimave, hgvsParseR, yogitools (>= 0.1.1), yogilog, argparser, 
-    pbmcapply, hash, optimization, bitops, TmCalculator
+    argparser,
+    beeswarm,
+    bitops,
+    graphics,
+    grDevices,
+    hash,
+    hgvsParseR,
+    mclust,
+    optimization,
+    parallel,
+    pbmcapply,
+    RJSONIO,
+    stats,
+    TmCalculator,
+    utils,
+    yogilog,
+    yogitools (>= 0.1.1)
+Suggests: 
+    httr,
+    maveLLR,
+    mavevis (>= 0.1.4),
+    remotes,
+    sn,
+    testthat,
+    yogiroc
 Remotes: 
-    github::VariantEffect/rapimave, github::VariantEffect/hgvsParseR, 
-    github::jweile/yogitools, github::jweile/yogilog, github::VariantEffect/mavevis,
-    github::jweile/maveLLR
-RoxygenNote: 7.2.0
-SystemRequirements: gs
+    github::jweile/maveLLR,
+    github::jweile/yogilog,
+    github::jweile/yogiroc,
+    github::jweile/yogitools,
+    github::VariantEffect/hgvsParseR@7a3a5c81ac0037a4514225924aa108d663b1fb90,
+    github::VariantEffect/mavevis@ae05dce69ad71dcf43aa9e5752c4336508ea483f
+SystemRequirements: Ghostscript (gs), Bowtie2 (bowtie2, bowtie2-build; used by inst/scripts/mutcount.sh)
+Config/roxygen2/version: 8.1.0

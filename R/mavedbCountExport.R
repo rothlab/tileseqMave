@@ -19,13 +19,10 @@
 #'
 #' @param countfile the path to the "rawData.txt" file produced by the legacy pipeline.
 #' @param outdir path to desired output directory
+#' @param logger optional yogilogger object. Defaults to NULL, in which case messages go to stdout.
 #' @return nothing. output is written to various files in the output directory
 #' @export
 mavedbCountExport <-  function(countfile,outdir,logger=NULL) {
-
-  library(hgvsParseR)
-  # library(yogilog)
-  library(yogitools)
 
   options(stringsAsFactors=FALSE)
 

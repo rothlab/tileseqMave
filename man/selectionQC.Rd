@@ -23,6 +23,8 @@ selectionQC(
 \item{outDir}{output directory, defaults to name of input directory with _QC tag attached.}
 
 \item{paramFile}{input parameter file. defaults to <dataDir>/parameters.json}
+
+\item{srOverride}{single replicate override - allows single replicates}
 }
 \value{
 NULL. Results are written to file.

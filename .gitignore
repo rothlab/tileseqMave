@@ -8,6 +8,8 @@
 workspace
 workspace/
 tileseqMave.Rproj
+*.Rcheck/
 
 #file types to ignore
 *.pdf
+*.tar.gz

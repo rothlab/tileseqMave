@@ -12,7 +12,8 @@ pdftag and outdir}
 
 \item{params}{parameter sheet object}
 
-\item{wtCond}{}
+\item{wtCond}{the name of the wild-type control condition matched to the condition
+in \code{info} (see \code{\link{getWTControlFor}})}
 }
 \value{
 vector of strings with corresponding WT replicates

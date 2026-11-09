@@ -22,6 +22,8 @@
 #' @param outDir output directory, defaults to name of input directory with _QC tag attached.
 #' @param paramFile input parameter file. defaults to <dataDir>/parameters.json
 #' @param srOverride single replicate override (use with caution)
+#' @param tile optional tile number. If given (and numeric), the analysis is restricted
+#'   to variants in that tile. Defaults to NA, which analyzes all tiles.
 #' @return NULL. Results are written to file.
 #' @export
 dropoutAnalysis <- function(dataDir,countDir=NA, #scoreDir=NA, 
@@ -30,11 +32,7 @@ dropoutAnalysis <- function(dataDir,countDir=NA, #scoreDir=NA,
                         srOverride=FALSE,tile=NA) {
 
   op <- options(stringsAsFactors=FALSE)
-  
-  library(yogitools)
-  library(hgvsParseR)
-  library(pbmcapply)
-  # library(optimization)
+
   
   #make sure data exists and ends with a "/"
   if (!grepl("/$",dataDir)) {

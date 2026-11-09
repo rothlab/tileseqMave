@@ -21,6 +21,7 @@
 #' @param conditionOrder vector containting the order in which the conditions represent fluorescence bins
 #' @param paramFile input parameter file. defaults to <dataDir>/parameters.json
 #' @return NULL. Results are written to file.
+#' @inheritParams validateParameters
 #' @export
 fluorScore <- function(dataDir,conditionOrder,paramFile=paste0(dataDir,"parameters.json"),srOverride=FALSE) {
 
@@ -28,11 +29,6 @@ fluorScore <- function(dataDir,conditionOrder,paramFile=paste0(dataDir,"paramete
   conditionOrder <- c("F1","F2","F3","F4","F5")
 
   op <- options(stringsAsFactors=FALSE)
-
-  library(yogitools)
-  library(hgvsParseR)
-  library(pbmcapply)
-  library(optimization)
 
   #make sure data and out dir exist and ends with a "/"
   if (!grepl("/$",dataDir)) {
@@ -134,7 +130,6 @@ fluorScore <- function(dataDir,conditionOrder,paramFile=paste0(dataDir,"paramete
   allScores <- allScores[apply(allScores[,-(1:5)],1,function(x)!all(is.na(x))),]
 
   `%~%` <- function(f,g) function(...) f(g(...))
-  library(mclust)
 
   sds <- allScores[,paste0(names(conditionOrder),".logPhi.sd")]
   qualFilter <- apply(sds,1,function(x)all(x < 1))
@@ -324,8 +319,6 @@ fluorScore <- function(dataDir,conditionOrder,paramFile=paste0(dataDir,"paramete
   for (i in which(beniFilter & allScoresFits$logLikeli > -5)) drawFit(i,col="chartreuse3")
   par(op)
   dev.off()
-
-  library(beeswarm)
 
   pdf("prsNrsSlopes.pdf",5,5)
   prsNrsSlopes <- list(

@@ -10,11 +10,12 @@ plotDepthDrops(params, outDir, pdftag, allDepthDrops)
 \arguments{
 \item{params}{parameter sheet object}
 
+\item{outDir}{the output directory for the plot}
+
+\item{pdftag}{the tag to use for the PDF file name}
+
 \item{allDepthDrops}{table listing the relative drop for all variants in 
 each condition-time-replicate combination}
-
-\item{info}{list containing details on condition (nscond), timepoint (tp), 
-pdftag and outdir}
 }
 \description{
 Output depth drop distribution plot showing distribution of relative 

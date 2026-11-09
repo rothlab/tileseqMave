@@ -8,6 +8,8 @@ parseParameters(filename, srOverride = FALSE)
 }
 \arguments{
 \item{filename}{the input CSV file}
+
+\item{srOverride}{single replicate override - allows single replicates}
 }
 \value{
 the parameter object, as a list of lists

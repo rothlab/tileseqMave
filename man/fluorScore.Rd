@@ -17,6 +17,8 @@ fluorScore(
 \item{conditionOrder}{vector containting the order in which the conditions represent fluorescence bins}
 
 \item{paramFile}{input parameter file. defaults to <dataDir>/parameters.json}
+
+\item{srOverride}{single replicate override - allows single replicates}
 }
 \value{
 NULL. Results are written to file.

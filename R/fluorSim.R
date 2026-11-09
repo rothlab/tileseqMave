@@ -1,8 +1,11 @@
 
-flourSim <- function() {
+fluorSim <- function() {
+
+  if (!requireNamespace("sn", quietly = TRUE)) {
+    stop("Package 'sn' is required for fluorSim(). Please install it.")
+  }
 
   options(stringsAsFactors=FALSE)
-  library(sn)
   
   target <- rbind(
     mean=log10(c(WT=123867.23,del1=81996.05,del2=51562.45,pool=114515.45

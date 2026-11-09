@@ -26,7 +26,22 @@
 #' @param paramFile input parameter file. defaults to <dataDir>/parameters.json
 #' @param mc.cores number of CPU cores to use in parallel
 #' @param srOverride single replicate override
-#' @param bnOverride bottleneck filter override
+#' @param bnOverride deprecated and ignored; use the flag in scaleScores instead
+#' @param bcOverride override flag for the bias correction. If TRUE, the bias
+#'   correction step is skipped (a warning is logged).
+#' @param useWTfilter if TRUE, enables the wild-type excess filter, which filters out
+#'   data points with abnormally high wild-type levels (relative to the spread of the
+#'   wild-type frequencies observed across the data).
+#' @param nbs number of bootstrap samples used to estimate the uncertainty of the logPhi
+#'   values. Must be at least 100, or 0 to disable bootstrapping, in which case heuristic
+#'   error propagation is used instead. Defaults to 1e4.
+#' @param pessimistic if TRUE (the default), the regularization uses the "pessimistic"
+#'   (maximum) standard deviation estimate; otherwise the "optimistic" mode is used.
+#' @param useQuorum if TRUE, replicates whose frequency deviates from the median of the
+#'   replicates by more than the allowed factor are excluded before averaging. This only
+#'   applies where three or more replicates are available.
+#' @param useLPDfilter if TRUE, enables an additional filter based on an ad hoc estimate
+#'   of the logPhi standard deviation, using the \code{lpdCutoff} from the parameter sheet.
 #' @return NULL. Results are written to file.
 #' @export
 calcEnrichment <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"parameters.json"),
@@ -34,12 +49,7 @@ calcEnrichment <- function(dataDir,inDir=NA,outDir=NA,paramFile=paste0(dataDir,"
   useQuorum=FALSE,useLPDfilter=FALSE) {
 
   op <- options(stringsAsFactors=FALSE)
-
-  library(yogitools)
-  library(hgvsParseR)
-  library(pbmcapply)
-  library(optimization)
-
+  
   if (nbs != 0) {
     if (nbs < 1e2) {
       stop("Must use at least 100 bootstrap samples!")
@@ -485,6 +495,7 @@ ratio.sd <- function(m1,m2,sd1,sd2,cov12=0) {
 #' @param m1 the mean of the random variable
 #' @param sd1 the standard deviation of the RV
 #' @param base the logarithm base (default 10)
+#' @exportS3Method NULL
 log.sd <- function(m1,sd1,base=10) {
   abs(sd1/(m1*log(base)))
 }
@@ -513,8 +524,11 @@ bnl <- function(pseudo.n,n,model.sd,empiric.sd) {
 #'
 #' @param cond the names of the condition (e.g. select, nonselect)
 #' @param regionalCounts the region-specific subset of the marginal counts dataframe
+#' @param regionalDrops the region-specific subset of the relative depth drops table
 #' @param tp the time point ID
 #' @param params the global parameters object
+#' @noRd
+#' @exportS3Method NULL
 mean.sd.count <- function(cond,regionalCounts,regionalDrops,tp,params) {
   
   #detect dummy conditions (when no WT control exists)
@@ -691,6 +705,7 @@ adhocLogPhiSD <- function(regionalCounts,params,condQuad,tp) {
 #' @param cvm coefficient of variation multiplier. Up to how much more than the 
 #'  expected CV do we accept as normal?
 #' @return a vector listing for each row in the table which (if any) filters apply, otherwise NA.
+#' @noRd
 rawFilter <- function(msc,
   countThreshold,wtq=0.95,cvm=10,srOverride=FALSE,
   useWTfilter=FALSE,lpdCutoff=NA) {
@@ -795,6 +810,7 @@ runModelFits <- function(msc,condNames, tiles, mc.cores) {
 #' 
 #' @param  subcores a subset of the count table (for a given tile)
 #' @return a list containing the model function (mapping counts to expected CV), and the model parameters
+#' @noRd
 fit.cv.model <- function(subscores,cond,noTryCutoff=10) {
   
   #if there is less than "noTryCutoff" counts each, abort the modeling process
@@ -855,6 +871,7 @@ fit.cv.model <- function(subscores,cond,noTryCutoff=10) {
 #'    in the regularization
 #' @return a data.frame containing for each condition the possion prior, bayesian regularized, and
 #'    pessimistic (maximum) standard deviation.
+#' @noRd
 regularizeRaw <- function(msc,condNames,tiles,n,pseudo.n, modelFunctions,pessimistic=TRUE) {
   #index replicates so we can look them up
   names(n) <- condNames

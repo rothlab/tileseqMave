@@ -33,12 +33,6 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,
 
   op <- options(stringsAsFactors=FALSE)
 
-  library(yogitools)
-  library(hash)
-  library(hgvsParseR)
-  library(parallel)
-  library(pbmcapply)
-
   #make sure data and out dir exist and ends with a "/"
   if (!grepl("/$",dataDir)) {
     dataDir <- paste0(dataDir,"/")
@@ -96,7 +90,7 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,
   #find count table files and assign each to its respective sample
   countfiles <- list.files(inDir,pattern="counts_sample_.+\\.csv$",full.names=TRUE)
   if (length(countfiles)==0) {
-    error("No count files found in ",inDir,"! (Are they named correctly?)")
+    stop("No count files found in ",inDir,"! (Are they named correctly?)")
   }
   filesamples <- extract.groups(countfiles,"counts_sample_([^/]+)\\.csv$")[,1]
   sampleTable$countfile <- sapply(as.character(sampleTable$`Sample ID`), function(sid) {
@@ -118,7 +112,7 @@ buildJointTable <- function(dataDir,inDir=NA,outDir=NA,
     #find coverage files and assign each to its respective sample
     covfiles <- list.files(inDir,pattern="coverage_.+\\.csv$",full.names=TRUE)
     if (length(covfiles)==0) {
-      error("No coverage files found in ",inDir,"! (Are they named correctly?)")
+      stop("No coverage files found in ",inDir,"! (Are they named correctly?)")
     }
     filesamples <- extract.groups(covfiles,"coverage_([^/]+)\\.csv$")[,1]
     sampleTable$coveragefile <- sapply(as.character(sampleTable$`Sample ID`), function(sid) {

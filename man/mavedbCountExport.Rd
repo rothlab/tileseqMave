@@ -10,6 +10,8 @@ mavedbCountExport(countfile, outdir, logger = NULL)
 \item{countfile}{the path to the "rawData.txt" file produced by the legacy pipeline.}
 
 \item{outdir}{path to desired output directory}
+
+\item{logger}{optional yogilogger object. Defaults to NULL, in which case messages go to stdout.}
 }
 \value{
 nothing. output is written to various files in the output directory

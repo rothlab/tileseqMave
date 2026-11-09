@@ -18,6 +18,13 @@ enactScale(
 \item{aac}{the vector of corresponding amino acid changes}
 
 \item{sdThreshold}{stdev threshold for finding the syn/stop means}
+
+\item{overrides}{a named numeric vector with elements \code{syn} and \code{non}.
+Where not NA, these values are used as the synonymous and nonsense scaling pivots
+instead of the medians observed in the data. Defaults to NA for both.}
+
+\item{lastFuncPos}{the last functional amino acid position. Variants after this
+position are excluded when determining the pivots. Defaults to Inf (no restriction).}
 }
 \value{
 data.frame with variant type, score and stdev
