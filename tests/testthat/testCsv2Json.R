@@ -98,6 +98,8 @@ test_that("condition-specific time points are preserved when parsing a mixed she
   # the precondition behind the calcEnrichment crash
   expect_true("1" %in% params$timepoints$`Time point name`)
   expect_false("1" %in% getTimepointsFor("select", params))
+})
+
 test_that("parseParameters and reachableChanges find trtable and do not leak it", {
   skipIfTrtableInGlobalEnv()
   expect_false(callsDataTrtable("parseParameters"))
