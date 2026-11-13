@@ -66,3 +66,16 @@ test_that("mut_breakdown never evaluates its freq/fromaa/toaa/to arguments", {
   expect_equal(mut_breakdown(1, sm), expected)
   expect_true(all(is.na(mut_breakdown(2, sm))))   # a tile without data
 })
+
+test_that("analyzeComplexity works without the hash package being attached", {
+  # R >= 4.5 no longer attaches packages when S4 objects are used. On older R an earlier test
+  # may attach hash, in which case this test is skipped.
+  skip_if("package:hash" %in% search(), "hash is attached; cannot test the import")
+  allCounts <- data.frame(codonChanges = c("AAA1AAG", "AAA1AAG|CCC2CCA"))
+  sm <- data.frame(from = c("AAA", "CCC"), pos = c(1L, 2L), to = c("AAG", "CCA"),
+                   freq = c(0.1, 0.2), depth = 1000, tile = 1, stringsAsFactors = FALSE)
+  res <- analyzeComplexity(allCounts, sm)
+  expect_equal(unname(res[, "cplx"]), c(2, 1))
+  expect_equal(unname(res[, "freq"]), c(0.1, 0.2))
+  expect_equal(unname(res[, "tile"]), c(1, 1))
+})
