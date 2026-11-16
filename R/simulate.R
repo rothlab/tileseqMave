@@ -25,7 +25,7 @@
 #'
 #' @param params a parameter sheet to follow (in terms of CDS sequence etc.)
 #' @param poolCV the coefficient of variation for the distribution of marginal frequencies
-#' @param poolLambda the mean of the poisson distribution used to sample the number of 
+#' @param poolLambda the mean of the Poisson distribution used to sample the number of 
 #'   codon-changes per clone
 #'
 #' @return a list with two elements: \code{allCodonChanges}, a data frame of all

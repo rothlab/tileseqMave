@@ -1,8 +1,8 @@
 # tileseqMave
 
-TileSeqMave is a bioinformatics pipeline for processing sequencing data from MAVE experiments based on the TileSeq protocol. For more an introduction and more background on TileSeq and MAVEs see [Weile et al., 2017](http://msb.embopress.org/content/13/12/957) and [Weile & Roth., 2018](https://doi.org/10.1007/s00439-018-1916-x). The pipeline allows for the calculation of fitness scores from sequencing reads and provides a suite of quality control visualizations. 
+tileseqMave is a bioinformatics pipeline for processing sequencing data from MAVE experiments based on the TileSeq protocol. For more an introduction and more background on TileSeq and MAVEs see [Weile et al., 2017](http://msb.embopress.org/content/13/12/957) and [Weile & Roth., 2018](https://doi.org/10.1007/s00439-018-1916-x). The pipeline allows for the calculation of fitness scores from sequencing reads and provides a suite of quality control visualizations. 
 
-TileSeqMave constitutes the second half of the TileSeq Pipeline. The first half is implemented in [`tileseq_mutcount`](https://github.com/rothlab/tileseq_mutcount) and provides alignment and variant calling of TileSeq sequencing reads.
+tileseqMave constitutes the second half of the TileSeq Pipeline. The first half is implemented in [`tileseq_mutcount`](https://github.com/rothlab/tileseq_mutcount) and provides alignment and variant calling of TileSeq sequencing reads.
 
 ## Table of contents
 
@@ -108,7 +108,7 @@ remotes::install_deps(dependencies = TRUE, upgrade = "never")
 - **Optional, from GitHub:** mavevis (>= 0.1.4), maveLLR, yogiroc
 - **Optional, from CRAN:** httr, remotes, sn, testthat
 
-**Important**: To ensure that the TileseqMave suite can be executed easily on the command line, its main executable needs to be available via your `$PATH` variable. The easiest way to achieve this is to symlink them to your preferred `bin/` directory after having installed the package as shown above. For `UNIX` systems, pick a directory that's already on your `$PATH`, for example `~/bin/` or `~/.local/bin/`. For example, if you want to use the latter, you can create your symlinks as follows:
+**Important**: To ensure that the tileseqMave suite can be executed easily on the command line, its main executable needs to be available via your `$PATH` variable. The easiest way to achieve this is to symlink them to your preferred `bin/` directory after having installed the package as shown above. For `UNIX` systems, pick a directory that's already on your `$PATH`, for example `~/bin/` or `~/.local/bin/`. For example, if you want to use the latter, you can create your symlinks as follows:
 
 ```bash
 #determine the repository location
@@ -140,7 +140,7 @@ the package itself.
 
 #### GitHub refuses connection due to rate limiting
 
-If you're attempting to install software from github from a busy location with a shared IP address, such as a university HPC server, it is possible that other users have already exhausted the maximum allowed number of unauthenticated downloads from github that day. To get around this, you can create an account on [github](github.com) and use your account credentials for the download. After creating your account, follow [these instructions](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token) to create a 'personal access token' (PAT). Then, go to your home directory and create file called `.Renviron` (if it doesn't already exist). Add the following line to the file, with your PAT token after the quals sign:
+If you're attempting to install software from GitHub from a busy location with a shared IP address, such as a university HPC server, it is possible that other users have already exhausted the maximum allowed number of unauthenticated downloads from GitHub that day. To get around this, you can create an account on [GitHub](github.com) and use your account credentials for the download. After creating your account, follow [these instructions](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token) to create a 'personal access token' (PAT). Then, go to your home directory and create file called `.Renviron` (if it doesn't already exist). Add the following line to the file, with your PAT token after the quals sign:
 ```bash
 GITHUB_PAT=your_token_here
 ```
@@ -172,14 +172,14 @@ If R was recently upgraded to a newer version on your system, and tileseqMave wa
 
 ## Overview of the pipeline
 
-As part of the greater TileSeq workflow, the TileSEQ pipeline constitutes the last link in the chain. A flowchart of the entire workflow is shown in Figure 1 below. The workflow begins with Illumina sequencing and FASTQ conversion. The FASTQ files are then fed to [`tileseq_mutcount`](https://github.com/rothlab/tileseq_mutcount), which performs the steps highlighted in orange: Reads are aligned to the target sequence template and then a Bayesian method is used to call the most likely true variants. This brings us to TileSeqMave, which performs the steps highlighted in blue. Using the variants called by in the previous step, TileSeqMave translates variant calls into protein-level amino acid changes, tallies them and calculates enrichment between assay conditions, while modeling the magnitude of underlying measurement error. Finally, it also provides a suite of quality control outputs. The workflow uses a standardized parameter sheet which controls the details of the execution across the entire workflow. Both `tileseq_mutcount` and TileseqMave directly use this parameter sheet extensively.
+As part of the greater TileSeq workflow, the TileSeq pipeline constitutes the last link in the chain. A flowchart of the entire workflow is shown in Figure 1 below. The workflow begins with Illumina sequencing and FASTQ conversion. The FASTQ files are then fed to [`tileseq_mutcount`](https://github.com/rothlab/tileseq_mutcount), which performs the steps highlighted in orange: Reads are aligned to the target sequence template and then a Bayesian method is used to call the most likely true variants. This brings us to tileseqMave, which performs the steps highlighted in blue. Using the variants called by in the previous step, tileseqMave translates variant calls into protein-level amino acid changes, tallies them and calculates enrichment between assay conditions, while modeling the magnitude of underlying measurement error. Finally, it also provides a suite of quality control outputs. The workflow uses a standardized parameter sheet which controls the details of the execution across the entire workflow. Both `tileseq_mutcount` and tileseqMave directly use this parameter sheet extensively.
 
 ![Pipeline overview](./doc/pipeline_overview.png)
 
 Figure 1: Overview of the TileSeq workflow. The orange section is covered by `tileseq_mutcount`, while the blue section is covered by tileseqMave.
 
 
-The functions performed by TileSeqMave are organized in a set of discrete modules, which are all accessed via a common umbrella command: `tsm`. The general syntax for running any modules is `tsm <moduleName> [parameters]`; for example `tsm csv2json parameterSheet.csv -o parameters.json`. The detailed parameters for each module are explained in detail in each module's respective section below.  Overall, the following modules are available:
+The functions performed by tileseqMave are organized in a set of discrete modules, which are all accessed via a common umbrella command: `tsm`. The general syntax for running any modules is `tsm <moduleName> [parameters]`; for example `tsm csv2json parameterSheet.csv -o parameters.json`. The detailed parameters for each module are explained in detail in each module's respective section below.  Overall, the following modules are available:
 
 1. csv2json: This component reads and validates the parameter sheet which contains all relevant options and parameters of the experiment to be analyzed.
 2. joinCounts: This module processes the individual sample-specific count files produced by `tileseq_mutcount`. The data is combined into a single table, tabulating the read counts and relative frequencies for each unique variant in each condition and replicate. It also calculates the protein-level consequences of each variant and produces marginal counts and frequencies.
@@ -213,7 +213,7 @@ In addition to these primary modules, there are a number of secondary helper too
 
 ## The parameter sheet
 
-TileseqMave and `tileseq_mutcount` use a common central input document called the parameter sheet, which is designed to capture all relevant aspects of the TileSEQ experiment from which the sequencing data was generated. The parameter sheet is provided as a comma-separated-values (CSV) file, following a strict template. The easiest way to create such a file is to use a spreadsheet editor, such as Google Sheets, LibreOffice or Excel. An example spreadsheet can be found [here](https://docs.google.com/spreadsheets/d/1tIblmIFgOApPNzWN2KUwj8BKzBiJ1pOL7R4AOUGrqvE). From there it can be exported to CSV format and processed using the `csv2json` module which will validate the contained data and convert it into a JSON document, which is used by all downstream modules.
+tileseqMave and `tileseq_mutcount` use a common central input document called the parameter sheet, which is designed to capture all relevant aspects of the TileSeq experiment from which the sequencing data was generated. The parameter sheet is provided as a comma-separated-values (CSV) file, following a strict template. The easiest way to create such a file is to use a spreadsheet editor, such as Google Sheets, LibreOffice or Excel. An example spreadsheet can be found [here](https://docs.google.com/spreadsheets/d/1tIblmIFgOApPNzWN2KUwj8BKzBiJ1pOL7R4AOUGrqvE). From there it can be exported to CSV format and processed using the `csv2json` module which will validate the contained data and convert it into a JSON document, which is used by all downstream modules.
 
 The parameter sheet has the following sections:
 
@@ -310,11 +310,11 @@ optional arguments:
 As you can see, the module allows for a flag called `--srOverride` which enables a compatibility mode with a limited feature set that allows for the processing of data sets with only a single replicate. Using this flag will show a prominent warning message about all the potential problems and side-effects of this mode. To proceed with analyzing such data sets, the flag must also be set during all subsequent analysis steps.
 
 ### Variant calling
-This step is performed by [tileseq_mutcount](https://github.com/rothlab/tileseq_mutcount). Check out the its [github page](https://github.com/rothlab/tileseq_mutcount) for detailed instructions. Executing the variant caller requires a HPC environment. In the Roth Lab, we use the BC2 or DC clusters at the Donnelly Centre or the Galen cluster at the Lunenfeld Tanenbaum Research Institute.
+This step is performed by [`tileseq_mutcount`](https://github.com/rothlab/tileseq_mutcount). Check out the its [GitHub page](https://github.com/rothlab/tileseq_mutcount) for detailed instructions. Executing the variant caller requires a HPC environment. In the Roth Lab, we use the BC2 or DC clusters at the Donnelly Centre or the Galen cluster at the Lunenfeld Tanenbaum Research Institute.
 
-As a first step, you will need want to create a project directory in which the output will be collected. Place your parameter sheet CSV and JSON file for this project inside the folder to ensure all input and output is organized together. Ideally, you will want to name the file `parameters.json`, as this is the assumed default name and will allow you to executed most of the downstream modules without having to specify the parameter file as an argument. Then, run the script following the instruction on the [tileseq_mutcount repository page](https://github.com/rothlab/tileseq_mutcount), using the project directory as the output folder.
+As a first step, you will need want to create a project directory in which the output will be collected. Place your parameter sheet CSV and JSON file for this project inside the folder to ensure all input and output is organized together. Ideally, you will want to name the file `parameters.json`, as this is the assumed default name and will allow you to executed most of the downstream modules without having to specify the parameter file as an argument. Then, run the script following the instruction on the [`tileseq_mutcount` repository page](https://github.com/rothlab/tileseq_mutcount), using the project directory as the output folder.
 
-Among the output of tileseq_mutcount, you will find a subdirectory with a name following the pattern `<tag>_<timestamp>_mut_count/`, where `<timestamp>` indicates the date and time of execution, for example: `mthfr_2020-02-20-11-15-49_mut_count/`. This `*mut_count` subdirectory will serve as the input for the next step. It contains individual count files for each sequencing sample. So you may want to move it to the top level of your project directory.
+Among the output of `tileseq_mutcount`, you will find a subdirectory with a name following the pattern `<tag>_<timestamp>_mut_count/`, where `<timestamp>` indicates the date and time of execution, for example: `mthfr_2020-02-20-11-15-49_mut_count/`. This `*mut_count` subdirectory will serve as the input for the next step. It contains individual count files for each sequencing sample. So you may want to move it to the top level of your project directory.
 
 ### Joining variant counts and computing marginal frequencies
 In this step, we will collate the counts from the individual sequencing samples, organize them by variant and condition/replicate, and translate the called variants to protein level. This step is performed by `joinCounts` module. By default, it will look for the parameter sheet JSON file and the `*mut_count` directory in your current working directory and automatically proceed from there. However the command has a number of arguments that allow for more flexibility:
@@ -325,7 +325,7 @@ usage: tsm joinCounts [--] [--help] [--srOverride] [--covOverride]
        [--output OUTPUT] [--parameters PARAMETERS] [--logfile LOGFILE]
        [--cores CORES]
 
-Reads the output of tileseq_mutcount to construct allCounts.csv and
+Reads the output of `tileseq_mutcount` to construct allCounts.csv and
 marginalCounts.csv
 
 flags:
@@ -357,7 +357,7 @@ Notably, `joinCounts` also has the ``--srOverride`` flag, which allows for limit
 
 The `-c` parameter allows you to specify the number of available CPU cores on your hardware that you are willing to use. This can help speed up the variant translation process, however it also multiplies the consumption of RAM, as each parallel segment will be run using separate process forks. For example, a process that takes 3 hours and 500MB of RAM on a single CPU, would take ~30min and 3GB of RAM when using 6 CPUs. We therefore recommend that you choose this trade-off carefully.
 
-The `--covOverride` provides backwards compatibility with data generated prior to tileseqMut version 0.7. Those earlier versions did not record position-specific sequencing coverage information int the tileseq_mutcount output. Using this flag ignores these records and instead assumes even coverage across each tile.
+The `--covOverride` provides backwards compatibility with data generated prior to tileseqMut version 0.7. Those earlier versions did not record position-specific sequencing coverage information int the `tileseq_mutcount` output. Using this flag ignores these records and instead assumes even coverage across each tile.
 
 After completion, `joinCounts` will have added four new files to the `mut_count` directory: `sampleDepths.csv`, `positionalDepths.csv`, `allCounts.csv` and `marginalCounts.csv`. (`positionalDepths.csv` is not written when `--covOverride` is used.)
 
@@ -641,7 +641,7 @@ All the above files are preceded by headers that list crucial parameters, a link
 
 
 ### Visualizing maps with mavevis
-Mavevis is an optional tool for visualizing heatmaps of variant effect maps. If you have it installed, tileseqMave provides a useful wrapper script to incorporate it into your workflows. However, installing mavevis requires first installing a few additional software tools; namely: [DSSP](https://github.com/cmbi/xssp/releases), [FreeSASA](https://freesasa.github.io/), and [ClustalOmega](http://www.clustal.org/omega/). For example on how to do this on an Ubuntu system with root access, see the [mavevis github page](https://github.com/VariantEffect/mavevis/blob/master/README.md). If you don't have Ubuntu with root access, you'll have to install these tools **manually**.
+Mavevis is an optional tool for visualizing heatmaps of variant effect maps. If you have it installed, tileseqMave provides a useful wrapper script to incorporate it into your workflows. However, installing mavevis requires first installing a few additional software tools; namely: [DSSP](https://github.com/cmbi/xssp/releases), [FreeSASA](https://freesasa.github.io/), and [ClustalOmega](http://www.clustal.org/omega/). For example on how to do this on an Ubuntu system with root access, see the [mavevis GitHub page](https://github.com/VariantEffect/mavevis/blob/master/README.md). If you don't have Ubuntu with root access, you'll have to install these tools **manually**.
 
 Only after having installed these tools, you can install mavevis in R via `remotes::install_github("VariantEffect/mavevis")`.
 
