@@ -13,7 +13,7 @@ bnl(pseudo.n, n, model.sd, empiric.sd)
 
 \item{model.sd}{the prior expectation of the standard deviation}
 
-\item{empiric.sd}{the empircal standard deviation}
+\item{empiric.sd}{the empirical standard deviation}
 }
 \description{
 Baldi & Long's formula

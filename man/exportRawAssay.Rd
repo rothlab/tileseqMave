@@ -16,5 +16,5 @@ nothing
 }
 \description{
 Export the raw number of cells in each assay replicate
-(before tileseq and sequencencing)
+(before tileseq and sequencing)
 }

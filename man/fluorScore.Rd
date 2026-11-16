@@ -14,7 +14,7 @@ fluorScore(
 \arguments{
 \item{dataDir}{working data directory}
 
-\item{conditionOrder}{vector containting the order in which the conditions represent fluorescence bins}
+\item{conditionOrder}{vector containing the order in which the conditions represent fluorescence bins}
 
 \item{paramFile}{input parameter file. defaults to <dataDir>/parameters.json}
 

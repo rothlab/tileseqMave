@@ -2,7 +2,7 @@
 % Please edit documentation in R/enrichment.R
 \name{biasCorrection}
 \alias{biasCorrection}
-\title{Run read-frequecy bias correction on logPhi}
+\title{Run read-frequency bias correction on logPhi}
 \usage{
 biasCorrection(msc, bcOverride = FALSE)
 }
@@ -15,5 +15,5 @@ biasCorrection(msc, bcOverride = FALSE)
 the bias-corrected enrichment (bce) and its stddev
 }
 \description{
-Run read-frequecy bias correction on logPhi
+Run read-frequency bias correction on logPhi
 }

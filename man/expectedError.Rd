@@ -2,7 +2,7 @@
 % Please edit documentation in R/scaling.R
 \name{expectedError}
 \alias{expectedError}
-\title{Infer a function that models expected error relative to data point magnitutes}
+\title{Infer a function that models expected error relative to data point magnitudes}
 \usage{
 expectedError(values, errors, mirror = FALSE, wtX = 0, intervalWidth = 0.1)
 }
@@ -26,5 +26,5 @@ a list containing (i) a model function that maps data point magnitude to
   the provided value range.
 }
 \description{
-Infer a function that models expected error relative to data point magnitutes
+Infer a function that models expected error relative to data point magnitudes
 }

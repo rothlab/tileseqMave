@@ -14,7 +14,7 @@ nucleotideBiasAnalysis(simplifiedMarginal, tile, draw = TRUE)
 \item{draw}{flag, whether to draw nucleotide bias analysis plot}
 }
 \value{
-rates at which each nucelotide is substituted for another across the tile
+rates at which each nucleotide is substituted for another across the tile
 }
 \description{
 Helper function to perform nucleotide bias analysis and draw the corresponding plot

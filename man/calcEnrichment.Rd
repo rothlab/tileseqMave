@@ -60,6 +60,6 @@ of the logPhi standard deviation, using the \code{lpdCutoff} from the parameter 
 NULL. Results are written to file.
 }
 \description{
-performs error modelling and regularization, filtering and calculates logPhi
+performs error modeling and regularization, filtering and calculates logPhi
 enrichment values
 }
