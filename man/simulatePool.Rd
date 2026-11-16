@@ -11,7 +11,7 @@ simulatePool(params, poolCV = 0.2, poolLambda = 1)
 
 \item{poolCV}{the coefficient of variation for the distribution of marginal frequencies}
 
-\item{poolLambda}{the mean of the poisson distribution used to sample the number of 
+\item{poolLambda}{the mean of the Poisson distribution used to sample the number of 
 codon-changes per clone}
 }
 \value{
