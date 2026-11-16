@@ -199,6 +199,16 @@ In addition to these primary modules, there are a number of secondary helper too
 5. proveanInput: This is a helpful tool to generate an input file for PROVEAN and PolyPhen-2 based for all possible amino acid changes in a given template sequence from the parameter sheet.
 6. referenceSets: This tool can be used to create positive and negative reference sets of variants in terms of pathogenicity. This is achieved by querying Clinvar and Gnomad and applying various customizable filter criteria.
 7. collapseSamples: This tool can be used to merge sequencing samples at the variant count level. This is useful when trying to increase virtual sequencing depth by combining multiple sequencing runs together or by joining conditions that were originally meant to separate, but were found to be equivalent. Use with caution!
+8. calcLLR: Calculates log-likelihood ratios (LLRs) for a variant effect map against a reference variant set from `referenceSets`.
+9. drawPRC: Draws precision-recall curves for a variant effect map against a reference variant set.
+10. prcNormalize: Suggests synonymous and nonsense modes (the scaling pivots used by `scaleScores`) based on precision-recall performance against a reference set.
+11. proveanNormalize: Suggests synonymous and nonsense modes based on the correlation of the scores with PROVEAN predictions (see `proveanInput`).
+12. exportCounts: Converts the count tables written by `joinCounts` to MaveDB-compatible format.
+13. mergeMaps: Merges several variant effect maps in MaveDB format into one.
+14. profileWTCtrl: Profiles the mutations observed in the wild-type control samples of a count folder.
+15. calibratePhred: Calibrates the PHRED quality scores of a wild-type control (or PhiX) alignment to empirical error rates; normally run by the variant-calling script.
+16. linkBinaries: Creates links to the tileseqMave scripts in a directory such as `~/.local/bin/`.
+17. selfupdate: Reinstalls the latest tileseqMave from GitHub and updates the `tsm` launcher.
 
 
 ## The parameter sheet
