@@ -187,7 +187,7 @@ legacyCountConverter <- function(dataDir, outdir,
 #'
 #' This analysis function performs the following steps for each mutagenesis region:
 #' 1. Construction of HGVS variant descriptor strings.
-#' 2. Collapsing equivalent codons into amino acic change counts.
+#' 2. Collapsing equivalent codons into amino acid change counts.
 #' 3. Error regularization at the level of pre- and post-selection counts.
 #' 4. Quality-based filtering filtering based on "Song's rule".
 #' 5. Fitness score calculation and error propagation.
@@ -199,7 +199,7 @@ legacyCountConverter <- function(dataDir, outdir,
 #' @param countfile the path to the "rawData.txt" file produced by the legacy pipeline.
 #' @param regionfile the path to a tab-delimited file describing the mutagenesis regions. Must contain columns 
 #'  'region', start', 'end', 'syn', 'stop', i.e. the region id, the start position, end position, and
-#'  and optional synonymous and stopm mean overrides.
+#'  and optional synonymous and stop codon mean overrides.
 #' @param outdir path to desired output directory
 #' @param logger a yogilogger object to be used for logging (or NULL for simple printing)
 #' @param inverseAssay a boolean flag to indicate that the experiment was done with an inverse assay

@@ -35,13 +35,13 @@ library(yogilog)
 
 #process command line arguments
 p <- arg_parser(
-  "Performs a selection QC analysis on the output of runScoring.R, yielding informative plots.",
+  "Performs a selection QC analysis on the output of calcEnrichment.R, yielding informative plots.",
   name="runSelectionQC.R"
 )
 p <- add_argument(p, "--workspace", help="workspace data directory. Defaults to current working directory")
 p <- add_argument(p, "--counts", help="input directory containing the count data. Defaults to subdirectory with latest timestamp ending in _mut_count")
 p <- add_argument(p, "--scores", help="input directory containing the score data. Defaults to subdirectory with latest timestamp ending in _scores")
-p <- add_argument(p, "--output", help="output directory. Defaults to name of input directory with _scores tag")
+p <- add_argument(p, "--output", help="output directory. Defaults to name of input directory with _QC tag")
 p <- add_argument(p, "--parameters", help="parameter file. Defaults to parameters.json in the data directory.")
 p <- add_argument(p, "--logfile", help="log file. Defaults to selectionQC.log in the same directory")
 p <- add_argument(p, "--srOverride", help="Manual override to allow singleton replicates. USE WITH EXTREME CAUTION!",flag=TRUE)

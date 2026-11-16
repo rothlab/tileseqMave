@@ -41,7 +41,7 @@ p <- add_argument(p, "--predictorNames", help="comma-separated list of names for
 p <- add_argument(p, "--predictorOrders", help=paste("comma-separated list letters 'a' for ascending or 'd' for whether",
   "predictor scores are (a)scending towards pathogenicity or (d)escending towards pathogenicity."))
 p <- add_argument(p, "--outfile", help="The desired prefix for the output file name.")
-p <- add_argument(p, "--posRanges", help="Positional ranges within the map to be plotted separately. E.g '1-24,25-66,67-")
+p <- add_argument(p, "--posRanges", help="Positional ranges within the map to be plotted separately. E.g '1-24,25-66,67-'")
 p <- add_argument(p, "--labelScores", help="Draw score labels along plot",flag=TRUE)
 p <- add_argument(p, "--noBalancing", help="Disable prior-balancing (i.e. don't adjust for unequal reference group sizes)",flag=TRUE)
 p <- add_argument(p, "--noMono", help="Disable monotonization (i.e. draw raw curves allowing for precision drops)",flag=TRUE)

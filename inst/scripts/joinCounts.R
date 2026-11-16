@@ -34,7 +34,7 @@ library(yogilog)
 
 #process command line arguments
 p <- arg_parser(
-  "Reads the output of fastq2Count to construct allCounts.csv and marginalCounts.csv",
+  "Reads the output of tileseq_mutcount to construct allCounts.csv and marginalCounts.csv",
   name="joinCounts.R"
 )
 p <- add_argument(p, "--workspace", help="workspace data directory. Defaults to current working directory")

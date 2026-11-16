@@ -2,7 +2,7 @@
 % Please edit documentation in R/libraryQC.R
 \name{analyzeComplexity}
 \alias{analyzeComplexity}
-\title{Determine complexity of all varinats in allCounts; look at marginal frequency 
+\title{Determine complexity of all variants in allCounts; look at marginal frequency 
 against how many unique contexts the variant is seen in}
 \usage{
 analyzeComplexity(allCounts, simplifiedMarginal)
@@ -16,6 +16,6 @@ analyzeComplexity(allCounts, simplifiedMarginal)
 table with "complexity" vs marginal frequency
 }
 \description{
-Determine complexity of all varinats in allCounts; look at marginal frequency 
+Determine complexity of all variants in allCounts; look at marginal frequency 
 against how many unique contexts the variant is seen in
 }

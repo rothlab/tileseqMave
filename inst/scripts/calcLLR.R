@@ -16,11 +16,11 @@ To install it, open an interactive R session and type `remotes::install_github('
 
 #process command line arguments
 p <- arg_parser(
-  "Automatically assemble reference variant sets via Clinvar and Gnomad",
+  "Calculates log-likelihood ratios (LLRs) for a variant effect map, based on a reference variant set",
   name="calcLLR.R"
 )
 p <- add_argument(p, "map", help="VE map file in MaveDB format")
-p <- add_argument(p, "reference", help="reference variant set (from referenceSets.R")
+p <- add_argument(p, "reference", help="reference variant set (from referenceSets.R)")
 p <- add_argument(p, "--outfile", help="The desired prefix for the output file name.")
 p <- add_argument(p, "--gauss",flag=TRUE, help="Use simple gaussians to determine llr instead of kernel density estimation")
 p <- add_argument(p, "--spline",flag=TRUE, help="Use apply spline monotonization to gauss LLR function. (Only used if --gauss is used)")

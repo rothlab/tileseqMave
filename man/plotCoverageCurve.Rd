@@ -11,7 +11,7 @@ plotCoverageCurve(coverageCurves, thresholds, ri, wmThreshold, tagger)
 \item{coverageCurves}{dataframe with cumulative distribution of variants observed 
 at different marginal frequency thresholds}
 
-\item{thresholds}{colour transition thresholds}
+\item{thresholds}{color transition thresholds}
 
 \item{ri}{region number}
 

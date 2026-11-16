@@ -294,7 +294,7 @@ slide <- function(xs,x0,y0,x1,y1,s0,s1) {
   })
 }
 
-#' Infer a function that models expected error relative to data point magnitutes
+#' Infer a function that models expected error relative to data point magnitudes
 #'
 #' @param values underlying datapoints
 #' @param errors the error associated with each datapoint

@@ -21,7 +21,7 @@ coverageSubmap(
 
 \item{seps}{tile separator lines}
 
-\item{thresholds}{heatmap colour transition thresholds}
+\item{thresholds}{heatmap color transition thresholds}
 }
 \description{
 Helper function to draw a subsection of the coverage map

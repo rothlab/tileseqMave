@@ -18,7 +18,7 @@
 #' score fluorescence data
 #' 
 #' @param dataDir working data directory
-#' @param conditionOrder vector containting the order in which the conditions represent fluorescence bins
+#' @param conditionOrder vector containing the order in which the conditions represent fluorescence bins
 #' @param paramFile input parameter file. defaults to <dataDir>/parameters.json
 #' @return NULL. Results are written to file.
 #' @inheritParams validateParameters

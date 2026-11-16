@@ -31,7 +31,7 @@ p <- arg_parser(
 p <- add_argument(p, "--maps", help="Input maps in MaveDB format",nargs=Inf)
 p <- add_argument(p, "--out", help="Output file",default="merged_map.csv")
 p <- add_argument(p, "--weightedAverage", help="Use inverse-variance weighted average",flag=TRUE)
-p <- add_argument(p, "--logfile", help="The desired log file location.",default="referenceSets.log")
+p <- add_argument(p, "--logfile", help="The desired log file location.",default="mergeMaps.log")
 
 args <- parse_args(p)
 

@@ -19,7 +19,7 @@ analyzeLegacyTileseqCounts(
 
 \item{regionfile}{the path to a tab-delimited file describing the mutagenesis regions. Must contain columns 
 'region', start', 'end', 'syn', 'stop', i.e. the region id, the start position, end position, and
-and optional synonymous and stopm mean overrides.}
+and optional synonymous and stop codon mean overrides.}
 
 \item{outdir}{path to desired output directory}
 
@@ -40,7 +40,7 @@ nothing. output is written to various files in the output directory
 \description{
 This analysis function performs the following steps for each mutagenesis region:
 1. Construction of HGVS variant descriptor strings.
-2. Collapsing equivalent codons into amino acic change counts.
+2. Collapsing equivalent codons into amino acid change counts.
 3. Error regularization at the level of pre- and post-selection counts.
 4. Quality-based filtering filtering based on "Song's rule".
 5. Fitness score calculation and error propagation.

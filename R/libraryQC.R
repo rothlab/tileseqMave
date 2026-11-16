@@ -1188,7 +1188,7 @@ plotFrameshiftHotspot <- function(info, params, fsIdx , marginalSplitChanges, ns
 #' @param tile the tile number being analyzed
 #' @param draw flag, whether to draw nucleotide bias analysis plot
 #'
-#' @return rates at which each nucelotide is substituted for another across the tile
+#' @return rates at which each nucleotide is substituted for another across the tile
 #' 
 nucleotideBiasAnalysis <- function(simplifiedMarginal,tile,draw=TRUE) {
   
@@ -1576,7 +1576,7 @@ buildPlotMatrix <- function(ri, tpr, tileSets, lastTile){
 #' @param endPos end position for subsection of coverage map
 #' @param aaMarginal marginal frequency table at amino acid-level
 #' @param seps tile separator lines
-#' @param thresholds heatmap colour transition thresholds
+#' @param thresholds heatmap color transition thresholds
 #' 
 #' @return NULL
 #' 
@@ -1653,7 +1653,7 @@ drawCoverageLegend <- function(wmThreshold,aaMarginal) {
 #'
 #' @param coverageCurves dataframe with cumulative distribution of variants observed 
 #' at different marginal frequency thresholds
-#' @param thresholds colour transition thresholds
+#' @param thresholds color transition thresholds
 #' @param ri region number
 #' @param wmThreshold well-measuredness threshold
 #' @param tagger list that contains functions for adding tags to page margins
@@ -1684,7 +1684,7 @@ plotCoverageCurve <- function(coverageCurves, thresholds, ri, wmThreshold, tagge
 }
 
 
-#' Determine complexity of all varinats in allCounts; look at marginal frequency 
+#' Determine complexity of all variants in allCounts; look at marginal frequency 
 #' against how many unique contexts the variant is seen in
 #'
 #' @param allCounts all counts table
