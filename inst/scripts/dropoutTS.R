@@ -42,7 +42,7 @@ p <- add_argument(p, "--workspace", help="workspace data directory. Defaults to 
 p <- add_argument(p, "--counts", help="input directory containing the count data. Defaults to subdirectory with latest timestamp ending in _mut_count")
 p <- add_argument(p, "--output", help="output directory. Defaults to name of input directory with _QC tag")
 p <- add_argument(p, "--parameters", help="parameter file. Defaults to parameters.json in the data directory.")
-p <- add_argument(p, "--logfile", help="log file. Defaults to selectionQC.log in the same directory")
+p <- add_argument(p, "--logfile", help="log file. Defaults to dropoutTS.log in the workspace directory")
 p <- add_argument(p, "--tile", help="which tile to analyze. Defaults to all.")
 p <- add_argument(p, "--srOverride", help="Manual override to allow singleton replicates. USE WITH EXTREME CAUTION!",flag=TRUE)
 args <- parse_args(p)
