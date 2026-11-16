@@ -17,7 +17,7 @@
 
 #' calculate logPhi enrichment ratios
 #' 
-#' performs error modelling and regularization, filtering and calculates logPhi
+#' performs error modeling and regularization, filtering and calculates logPhi
 #' enrichment values
 #' 
 #' @param dataDir working data directory
@@ -515,7 +515,7 @@ floor0 <- function(xs,bottom=0) sapply(xs, function(x) {
 #' @param pseudo.n the number of pseudo-replicates (the weight of the prior)
 #' @param n the number of empirical replicates
 #' @param model.sd the prior expectation of the standard deviation
-#' @param empiric.sd the empircal standard deviation
+#' @param empiric.sd the empirical standard deviation
 bnl <- function(pseudo.n,n,model.sd,empiric.sd) {
   sqrt((pseudo.n * model.sd^2 + (n - 1) * empiric.sd^2)/(pseudo.n + n - 2))
 }
@@ -1023,7 +1023,7 @@ calcPhi <- function(msc) {
   return(data.frame(phi=phi,phi.se=phi.se,logPhi=logPhi,logPhi.se=logPhi.se,df=jdf))
 }
 
-#' Run read-frequecy bias correction on logPhi
+#' Run read-frequency bias correction on logPhi
 #'
 #' @param msc the enrichment table
 #' @param bcOverride flag for overriding the bias correction
