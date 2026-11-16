@@ -284,7 +284,7 @@ A template for the parameter sheet can be found [here](https://docs.google.com/s
 Internally, both `tileseq_mutcount` and all modules of `tileseqMave` use a JSON-formatted version of the sheet. To convert the parameter sheet from CSV to JSON format you can use the `csv2json` script. This will also perform a validation of the parameter sheet, ensuring that requirements have been met. The module is used as follows:
 
 ```
-tsm csv2json [--] [--help] [--srOverride] [--silent] 
+usage: tsm csv2json [--] [--help] [--srOverride] [--silent] [--opts OPTS]
        [--outfile OUTFILE] [--logfile LOGFILE] infile
 
 Checks TileSeq parameter CSV file for validity and converts it to JSON
@@ -300,6 +300,7 @@ flags:
   --silent          Turn off message printing to stdout
 
 optional arguments:
+  -x, --opts        RDS file containing argument values
   -o, --outfile     output file. Defaults to parameters.json in the
                     same directory.
   -l, --logfile     log file. Defaults to csv2json.log in the same
@@ -320,7 +321,7 @@ In this step, we will collate the counts from the individual sequencing samples,
 
 ```
 usage: tsm joinCounts [--] [--help] [--srOverride] [--covOverride]
-       [--silent] [--workspace WORKSPACE] [--input INPUT]
+       [--silent] [--opts OPTS] [--workspace WORKSPACE] [--input INPUT]
        [--output OUTPUT] [--parameters PARAMETERS] [--logfile LOGFILE]
        [--cores CORES]
 
@@ -336,6 +337,7 @@ flags:
   --silent          Turn off message printing to stdout
 
 optional arguments:
+  -x, --opts        RDS file containing argument values
   -w, --workspace   workspace data directory. Defaults to current
                     working directory
   -i, --input       input directory containing the count data. Defaults
@@ -349,7 +351,6 @@ optional arguments:
                     workspace directory
   -c, --cores       number of CPU cores to use in parallel for
                     multi-threading [default: 6]
-
 ```
 
 Notably, `joinCounts` also has the ``--srOverride`` flag, which allows for limited functionality on single replicate datasets. The `-w`, `-i`, `-o`, `-p`, and `-l` options allow you to specify the locations of the input, output, parameter sheet and log files, in case you are not using the default directory structure or naming schemes for your project. 
@@ -371,37 +372,40 @@ After `joinCounts` has completed, a library QC analysis can be performed using `
 
 ```
 usage: tsm runLibraryQC [--] [--help] [--srOverride] [--allConditions]
-       [--silent] [--workspace WORKSPACE] [--input INPUT]
-       [--output OUTPUT] [--parameters PARAMETERS] [--logfile LOGFILE]
-       [--cores CORES] [--wmThreshold WMTHRESHOLD]
+       [--depthFilterOverride] [--silent] [--opts OPTS] [--workspace
+       WORKSPACE] [--input INPUT] [--output OUTPUT] [--parameters
+       PARAMETERS] [--logfile LOGFILE] [--cores CORES] [--wmThreshold
+       WMTHRESHOLD]
 
-Performs a library QC analysis on the output of joinCounts, yielding
+Performs a library QC analysis on the output of joinCounts.R, yielding
 informative plots.
 
 flags:
-  -h, --help           show this help message and exit
-  -s, --srOverride     Manual override to allow singleton replicates.
-                       USE WITH EXTREME CAUTION!
-  -a, --allConditions  Run on all conditions instead of just nonselect.
-  --silent             Turn off message printing to stdout
+  -h, --help                 show this help message and exit
+  -s, --srOverride           Manual override to allow singleton
+                             replicates. USE WITH EXTREME CAUTION!
+  -a, --allConditions        Run on all conditions instead of just
+                             nonselect.
+  -d, --depthFilterOverride  Disable minimum effective depth filter.
+  --silent                   Turn off message printing to stdout
 
 optional arguments:
-  -w, --workspace      workspace data directory. Defaults to current
-                       working directory
-  -i, --input          input directory containing the count data.
-                       Defaults to subdirectory with latest timestamp
-                       ending in _mut_count
-  -o, --output         output directory. Defaults to name of input
-                       directory with _QC tag
-  -p, --parameters     parameter file. Defaults to parameters.json in
-                       the data directory.
-  -l, --logfile        log file. Defaults to libraryQC.log in the same
-                       directory
-  -c, --cores          number of CPU cores to use in parallel for
-                       multi-threading [default: 6]
-  --wmThreshold        Define the marginal frequency threshold for
-                       well-measuredness. [default: 5e-5]
-
+  -x, --opts                 RDS file containing argument values
+  -w, --workspace            workspace data directory. Defaults to
+                             current working directory
+  -i, --input                input directory containing the count data.
+                             Defaults to subdirectory with latest
+                             timestamp ending in _mut_count
+  -o, --output               output directory. Defaults to name of
+                             input directory with _QC tag
+  -p, --parameters           parameter file. Defaults to
+                             parameters.json in the data directory.
+  -l, --logfile              log file. Defaults to libraryQC.log in the
+                             same directory
+  -c, --cores                number of CPU cores to use in parallel for
+                             multi-threading [default: 6]
+  --wmThreshold              Define the marginal frequency threshold
+                             for well-measuredness. [default: 5e-5]
 ```
 
 The `--srOverride`, `-w`, `-i`, `-o`, `-p`, `-l`, and `-c` options operate as before (see [above](#joining-variant-counts-and-computing-marginal-frequencies)). But you may notice a few additional arguments. As mentioned above, this QC function is intended to be run on **nonselect** conditions only. To override this default behaviour: `-a` allows for the library QC to be performed on **all** conditions instead. However, it should be noted that this prevents normalization against the WT control, as most other conditions do not have a defined relationship with the control in the parameter sheet. Finally, the `--wmThreshold` allows for modifying the marginal frequency threshold at which variants are to be considered "well-measured". This only affects the appearance of a few output plots, which mark this threshold. There is also a `-a` flag which causes the program to generate libraryQC plots not only for the nonselect condition, but for all given conditions in the data, including any selection conditions or wildtype controls.
@@ -438,27 +442,33 @@ Like the previous modules, `calcEnrichment` will by default look for the paramet
 
 ```
 usage: tsm calcEnrichment [--] [--help] [--srOverride] [--bnOverride]
-       [--bcOverride] [--wtFilter] [--optimistic] [--useQuorum]
-       [--silent] [--workspace WORKSPACE] [--input INPUT]
-       [--output OUTPUT] [--parameters PARAMETERS] [--logfile LOGFILE]
-       [--cores CORES] [--bootstrap BOOTSTRAP]
+       [--bcOverride] [--biasCorrection] [--wtFilter] [--optimistic]
+       [--useQuorum] [--useLPDfilter] [--silent] [--opts OPTS]
+       [--workspace WORKSPACE] [--input INPUT] [--output OUTPUT]
+       [--parameters PARAMETERS] [--logfile LOGFILE] [--cores CORES]
+       [--bootstrap BOOTSTRAP]
 
-Calculates logPhi enrichments based on the output of joinCounts
+Calculates logPhi enrichments based on the output of joinCounts.R
 
 flags:
   -h, --help        show this help message and exit
   -s, --srOverride  Manual override to allow singleton replicates. USE
                     WITH EXTREME CAUTION!
-  -b, --bnOverride  Manual override to disable bottleneck filtering.
-  --bcOverride      Manual override to disable bias correction.
+  -b, --bnOverride  Deprecated and ignored; use --bnOverride of
+                    scaleScores instead.
+  --bcOverride      Deprecated. See --biasCorrection
+  --biasCorrection  Enable experimental bias correction (off by
+                    default).
   --wtFilter        Enable WT filter. Removes variants with excess WT
                     ctrl counts.
   --optimistic      Uses bayesian regularization instead of maximizing
                     between prior and empiric SD
   -u, --useQuorum   Use majority vote to exclude frequency outliers
+  --useLPDfilter    Use ad-hoc logPhi disagreement filter
   --silent          Turn off message printing to stdout
 
 optional arguments:
+  -x, --opts        RDS file containing argument values
   -w, --workspace   workspace data directory. Defaults to current
                     working directory
   -i, --input       input directory containing the count data. Defaults
@@ -474,7 +484,6 @@ optional arguments:
                     multi-threading [default: 6]
   --bootstrap       Number of bootstrap samples to use. NA uses
                     heuristics instead. [default: 10000]
-
 ```
 
 The `--srOverride`, `-w`, `-i`, `-o`, `-p`, `-l`, and `-c` options operate as before (see [above](#joining-variant-counts-and-computing-marginal-frequencies)). But you may notice a few additional arguments.
@@ -496,12 +505,12 @@ At the end of the enrichment step, either a selection QC step can be performed t
 After the enrichment module has been executed, a selection QC can be performed using `runSelectionQC`. Similarly to the library QC function, this will generate a number of diagnostic plots as PDF files. Like the previous modules, it will by default look for the parameter sheet JSON file, the `*_mut_count`, and the `*_scores` directory in your current working directory and automatically proceed from there, but a number of arguments allow for more flexibility:
 
 ```
-usage: tsm runSelectionQC [--] [--help] [--srOverride] [--silent] 
-       [--workspace WORKSPACE] [--counts COUNTS] [--scores
+usage: tsm runSelectionQC [--] [--help] [--srOverride] [--silent] [--opts
+       OPTS] [--workspace WORKSPACE] [--counts COUNTS] [--scores
        SCORES] [--output OUTPUT] [--parameters PARAMETERS] [--logfile
        LOGFILE]
 
-Performs a selection QC analysis on the output of calcEnrichment,
+Performs a selection QC analysis on the output of calcEnrichment.R,
 yielding informative plots.
 
 flags:
@@ -511,6 +520,7 @@ flags:
   --silent          Turn off message printing to stdout
 
 optional arguments:
+  -x, --opts        RDS file containing argument values
   -w, --workspace   workspace data directory. Defaults to current
                     working directory
   -c, --counts      input directory containing the count data. Defaults
@@ -520,12 +530,11 @@ optional arguments:
                     to subdirectory with latest timestamp ending in
                     _scores
   -o, --output      output directory. Defaults to name of input
-                    directory with _scores tag
+                    directory with _QC tag
   -p, --parameters  parameter file. Defaults to parameters.json in the
                     data directory.
   -l, --logfile     log file. Defaults to selectionQC.log in the same
                     directory
-
 ```
 
 The `--srOverride`, `-w`, `-o`, `-p`, and `-l`, options operate as before (see [above](#joining-variant-counts-and-computing-marginal-frequencies)). However, you will notice that instead of the generic input argument of previous modules, this module distinguishes between two different inputs: `-c` for the `mut_counts` folder and `-s` for the `_scores` folder. 
@@ -549,34 +558,41 @@ After the enrichment process has been completed, it is recommended that you run 
 Like the previous modules, `scaleScores` will by default look for the parameter sheet JSON file, the `*_mut_count`, and the `*_scores` directory in your current working directory and automatically proceed from there, but a number of arguments allow for more flexibility:
 ```
 usage: tsm scaleScores [--] [--help] [--srOverride] [--bnOverride]
-       [--autoPivot] [--silent] [--workspace WORKSPACE]
-       [--scores SCORES] [--output OUTPUT] [--parameters PARAMETERS]
-       [--logfile LOGFILE]
+       [--autoPivot] [--silent] [--useSimpleAverages] [--opts OPTS]
+       [--workspace WORKSPACE] [--scores SCORES] [--output OUTPUT]
+       [--parameters PARAMETERS] [--logfile LOGFILE] [--codonQuorum
+       CODONQUORUM]
 
-Performs scaling and scoring on the output of calcEnrichment.
+Performs scaling and scoring on the output of calcEnrichment.R.
 
 flags:
-  -h, --help        show this help message and exit
-  --srOverride      Manual override to allow singleton replicates. USE
-                    WITH EXTREME CAUTION!
-  -b, --bnOverride  Manual override to disable bottleneck filtering.
-  -a, --autoPivot   Automatically determine scale pivots with requiring
-                    definitions in parameter sheet
-  --silent          Turn off message printing to stdout
+  -h, --help               show this help message and exit
+  --srOverride             Manual override to allow singleton
+                           replicates. USE WITH EXTREME CAUTION!
+  -b, --bnOverride         Manual override to disable bottleneck
+                           filtering.
+  -a, --autoPivot          Automatically determine scale pivots without
+                           requiring definitions in parameter sheet
+  --silent                 Turn off message printing to stdout
+  -u, --useSimpleAverages  Turn off inverse-error weighted averaging
+                           for equivalent codons and use simple
+                           averages instead.
 
 optional arguments:
-  -w, --workspace   workspace data directory. Defaults to current
-                    working directory
-  -s, --scores      input directory containing the score data. Defaults
-                    to subdirectory with latest timestamp ending in
-                    _scores
-  -o, --output      output directory. Defaults to name of input
-                    directory with _scores tag
-  -p, --parameters  parameter file. Defaults to parameters.json in the
-                    data directory.
-  -l, --logfile     log file. Defaults to selectionQC.log in the same
-                    directory
-
+  -x, --opts               RDS file containing argument values
+  -w, --workspace          workspace data directory. Defaults to
+                           current working directory
+  -s, --scores             input directory containing the score data.
+                           Defaults to subdirectory with latest
+                           timestamp ending in _scores
+  -o, --output             output directory. Defaults to name of input
+                           directory with _scores tag
+  -p, --parameters         parameter file. Defaults to parameters.json
+                           in the data directory.
+  -l, --logfile            log file. Defaults to scaling.log in the
+                           workspace directory
+  -c, --codonQuorum        Turn on codon-quorum mode. Options: off,
+                           simple, and harsh [default: off]
 ```
 The `--srOverride`, `-w`, `-s`, `-o`, `-p`, and `-l` options operate as in the `calcEnrichment` module (see [above](#running-the-enrichment-function)). The `--bnOverride` flag, which `calcEnrichment` now ignores, is active in this module: it also exports variants that were filtered only by the bottleneck filters. In addition, the `--autoPivot` flag is available. It allows to bypass the requirement for setting pivot points in the parameter sheet and automatically uses the medians of the synonymous and nonsense distributions. Use with caution! The `--useSimpleAverages` flag turns off inverse-error weighting when equivalent codon changes are averaged, and `--codonQuorum` (`off`, `simple` or `harsh`) discards codon-level scores that deviate too far from their median before averaging.
 
@@ -597,36 +613,48 @@ Only after having installed these tools, you can install mavevis in R via `remot
 Having completed the installation, you can now use the wrapper script as follows:
 
 ```
-usage: tsm mavevisLocal [--] [--help] [--squish] [--srOverride] [--opts
-       OPTS] [--workspace WORKSPACE] [--input INPUT] [--output OUTPUT]
-       [--parameters PARAMETERS] [--pdb PDB]
+usage: tsm mavevisLocal [--] [--help] [--squish] [--srOverride]
+       [--overrideCache] [--opts OPTS] [--workspace WORKSPACE] [--input
+       INPUT] [--output OUTPUT] [--parameters PARAMETERS] [--pdb PDB]
+       [--colorPalette COLORPALETTE] [--customColors CUSTOMCOLORS]
+       [--colorRange COLORRANGE]
 
 Runs mavevis locally on a MaveDB-formatted file to produce a
 genophenogram.
 
 flags:
-  -h, --help        show this help message and exit
-  -s, --squish      Compress x-axis to fit map onto single screen.
-  --srOverride      Manual override to allow singleton replicates. USE
-                    WITH EXTREME CAUTION!
+  -h, --help          show this help message and exit
+  -s, --squish        Compress x-axis to fit map onto single screen.
+  --srOverride        Manual override to allow singleton replicates.
+                      USE WITH EXTREME CAUTION!
+  --overrideCache     Re-query all webservices instead of using cached
+                      results.
 
 optional arguments:
-  -w, --workspace   workspace data directory. Defaults to current
-                    working directory
-  -i, --input       either input file or input directory containing the
-                    count data. Defaults to subdirectory with latest
-                    timestamp ending in _scores
-  -o, --output      either output pdf file or output directory. Default
-                    adjusts automatically depending on input type
-  -p, --parameters  parameter file. Defaults to parameters.json in the
-                    data directory.
-  --colorPalette    Color palette for the genophenogram. Options: 'default', 'viridis',
-                    'cividis', 'purple-white-orange', 'custom'. Default is mavevis
-                    genophenogram default.
-  --customColors    Only used when --colorPalette is set to custom. Provide 3 colors: 
-                    low,mid,high, e.g. '#1B2A41,#D9D9D9,#D1495B'
-  --pdb             PDB structures. Semicolon-separated list of
-                    #-separated pairings between PDB IDs and chain IDs.
+  -x, --opts          RDS file containing argument values
+  -w, --workspace     workspace data directory. Defaults to current
+                      working directory
+  -i, --input         either input file or input directory containing
+                      the count data. Defaults to subdirectory with
+                      latest timestamp ending in _scores
+  -o, --output        either output pdf file or output directory.
+                      Default adjusts automatically depending on input
+                      type
+  -p, --parameters    parameter file. Defaults to parameters.json in
+                      the data directory.
+  --pdb               PDB structures. Semicolon-separated list of
+                      #-separated pairings between PDB IDs and chain
+                      IDs.
+  -c, --colorPalette  Color palette for the genophenogram. Options:
+                      'default', 'viridis', 'cividis',
+                      'purple-white-orange', 'custom'. Default is
+                      mavevis genophenogram default. [default: default]
+  --customColors      Only used when --colorPalette is set to custom.
+                      Provide 3 colors: low,mid,high, e.g.
+                      '#1B2A41,#D9D9D9,#D1495B'
+  --colorRange        Optional color range for the genophenogram.
+                      Provide two comma-separated values: min,max, e.g.
+                      '-1,1'
 ```
 
 If you pass a directory as the input, `mavevisLocal` will generate one PDF per matching score file in that directory. By default, it writes the PDF files into that same input directory. If you provide `--output`, that directory or file path is used instead.
