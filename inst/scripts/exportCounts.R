@@ -102,12 +102,10 @@ for (infile in infiles) {
 
   #read the input file
   data <- read.csv(infile,comment.char="#")
-  cn <- colnames(data)
-  cn[cn=="hgvsc"] <- "hgvs_nt"
-  cn[cn=="hgvsp"] <- "hgvs_pro"
-  colnames(data) <- cn
-  toDelete <- which(cn %in% c("codonChanges","codonHGVS","aaChanges","aaChangeHGVS"))
-  data <- data[,-toDelete]
+  data <- tileseqMave:::toMavedbCountTable(data)
+  if (ncol(data) == 0) {
+    stop("Conversion removed all columns of ", infile)
+  }
 
   write.csv(data,outfile,row.names=FALSE)
 

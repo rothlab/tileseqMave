@@ -736,7 +736,7 @@ This section describes the secondary helper tools listed in the [overview](#over
 
 ### exportCounts
 
-`tsm exportCounts [--input file-or-directory] [--output csv-or-directory]` converts the count tables written by `joinCounts` to MaveDB column names: `hgvsc` and `hgvsp` become `hgvs_nt` and `hgvs_pro`, and the internal codon and amino-acid change columns are removed. For each input `X.csv` (by default all `*Counts.csv` files in the latest `*_mut_count` folder) it writes `X_mavedb.csv`. The information header of the input files is not copied. `--workspace`, `--parameters` and `--srOverride` work as in the other modules. *Known issue ([#163](https://github.com/rothlab/tileseqMave/issues/163)): the export of `marginalCounts.csv` currently produces an empty table; `allCounts.csv` is converted correctly.*
+`tsm exportCounts [--input file-or-directory] [--output csv-or-directory]` converts the count tables written by `joinCounts` to MaveDB column names: `hgvsc` and `hgvsp` become `hgvs_nt` and `hgvs_pro`, and the internal codon and amino-acid change columns are removed. For each input `X.csv` (by default all `*Counts.csv` files in the latest `*_mut_count` folder) it writes `X_mavedb.csv`. The information header of the input files is not copied. `--workspace`, `--parameters` and `--srOverride` work as in the other modules.
 
 ### linkBinaries
 
