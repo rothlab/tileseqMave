@@ -427,6 +427,26 @@ This module produces a number of diagnostic plots in PDF format. All the plots w
   * Nucleotide bias analysis: This collection of plots (one for each tile) is divided in to two halves. The left halves shows the frequency of each possible nucleotide change in codons containing single nucleotide changes; while the right half does the same for multi-nucleotide variants (MNVs), such as the ones introduced by PopCode oligos. By default, one would expect single nucleotide changes to primarily occur due to Polymerase error, and to be biased toward transitions rather than transversions. Conversely, MNVs should be expected to be unbiased, except in the last position of the codon, where the NNK degeneracy of PopCode oligos only allows for Guanine and Thymine changes.
   * The "frameshift hotspot" plot shows the distribution of frameshift variants across the template sequence and notes their marginal frequencies. This allows for the diagnosis of high-frequency frameshifts in sequence hotspots.
   
+
+**Output files.** In the `_QC` folder, with `<cond>_t<tp>` standing for the nonselect condition and time point (one set per condition and time point):
+
+| Plot | File |
+|---|---|
+| Basecall quality | `seqErrorRates.pdf` (only if PHRED calibration files exist) |
+| Alignment quality | `seqReads.pdf` |
+| Effective depth | `effectiveSeqDepth.pdf` (only if `positionalDepths.csv` exists) |
+| Depth drop distribution | `depthDrops.pdf` (only if `positionalDepths.csv` exists) |
+| Coverage map | `<cond>_t<tp>_coverage.pdf` |
+| Regional extrapolation | `<cond>_t<tp>_census.pdf` |
+| Well-measuredness | `<cond>_t<tp>_wellmeasured.pdf`, plus `<cond>_t<tp>_wm_region<N>.csv` per region |
+| Replicate agreement | `<cond>_t<tp>_tileRepCorr.pdf` |
+| WT frequency | `<cond>_t<tp>_WTlevels.pdf` (only if a WT control is defined) |
+| Jackpot plot | `<cond>_t<tp>_jackpot.pdf` |
+| Complexity diagnostic | `<cond>_t<tp>_complexity.pdf` |
+| Variant-type breakdown | `<cond>_t<tp>_mutationtypes.pdf` |
+| Nucleotide bias | `<cond>_t<tp>_nucleotide_bias.pdf` |
+| Frameshift hotspot | `<cond>_t<tp>_fsMap.pdf` (only if frameshift variants are present) |
+
 For simple library QC runs that are only interesting in assessing the quality of a PopCode library, the analysis ends here. However if the experiment you are analyzing is a full MAVE assay, you will want to proceed with the enrichment function next.
 
 ### Running the enrichment function
@@ -552,6 +572,21 @@ The `runSelectionQC` module will write its output as PDF files into the same `_Q
   * Error Profiles: These plots compare the log(φ) or BCE enrichment of each variant against their associated standard deviation. It can be expected that deleterious variants have higher amounts of error due to them being at a sampling disadvantage in the selection condition. A blue line indicates a the running median and a red line indicates a model fit, which the enrichment and scoring modules use to calculate the "residual error" of a variant which can be used to counteract the confidence bias where weighted averages are used.
 
 
+
+
+**Output files.** In the `_QC` folder, named `<cond>_t<tp>_<suffix>.pdf` for each selection condition and time point:
+
+| Plot | Suffix |
+|---|---|
+| Replicate correlation | `replicates` (two replicates), or `ns_replicates` and `phi_replicates` (more than two); not written with `--srOverride` |
+| log(φ) bias | `logPhiBias` |
+| Codon correlation | `codonCorr` |
+| Filter progression | `filtering` |
+| Filter breakdown | `filtering2` |
+| Synonymous-nonsense tracks | `synNonDiff` |
+| BCE distributions | `logPhiDistribution` |
+| Error regularization QC | `errorModel` (not with `--srOverride`; needs the error model file from the enrichment step) |
+| Error profiles | `errorProfile` (not with `--srOverride`; needs valid log(φ) values) |
 
 ### Scaling the final scores
 After the enrichment process has been completed, it is recommended that you run the selectionQC as shown above and inspect the BCE distributions (these show log(φ) values unless `--biasCorrection` was used). These will yield insights into where to place place the pivot points for the scaling process. The aim is to find BCE values for each tile (and each selection condition if there is more than one) that represent the expected behavior of a null-like and WT-like variant. Often, this is well-approximated by the median of the synonymous and null distributions, respectively, but other considerations can influence this decision. Once a decision has been made, you can enter the pivot points into the parameter sheet (in the scaling pivots section) and re-validate it using the `csv2json` module. Then, the `scaleScores` module can be used to enact the scaling based on these pivots.
